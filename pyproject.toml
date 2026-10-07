@@ -1,0 +1,25 @@
+[project]
+name = "focus-assistant"
+version = "0.1.0"
+description = "Desk focus coach for a Raspberry Pi"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=1.11,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+# Later phases, each installed only on the Pi that has the hardware:
+# display = ["inky[rpi]", "pillow"]
+# gpio    = ["gpiozero"]
+# voice   = ["sounddevice", "piper-tts"]
+
+[project.scripts]
+focus = "focus.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["focus*"]

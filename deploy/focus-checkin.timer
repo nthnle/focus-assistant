@@ -1,0 +1,14 @@
+[Unit]
+Description=Focus assistant check-ins (morning, midday, end of day)
+
+[Timer]
+# The slot is picked from the time of day (before 11, before 16, after),
+# so keep each time inside its window if you change these.
+OnCalendar=Mon..Fri 09:00
+OnCalendar=Mon..Fri 13:00
+OnCalendar=Mon..Fri 17:30
+# If the Pi was off at a scheduled time, run once when it comes back.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

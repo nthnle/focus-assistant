@@ -1,0 +1,35 @@
+[Unit]
+Description=Focus assistant check-in
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@USER@
+# Root-only (0600) file; systemd reads it as root before dropping to @USER@.
+EnvironmentFile=/etc/focus-assistant/focus.env
+Environment=FOCUS_STATE_DIR=@STATE_DIR@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/focus-assistant/venv/bin/focus checkin
+TimeoutStartSec=5min
+
+# Outbound HTTPS is the only thing this needs.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@STATE_DIR@
+PrivateTmp=yes
+# Phase 2: the inky output needs SPI/GPIO, so swap this for
+# DeviceAllow=/dev/spidev0.0 and /dev/gpiochip0 plus SupplementaryGroups=spi gpio.
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
