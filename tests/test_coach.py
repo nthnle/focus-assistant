@@ -41,6 +41,22 @@ def test_request_shape_and_reply():
     assert json.loads(body["messages"][0]["content"]) == {"checkin": "morning"}
 
 
+def test_no_fallback_for_models_without_it(monkeypatch):
+    monkeypatch.setenv("FOCUS_MODEL", "claude-haiku-5-5")
+    sent = {}
+
+    def handler(request):
+        sent["beta"] = request.headers.get("anthropic-beta")
+        sent["body"] = json.loads(request.content)
+        return httpx2.Response(200, json=_message([{"type": "text", "text": "Go."}]))
+
+    coach.ask(config.load(), {"checkin": "morning"}, client=_client(handler))
+
+    assert sent["body"]["model"] == "claude-haiku-5-5"
+    assert "fallbacks" not in sent["body"]
+    assert not sent["beta"]
+
+
 def test_refusal_is_an_error():
     handler = lambda r: httpx2.Response(200, json=_message([], stop_reason="refusal"))
     with pytest.raises(coach.CoachError, match="declined"):

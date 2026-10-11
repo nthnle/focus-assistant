@@ -37,6 +37,11 @@ Be warm and direct. Do not invent tasks, progress or events that are not in \
 the data."""
 
 
+# Models that accept the server-side refusal fallback. Sending it to any
+# other model (Haiku 5.5, for one) is a 400, so FOCUS_MODEL can't break it.
+FALLBACK_MODELS = frozenset({"claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-1"})
+
+
 @dataclass
 class CoachReply:
     text: str
@@ -79,15 +84,17 @@ def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -
                 "(run one with: sudo systemctl start focus-checkin)"
             )
         client = anthropic.Anthropic(timeout=60.0, max_retries=3)
+    # If a safety classifier ever declines, re-run on Anthropic's
+    # recommended fallback model instead of returning nothing.
+    fallback = {}
+    if cfg.model in FALLBACK_MODELS:
+        fallback = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
     try:
         response = client.beta.messages.create(
             model=cfg.model,
             max_tokens=4000,
             output_config={"effort": cfg.effort},
-            # If a safety classifier ever declines, re-run on Anthropic's
-            # recommended fallback model instead of returning nothing.
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
+            **fallback,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
         )
