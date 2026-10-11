@@ -40,7 +40,7 @@ def load() -> Config:
     outputs = os.environ.get("FOCUS_OUTPUTS", "console")
     return Config(
         state_dir=Path(state_dir) if state_dir else _default_state_dir(),
-        model=os.environ.get("FOCUS_MODEL", "claude-opus-5"),
+        model=os.environ.get("FOCUS_MODEL", "claude-opus-5-5"),
         effort=os.environ.get("FOCUS_EFFORT", "low"),
         outputs=tuple(o.strip() for o in outputs.split(",") if o.strip()),
         history_days=int(os.environ.get("FOCUS_HISTORY_DAYS", "14")),

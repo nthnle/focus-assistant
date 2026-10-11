@@ -15,7 +15,7 @@ def _client(handler):
 
 def _message(content, stop_reason="end_turn"):
     return {
-        "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-opus-5",
+        "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
         "content": content, "stop_reason": stop_reason, "stop_sequence": None,
         "usage": {"input_tokens": 50, "output_tokens": 9},
     }

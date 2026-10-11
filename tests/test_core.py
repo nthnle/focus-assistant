@@ -103,7 +103,7 @@ def test_checkin_records_reply_and_prints(cfg, monkeypatch, capsys):
 
     def fake_ask(_cfg, payload, client=None):
         seen.update(payload)
-        return coach.CoachReply("Start with the parser.", "claude-opus-5", 100, 12)
+        return coach.CoachReply("Start with the parser.", "claude-opus-5-5", 100, 12)
 
     monkeypatch.setattr(coach, "ask", fake_ask)
     checkin.run(cfg, "morning")

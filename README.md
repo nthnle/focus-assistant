@@ -67,7 +67,7 @@ At the first use each new day, unfinished priorities carry over with
 the day's check-ins and events are cleared. The coach is told to raise
 anything carried for 3+ days.
 
-Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-opus-5`),
+Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-opus-5-5`),
 `FOCUS_EFFORT` (default `low`; it is a short reply), `FOCUS_OUTPUTS`,
 `FOCUS_HISTORY_DAYS`. Each check-in records its token use in `state.json`.
 
