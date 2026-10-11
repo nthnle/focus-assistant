@@ -8,9 +8,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "pillow>=10.1"]
 # Later phases, each installed only on the Pi that has the hardware:
-# display = ["inky[rpi]", "pillow"]
+display = ["inky[rpi]>=2", "pillow>=10.1"]
 # gpio    = ["gpiozero"]
 # voice   = ["sounddevice", "piper-tts"]
 
