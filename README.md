@@ -77,6 +77,7 @@ Schedule: Mon to Fri at 09:00, 13:00 and 17:30. Change the times with
 ```bash
 focus add Finish the quarterly report
 focus show            # * marks the top 3, which is what the display will show
+focus last            # the latest check-in reply (or: journalctl -u focus-checkin)
 focus move 4 1        # put #4 at the top
 focus done 1
 focus report drifted  # or on-track

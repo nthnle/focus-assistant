@@ -21,6 +21,15 @@ def _show(s: st.State) -> None:
         print(f"{top}[{mark}] {p.id}. {p.text}{carried}")
 
 
+def _last(s: st.State) -> None:
+    if not s.checkins:
+        print("No check-in yet today.")
+        return
+    c = s.checkins[-1]
+    print(f"[{c['slot']} check-in, {c['at'][11:16]}]")
+    print(c.get("reply") or "(no reply recorded)")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focus", description="Desk focus coach")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -29,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--slot", choices=checkin.SLOTS, help="default: from the time of day")
 
     sub.add_parser("show", help="list today's priorities")
+    sub.add_parser("last", help="print the latest check-in reply")
     p = sub.add_parser("add", help="add a priority")
     p.add_argument("text", nargs="+")
     for name, help_ in [("done", "mark done"), ("undo", "mark not done"), ("drop", "remove")]:
@@ -50,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         with st.locked_state(cfg) as s:
+            if args.cmd == "last":
+                _last(s)
+                return 0
             if args.cmd == "add":
                 pr = actions.add_priority(s, " ".join(args.text))
                 print(f"Added {pr.id}. {pr.text}")

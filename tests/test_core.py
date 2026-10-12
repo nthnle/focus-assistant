@@ -126,3 +126,17 @@ def test_coach_failure_leaves_state_untouched(cfg, monkeypatch):
         checkin.run(cfg, "midday")
     with st.locked_state(cfg) as s:
         assert s.checkins == []
+
+
+def test_last_prints_latest_reply(cfg, capsys):
+    from focus import cli
+
+    assert cli.main(["last"]) == 0
+    assert "No check-in yet today" in capsys.readouterr().out
+
+    with st.locked_state(cfg) as s:
+        s.checkins.append({"slot": "morning", "at": "2026-10-12T09:00:04-05:00", "reply": "Old."})
+        s.checkins.append({"slot": "midday", "at": "2026-10-12T13:00:02-05:00", "reply": "Dock the phone."})
+    assert cli.main(["last"]) == 0
+    out = capsys.readouterr().out
+    assert out == "[midday check-in, 13:00]\nDock the phone.\n"
