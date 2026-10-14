@@ -3,7 +3,8 @@
 
     buttons.py  Inky Impression A/B/C/D -> complete top priority / on track /
                 drifted / snooze (gpiozero, long-running service)
-    dock.py     lever microswitch on GPIO -> PHONE_OUT / PHONE_IN events
+    dock.py     iPhone Shortcut reports charger on/off over the home network
+                -> PHONE_OUT / PHONE_IN events
     voice.py    push-to-talk -> whisper.cpp -> intent -> an action, reply via
                 the speech output
 

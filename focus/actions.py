@@ -1,11 +1,13 @@
 """Everything a person can do to the state, independent of how they did it.
 
 The CLI calls these today. Later, the Inky buttons, the voice intent parser
-and the phone-dock switch call the same functions, so behaviour stays
+and the phone dock call the same functions, so behaviour stays
 identical whichever input was used.
 """
 
 from __future__ import annotations
+
+from datetime import datetime
 
 from . import state as st
 from .state import State
@@ -47,8 +49,11 @@ def move_priority(s: State, priority_id: int, position: int) -> None:
     s.priorities.insert(max(0, position - 1), p)
 
 
-def log_event(s: State, kind: str, detail: str | None = None) -> dict:
-    event = {"at": st.now_iso(), "kind": kind}
+def log_event(s: State, kind: str, detail: str | None = None,
+              at: datetime | None = None) -> dict:
+    """`at` backdates the event, for inputs that confirm it after a delay."""
+    when = at.astimezone().isoformat(timespec="seconds") if at else st.now_iso()
+    event = {"at": when, "kind": kind}
     if detail:
         event["detail"] = detail
     s.events.append(event)

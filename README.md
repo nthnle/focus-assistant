@@ -2,8 +2,9 @@
 
 A desk focus coach for a Raspberry Pi 4. Three times each weekday it reads
 your priorities and the day's log, asks Claude for a short nudge, prints it
-and saves the result. It only makes outbound HTTPS calls and listens on no
-ports.
+and saves the result. The check-in only makes outbound HTTPS calls; the
+optional phone dock service is the one thing that listens, on the home
+network only.
 
 ## Layout
 
@@ -18,7 +19,7 @@ focus/
   outputs/          where a check-in goes   (console, inky; speech, led later)
   inputs/           what feeds actions      (buttons, dock, voice later)
 deploy/
-  focus-checkin.service / .timer, focus.env.example, install.sh
+  focus-checkin.service / .timer, focus-dock.service, focus.env.example, install.sh
 tests/
 ```
 
@@ -99,7 +100,7 @@ Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-sonnet-5-5`; Opus 5.5 
 |---|---|---|---|
 | Inky Impression 4" | `outputs/inky.py` | output | renders top 3 open priorities + last reply on each check-in; also redraws after a button action |
 | Buttons A-D | `inputs/buttons.py` (service) | input | A `complete_priority(top)`, B `report_on_track`, C `report_drifted`, D `log_event(SNOOZE)` |
-| Phone dock switch | `inputs/dock.py` (service) | input | `log_event(PHONE_OUT/PHONE_IN)`; only counts during focus blocks, which need a small `blocks` field in state |
+| Phone dock (charger) | `inputs/dock.py` (service) | input | iPhone Shortcut -> `log_event(PHONE_OUT/PHONE_IN)` during `FOCUS_BLOCKS` |
 | LED + buzzer | `outputs/led.py` | output | pulse on check-in; a snooze event delays the next nudge |
 | Push-to-talk voice | `inputs/voice.py` (service) + `outputs/speech.py` | both | whisper.cpp base.en -> intent -> an action or an ad-hoc check-in; Piper speaks the reply |
 
@@ -139,6 +140,50 @@ sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[dis
 
 then set `FOCUS_OUTPUTS=console,inky` in `focus.env` and make the unit change
 described under GPIO and SPI above.
+
+### Phone dock (`inputs/dock.py`)
+
+The phone sits on a wireless charger, so the iPhone itself reports when it
+goes on or off: an iOS Shortcuts automation sends one request to the Pi.
+The Apple Watch on the same charger is ignored.
+
+During a focus block (`FOCUS_BLOCKS`, default `09:00-12:00,13:00-17:30`,
+weekdays), taking the phone off for more than 30 s logs `phone_out` at the
+time it came off, and putting it back logs `phone_in` with the minutes it was
+gone. Outside the blocks nothing is logged. The coach sees these events at
+the next check-in.
+
+`focus-dock` listens on port 8765, answers only private (home network)
+addresses, and needs the token that `install.sh` put in `focus.env`. It does
+not get the API key. Requests are plain HTTP, so the token is only as private
+as your Wi-Fi.
+
+On the Pi:
+
+```bash
+git pull && sudo deploy/install.sh
+sudo systemctl enable --now focus-dock
+sudo grep FOCUS_DOCK_TOKEN /etc/focus-assistant/focus.env    # for the Shortcut
+curl -i -X POST -H "Authorization: Bearer <token>" http://localhost:8765/dock/out   # expect 204
+curl -i -X POST -H "Authorization: Bearer <token>" http://localhost:8765/dock/in
+```
+
+On the iPhone, in Shortcuts > Automation > New Automation > **Charger**:
+
+1. Choose **Is Disconnected**, **Run Immediately**, and turn off **Notify
+   When Run**. Then pick **New Blank Automation**.
+2. Add **Get Contents of URL** with the URL
+   `http://<hostname>.local:8765/dock/out`. Expand it, then set **Method** to
+   `POST` and add a header `Authorization` with the value `Bearer <token>`.
+3. Make a second automation for **Is Connected** that posts to `/dock/in`.
+
+Away from home the request just fails. To avoid error banners there, wrap
+the action in **If** with **Get Network Details** (Wi-Fi, Network Name) equal
+to your home network.
+
+Watch it work with `journalctl -u focus-dock -f`: it logs `Phone out since
+...` after 30 s off the charger and `Phone back after N min` on return
+(during a block). `FOCUS_DOCK_SETTLE` changes the 30 s.
 
 ## Development
 
