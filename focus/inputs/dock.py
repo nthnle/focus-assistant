@@ -91,11 +91,15 @@ class Dock:
     def phone_out(self, now: datetime) -> None:
         with self._lock:
             if self._out_at is not None:
-                return  # repeated report
+                log.info("Charger: out (already out, ignored)")
+                return
             self._out_at = now
             self._logged = False
-            if in_block(now, self.blocks):
-                self._pending = self.schedule(self.settle, lambda: self._confirm(now))
+            if not in_block(now, self.blocks):
+                log.info("Charger: out (outside focus blocks, not counted)")
+                return
+            log.info("Charger: out (counts if it stays off %g s)", self.settle)
+            self._pending = self.schedule(self.settle, lambda: self._confirm(now))
 
     def _confirm(self, out_at: datetime) -> None:
         with self._lock:
@@ -115,6 +119,7 @@ class Dock:
             self._out_at, self._logged = None, False
             # Only close an out that was logged today.
             if not logged or out_at is None or out_at.date() != now.date():
+                log.info("Charger: in (nothing to close)")
                 return
             minutes = round((now - out_at).total_seconds() / 60)
             with st.locked_state(self.cfg, today=now.date()) as s:

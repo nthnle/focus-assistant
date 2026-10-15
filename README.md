@@ -181,9 +181,11 @@ Away from home the request just fails. To avoid error banners there, wrap
 the action in **If** with **Get Network Details** (Wi-Fi, Network Name) equal
 to your home network.
 
-Watch it work with `journalctl -u focus-dock -f`: it logs `Phone out since
-...` after 30 s off the charger and `Phone back after N min` on return
-(during a block). `FOCUS_DOCK_SETTLE` changes the 30 s.
+Watch it work with `journalctl -u focus-dock -f`. Every accepted report
+logs a `Charger: in/out (...)` line saying whether it counts; a bad token
+logs `Rejected ...`, and no line at all means the request never arrived.
+During a block it then logs `Phone out since ...` after 30 s off the charger
+and `Phone back after N min` on return. `FOCUS_DOCK_SETTLE` changes the 30 s.
 
 ## Development
 
