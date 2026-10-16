@@ -12,6 +12,7 @@ dev = ["pytest", "pillow>=10.1"]
 # Later phases, each installed only on the Pi that has the hardware:
 display = ["inky[rpi]>=2", "pillow>=10.1"]
 speech = ["piper-tts>=1.3"]
+voice = ["piper-tts>=1.3", "faster-whisper>=1.1"]
 # gpio    = ["gpiozero"]
 
 [project.scripts]

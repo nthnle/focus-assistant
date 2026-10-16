@@ -47,6 +47,11 @@ def authorized(handler: BaseHTTPRequestHandler, token: str, in_query: bool = Fal
         return True
     # path_of() keeps a guessed token out of the log.
     log.warning("Rejected %s %s from %s", handler.command, path_of(handler), handler.client_address[0])
+    # Read a small body first; replying with it unread can reset the connection,
+    # and the client then sees a network error instead of the 403.
+    length = int(handler.headers.get("Content-Length") or 0)
+    if 0 < length <= 65536:
+        handler.rfile.read(length)
     handler.send_error(403)
     return False
 

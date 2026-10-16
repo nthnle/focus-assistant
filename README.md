@@ -20,7 +20,7 @@ focus/
   checkin.py        snapshot -> coach -> record -> outputs
   cli.py            `focus` command
   outputs/          where a check-in goes   (console, inky, speech; led later)
-  inputs/           what feeds actions      (dock, chat; buttons, voice later)
+  inputs/           what feeds actions      (dock, chat, voice; buttons later)
 deploy/
   focus-checkin.service / .timer, focus-dock.service, focus-chat.service,
   focus.env.example, install.sh
@@ -107,7 +107,7 @@ Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-sonnet-5-5`; Opus 5.5 
 | Phone dock (charger) | `inputs/dock.py` (service) | input | iPhone Shortcut -> `log_event(PHONE_OUT/PHONE_IN)` during `FOCUS_BLOCKS` |
 | Chat (Shortcut / Siri) | `inputs/chat.py` (service) + `chat.py` | both | coach with tools for add/done/undo/drop/move/report; reply shown or spoken by the phone |
 | LED + buzzer | `outputs/led.py` | output | pulse on check-in; a snooze event delays the next nudge |
-| Push-to-talk voice | `inputs/voice.py` (service) + `outputs/speech.py` | both | whisper.cpp base.en -> intent -> an action or an ad-hoc check-in; Piper speaks the reply |
+| Push-to-talk voice | `inputs/voice.py` (service) + `outputs/speech.py` | both | PowerConf play button -> faster-whisper base.en -> the chat coach -> Piper speaks the reply |
 
 The system prompt already keeps replies plain, short and markdown-free, so
 the same text works on e-ink and through Piper.
@@ -119,7 +119,7 @@ Each later phase needs:
   (see the comment in the unit). The input services get their own units.
 - **Refreshes:** a full refresh on the Impression takes about 30 s, so
   redraw only when the top 3 or the reply changes.
-- **Voice:** whisper.cpp and Piper run fully on the Pi. Only the coach
+- **Voice:** faster-whisper and Piper run fully on the Pi. Only the coach
   call goes out.
 
 ### Display (`outputs/inky.py`)
@@ -145,6 +145,33 @@ sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[dis
 
 then set `FOCUS_OUTPUTS=console,inky` in `focus.env` and make the unit change
 described under GPIO and SPI above.
+
+### Voice (`inputs/voice.py`)
+
+Talk to the coach at the desk through the PowerConf: press its **play**
+button, wait for the rising chime, speak, then stop. A falling chime means
+it heard you; a second or two later the coach answers through the speaker.
+Pressing play again ends the recording early; a low tone means it heard
+nothing. It is the same coach as phone chat, with the same tools, the same
+conversation for the day and the same daily limit.
+
+The microphone is open only from a press until you stop talking. Speech is
+turned into text on the Pi by faster-whisper (base.en, a few seconds on a
+Pi 4); only that text goes to the coach. The play button arrives as
+`KEY_PLAYPAUSE`; the call button sends nothing Linux can read.
+
+```bash
+git pull && sudo deploy/install.sh
+sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[voice]"
+sudo /opt/focus-assistant/venv/bin/python -c   "from faster_whisper import WhisperModel; WhisperModel('base.en', download_root='/opt/focus-assistant/models')"
+sudo systemctl enable --now focus-voice
+journalctl -u focus-voice -f       # "Ready", then "Heard: ..." for each question
+```
+
+It needs `FOCUS_SPEECH_DEVICE` set (see Speech). If it cuts you off or
+waits too long after you finish, set `FOCUS_VOICE_LEVEL` (try 800, higher
+for a noisy room). A spoken check-in and a voice answer at the same moment
+can't share the speaker; one of them fails and is logged.
 
 ### Display page (`display.py`)
 
