@@ -164,11 +164,12 @@ Pi 4); only that text goes to the coach. The play button arrives as
 git pull && sudo deploy/install.sh
 sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[voice]"
 sudo /opt/focus-assistant/venv/bin/python -c   "from faster_whisper import WhisperModel; WhisperModel('base.en', download_root='/opt/focus-assistant/models')"
+sudo chmod -R a+rX /opt/focus-assistant/models    # the download leaves some files root-only
 sudo systemctl enable --now focus-voice
 journalctl -u focus-voice -f       # "Ready", then "Heard: ..." for each question
 ```
 
-It needs `FOCUS_SPEECH_DEVICE` set (see Speech). If it cuts you off or
+It needs the Piper voice and `FOCUS_SPEECH_DEVICE` from the Speech setup. If it cuts you off or
 waits too long after you finish, set `FOCUS_VOICE_LEVEL` (try 800, higher
 for a noisy room). A spoken check-in and a voice answer at the same moment
 can't share the speaker; one of them fails and is logged.

@@ -11,7 +11,7 @@ arrives as KEY_PLAYPAUSE on its "Consumer Control" input device, with the
 release right after the press, so it is press-to-talk, not hold-to-talk.
 (Its call button sends nothing Linux turns into a key.)
 
-    FOCUS_SPEECH_DEVICE   ALSA device for the mic and the speaker
+    FOCUS_SPEECH_DEVICE   ALSA device for the mic and the speaker (required)
     FOCUS_VOICE_BUTTON    input device name to look for (default "PowerConf Consumer Control")
     FOCUS_VOICE_KEY       key code to listen for (default 164, KEY_PLAYPAUSE; see evtest)
     FOCUS_VOICE_MODEL     Whisper model (default base.en; tiny.en is faster, less accurate)
@@ -118,7 +118,7 @@ def record(device: str, endpointer: Endpointer, stop: Callable[[], bool]) -> byt
     """Raw 16 kHz mono audio of one utterance, or None if nobody spoke."""
     proc = subprocess.Popen(
         ["arecord", "-q", "-D", device, "-f", "S16_LE", "-r", str(RATE), "-c", "1", "-t", "raw"],
-        stdout=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
     audio = bytearray()
     try:
@@ -131,10 +131,13 @@ def record(device: str, endpointer: Endpointer, stop: Callable[[], bool]) -> byt
                 return None
             if verdict == "done":
                 return bytes(audio)
-        raise RuntimeError("arecord stopped; is the speakerphone still connected?")
-    finally:
-        proc.terminate()
         proc.wait(timeout=5)
+        err = proc.stderr.read().decode(errors="replace").strip()
+        raise RuntimeError(f"arecord failed on {device}: {err or 'no output'}; is the speakerphone connected?")
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait(timeout=5)
 
 
 # --- speech to text -----------------------------------------------------
@@ -251,7 +254,12 @@ def main() -> int:
     from ..outputs import speech
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    device = os.environ.get("FOCUS_SPEECH_DEVICE", "default")
+    device = os.environ.get("FOCUS_SPEECH_DEVICE")
+    if not device:
+        # "default" is the Pi's headphone jack, which has no microphone.
+        print("set FOCUS_SPEECH_DEVICE in focus.env, e.g. plughw:CARD=PowerConf,DEV=0 "
+              "(from: aplay -L | grep plughw)", file=sys.stderr)
+        return 1
     fixed = os.environ.get("FOCUS_VOICE_LEVEL")
     button = find_input(os.environ.get("FOCUS_VOICE_BUTTON", "PowerConf Consumer Control"))
     log.info("Loading Whisper and Piper")
