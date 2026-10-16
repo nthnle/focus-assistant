@@ -21,9 +21,11 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=@STATE_DIR@
 PrivateTmp=yes
-# Phase 2: the inky output needs SPI/GPIO, so swap this for
-# DeviceAllow=/dev/spidev0.0 and /dev/gpiochip0 plus SupplementaryGroups=spi gpio.
-PrivateDevices=yes
+# Sound cards only, for the speech output. The inky output will also need
+# DeviceAllow=/dev/spidev0.0 rw and /dev/gpiochip0 rw plus the spi and gpio groups.
+DevicePolicy=closed
+DeviceAllow=char-alsa rw
+SupplementaryGroups=audio
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

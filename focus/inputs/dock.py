@@ -20,24 +20,22 @@ ignored.
 
 from __future__ import annotations
 
-import hmac
-import ipaddress
 import logging
 import os
 import sys
 import threading
 from datetime import datetime, time as dtime
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from typing import Callable
 
 from .. import actions, config, state as st
 from ..config import Config
+from . import _web
 
 log = logging.getLogger(__name__)
 
 DEFAULT_BLOCKS = "09:00-12:00,13:00-17:30"
 DEFAULT_PORT = 8765
-MIN_TOKEN_LENGTH = 16
 
 Block = tuple[dtime, dtime]
 # (delay seconds, callback) -> something with .cancel(); threading.Timer in production.
@@ -128,21 +126,13 @@ class Dock:
 
 
 def make_handler(dock: Dock, token: str) -> type[BaseHTTPRequestHandler]:
-    expected = f"Bearer {token}".encode()
     routes = {"/dock/in": dock.phone_in, "/dock/out": dock.phone_out}
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 10
 
         def do_POST(self) -> None:
-            try:
-                private = ipaddress.ip_address(self.client_address[0]).is_private
-            except ValueError:
-                private = False
-            given = self.headers.get("Authorization", "").encode()
-            if not private or not hmac.compare_digest(given, expected):
-                log.warning("Rejected %s %s from %s", self.command, self.path, self.client_address[0])
-                self.send_error(403)
+            if not _web.authorized(self, token):
                 return
             route = routes.get(self.path)
             if route is None:
@@ -160,24 +150,16 @@ def make_handler(dock: Dock, token: str) -> type[BaseHTTPRequestHandler]:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    token = os.environ.get("FOCUS_DOCK_TOKEN", "")
-    if len(token) < MIN_TOKEN_LENGTH:
-        print(f"focus-dock: set FOCUS_DOCK_TOKEN (at least {MIN_TOKEN_LENGTH} characters)",
-              file=sys.stderr)
+    token = _web.token_from_env("FOCUS_DOCK_TOKEN")
+    if token is None:
         return 1
     dock = Dock(
         config.load(),
         parse_blocks(os.environ.get("FOCUS_BLOCKS", DEFAULT_BLOCKS)),
         float(os.environ.get("FOCUS_DOCK_SETTLE", "30")),
     )
-    address = (os.environ.get("FOCUS_DOCK_HOST", "0.0.0.0"),
+    _web.serve(make_handler(dock, token), os.environ.get("FOCUS_DOCK_HOST", "0.0.0.0"),
                int(os.environ.get("FOCUS_DOCK_PORT", DEFAULT_PORT)))
-    server = ThreadingHTTPServer(address, make_handler(dock, token))
-    log.info("Listening on %s:%d", *address)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 

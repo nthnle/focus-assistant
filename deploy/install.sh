@@ -25,22 +25,24 @@ if [ ! -f "$ETC/focus.env" ]; then
     install -m 0600 -o root -g root deploy/focus.env.example "$ETC/focus.env"
     NEED_KEY=1
 fi
-if ! grep -q '^FOCUS_DOCK_TOKEN=' "$ETC/focus.env"; then
-    # For the iPhone Shortcut that reports the charger (focus-dock).
-    echo "FOCUS_DOCK_TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" >> "$ETC/focus.env"
-fi
+# One token per iPhone Shortcut service, so each can be rotated on its own.
+for name in FOCUS_DOCK_TOKEN FOCUS_CHAT_TOKEN; do
+    if ! grep -q "^$name=" "$ETC/focus.env"; then
+        echo "$name=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" >> "$ETC/focus.env"
+    fi
+done
 chown root:root "$ETC/focus.env"
 chmod 0600 "$ETC/focus.env"
 
 echo "==> systemd units"
-for unit in focus-checkin.service focus-checkin.timer focus-dock.service; do
+for unit in focus-checkin.service focus-checkin.timer focus-dock.service focus-chat.service; do
     sed -e "s|@USER@|$USER_NAME|g" -e "s|@STATE_DIR@|$STATE_DIR|g" \
         "deploy/$unit" > "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
 systemctl enable --now focus-checkin.timer
-# The dock opens a port, so it is enabled by hand (see README); restart it if it runs.
-systemctl try-restart focus-dock.service
+# These open ports, so they are enabled by hand (see README); restart them if they run.
+systemctl try-restart focus-dock.service focus-chat.service
 
 echo
 if [ "${NEED_KEY:-0}" = 1 ]; then

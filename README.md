@@ -2,8 +2,9 @@
 
 A desk focus coach for a Raspberry Pi 4. Three times each weekday it reads
 your priorities and the day's log, asks Claude for a short nudge, prints it
-and saves the result. The check-in only makes outbound HTTPS calls; the
-optional phone dock service is the one thing that listens, on the home
+and saves the result. Between check-ins you can chat with the coach from
+your phone. The check-in only makes outbound HTTPS calls; the optional
+phone services (dock, chat) are the only things that listen, on the home
 network only.
 
 ## Layout
@@ -13,13 +14,15 @@ focus/
   config.py         settings from env vars (FOCUS_*); never touches the key
   state.py          state.json: locked read-modify-write, atomic save, day rollover
   actions.py        every state change (add/done/move/report/log_event); all inputs call these
-  coach.py          system prompt + the one Anthropic API call
+  coach.py          check-in system prompt + the shared Anthropic API call
+  chat.py           phone chat: the coach with tools that call actions
   checkin.py        snapshot -> coach -> record -> outputs
   cli.py            `focus` command
-  outputs/          where a check-in goes   (console, inky; speech, led later)
-  inputs/           what feeds actions      (buttons, dock, voice later)
+  outputs/          where a check-in goes   (console, inky, speech; led later)
+  inputs/           what feeds actions      (dock, chat; buttons, voice later)
 deploy/
-  focus-checkin.service / .timer, focus-dock.service, focus.env.example, install.sh
+  focus-checkin.service / .timer, focus-dock.service, focus-chat.service,
+  focus.env.example, install.sh
 tests/
 ```
 
@@ -101,6 +104,7 @@ Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-sonnet-5-5`; Opus 5.5 
 | Inky Impression 4" | `outputs/inky.py` | output | renders top 3 open priorities + last reply on each check-in; also redraws after a button action |
 | Buttons A-D | `inputs/buttons.py` (service) | input | A `complete_priority(top)`, B `report_on_track`, C `report_drifted`, D `log_event(SNOOZE)` |
 | Phone dock (charger) | `inputs/dock.py` (service) | input | iPhone Shortcut -> `log_event(PHONE_OUT/PHONE_IN)` during `FOCUS_BLOCKS` |
+| Chat (Shortcut / Siri) | `inputs/chat.py` (service) + `chat.py` | both | coach with tools for add/done/undo/drop/move/report; reply shown or spoken by the phone |
 | LED + buzzer | `outputs/led.py` | output | pulse on check-in; a snooze event delays the next nudge |
 | Push-to-talk voice | `inputs/voice.py` (service) + `outputs/speech.py` | both | whisper.cpp base.en -> intent -> an action or an ad-hoc check-in; Piper speaks the reply |
 
@@ -140,6 +144,34 @@ sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[dis
 
 then set `FOCUS_OUTPUTS=console,inky` in `focus.env` and make the unit change
 described under GPIO and SPI above.
+
+### Speech (`outputs/speech.py`)
+
+Says each check-in reply out loud. Piper runs on the Pi (a 70-word reply
+takes a second or two on a Pi 4), so only the coach call goes out. Set up for
+an Anker PowerConf on USB; any ALSA speaker works. Connect the PowerConf's
+USB-C port to a black USB 2.0 port on the Pi: on the blue USB 3.0 ports it
+is not detected at all.
+
+```bash
+sudo apt install -y alsa-utils
+sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[speech]"
+sudo /opt/focus-assistant/venv/bin/python -m piper.download_voices      --download-dir /opt/focus-assistant/voices en_US-lessac-medium
+aplay -L | grep -i plughw          # find the PowerConf, e.g. plughw:CARD=PowerConf,DEV=0
+```
+
+In `focus.env` set `FOCUS_OUTPUTS=console,speech` and
+`FOCUS_SPEECH_DEVICE=<that plughw name>`, then try it:
+
+```bash
+sudo -u <user> FOCUS_SPEECH_DEVICE=<plughw name>      /opt/focus-assistant/venv/bin/python -m focus.outputs.speech "Hello from the coach."
+sudo systemctl start focus-checkin       # a real check-in, spoken
+```
+
+`python -m focus.outputs.speech` with no text repeats the last check-in.
+Other voices: https://huggingface.co/rhasspy/piper-voices (set
+`FOCUS_SPEECH_VOICE` to the .onnx path). Volume is the PowerConf's own
+buttons.
 
 ### Phone dock (`inputs/dock.py`)
 
@@ -186,6 +218,46 @@ logs a `Charger: in/out (...)` line saying whether it counts; a bad token
 logs `Rejected ...`, and no line at all means the request never arrived.
 During a block it then logs `Phone out since ...` after 30 s off the charger
 and `Phone back after N min` on return. `FOCUS_DOCK_SETTLE` changes the 30 s.
+
+### Chat (`chat.py`, `inputs/chat.py`)
+
+Message the coach from the phone, typed or by voice through Siri: "I
+finished the spec, what next?", "add email Sam", "move the report to the
+top", "I'm drifting". It sees the same data as a check-in and can change
+priorities through six tools (add, done, undo, drop, move, report) that
+call `focus.actions`. It has no other tools and cannot run commands.
+Today's chat is kept in state, so follow-ups work and the next check-in
+sees it; it is cleared at rollover.
+
+`focus-chat` listens on port 8766 with its own token (`FOCUS_CHAT_TOKEN`,
+added by `install.sh`). Unlike the dock it holds the API key, so a leaked
+token could spend money: `FOCUS_CHAT_DAILY_LIMIT` (default 50 messages a
+day) caps that, and each message is at most 6 model calls. Each exchange
+records its token use in `state.json`.
+
+On the Pi:
+
+```bash
+git pull && sudo deploy/install.sh
+sudo systemctl enable --now focus-chat
+sudo grep FOCUS_CHAT_TOKEN /etc/focus-assistant/focus.env    # for the Shortcut
+TOKEN=$(sudo sed -n 's/^FOCUS_CHAT_TOKEN=//p' /etc/focus-assistant/focus.env)
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -d '{"text": "what should I do first?"}'      http://localhost:8766/chat
+```
+
+On the iPhone, make a shortcut named **Coach** (tap **Edit** to build it by
+hand):
+
+1. **Ask for Input**, type Text, prompt `What's up?`
+2. **Get Contents of URL**: `http://<hostname>.local:8766/chat`, Method
+   `POST`, header `Authorization` = `Bearer <token>`, Request Body **JSON**
+   with one Text field `text` set to **Provided Input**.
+3. **Show Result** with **Contents of URL**.
+
+"Hey Siri, Coach" then asks what's up, takes your dictation and reads the
+reply aloud. Errors (no network, daily limit) come back as a sentence
+rather than a Shortcut error. `journalctl -u focus-chat -f` shows each
+message.
 
 ## Development
 

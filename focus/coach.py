@@ -72,18 +72,19 @@ def build_payload(s: State, slot: str, now: str) -> dict:
             {"slot": c["slot"], "at": c["at"], "reply": c.get("reply")} for c in s.checkins
         ],
         "events_today": s.events,
+        "chat_today": [{"at": c["at"], "user": c["user"], "reply": c["reply"]} for c in s.chat[-6:]],
         "recent_days": s.history[-5:],
     }
 
 
-def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -> CoachReply:
-    if client is None:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise CoachError(
-                "ANTHROPIC_API_KEY is not set; check-ins get it from the systemd unit "
-                "(run one with: sudo systemctl start focus-checkin)"
-            )
-        client = anthropic.Anthropic(timeout=60.0, max_retries=3)
+def make_client(hint: str, timeout: float = 60.0, max_retries: int = 3) -> anthropic.Anthropic:
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise CoachError(f"ANTHROPIC_API_KEY is not set; {hint}")
+    return anthropic.Anthropic(timeout=timeout, max_retries=max_retries)
+
+
+def create(cfg: Config, client: anthropic.Anthropic, **params):
+    """One Messages call with the fallback and error handling every caller wants."""
     # If a safety classifier ever declines, re-run on Anthropic's
     # recommended fallback model instead of returning nothing.
     fallback = {}
@@ -95,8 +96,7 @@ def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -
             max_tokens=4000,
             output_config={"effort": cfg.effort},
             **fallback,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+            **params,
         )
     except anthropic.AuthenticationError as exc:
         raise CoachError("API key rejected; check /etc/focus-assistant/focus.env") from exc
@@ -108,14 +108,28 @@ def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -
         raise CoachError("Could not reach the API; is the network up?") from exc
 
     if response.stop_reason == "refusal":
-        raise CoachError("The coach declined to answer this check-in")
+        raise CoachError("The coach declined to answer")
+    return response
 
+
+def reply_text(response) -> str:
     text = "".join(b.text for b in response.content if b.type == "text").strip()
     if not text:
         raise CoachError(f"Empty reply (stop_reason={response.stop_reason})")
+    return text
 
+
+def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -> CoachReply:
+    client = client or make_client(
+        "check-ins get it from the systemd unit (run one with: sudo systemctl start focus-checkin)"
+    )
+    response = create(
+        cfg, client,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+    )
     return CoachReply(
-        text=text,
+        text=reply_text(response),
         model=response.model,
         input_tokens=response.usage.input_tokens,
         output_tokens=response.usage.output_tokens,

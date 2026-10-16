@@ -59,6 +59,7 @@ class State:
     priorities: list[Priority] = field(default_factory=list)
     checkins: list[dict] = field(default_factory=list)
     events: list[dict] = field(default_factory=list)
+    chat: list[dict] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
     version: int = SCHEMA_VERSION
 
@@ -85,6 +86,7 @@ class State:
             priorities=[Priority(**p) for p in data.get("priorities", [])],
             checkins=data.get("checkins", []),
             events=data.get("events", []),
+            chat=data.get("chat", []),
             history=data.get("history", []),
         )
 
@@ -108,6 +110,7 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
         "done": [p.text for p in state.priorities if p.done],
         "open": [p.text for p in state.open_priorities],
         "checkins": len(state.checkins),
+        "chats": len(state.chat),
         "events": event_counts,
     })
     state.history = state.history[-history_days:]
@@ -118,6 +121,7 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     state.priorities = carried
     state.checkins = []
     state.events = []
+    state.chat = []
     state.date = today.isoformat()
     return True
 
