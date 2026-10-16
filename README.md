@@ -16,6 +16,7 @@ focus/
   actions.py        every state change (add/done/move/report/log_event); all inputs call these
   coach.py          check-in system prompt + the shared Anthropic API call
   chat.py           phone chat: the coach with tools that call actions
+  display.py        the Inky layout as an HTML page (served by the dock service)
   checkin.py        snapshot -> coach -> record -> outputs
   cli.py            `focus` command
   outputs/          where a check-in goes   (console, inky, speech; led later)
@@ -144,6 +145,25 @@ sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[dis
 
 then set `FOCUS_OUTPUTS=console,inky` in `focus.env` and make the unit change
 described under GPIO and SPI above.
+
+### Display page (`display.py`)
+
+Until the panel arrives, the same layout is served as a web page: the latest
+check-in slot and date, the top 3 open priorities (red tag = days carried)
+and the reply. It is built from `state.json` on every request and refreshes
+itself every 30 s, so changes from chat, the CLI or the dock show up within
+the half minute. The dock service serves it (it holds no API key), read-only,
+to the home network only.
+
+```bash
+git pull && sudo deploy/install.sh        # adds FOCUS_DISPLAY_TOKEN, restarts focus-dock
+sudo grep FOCUS_DISPLAY_TOKEN /etc/focus-assistant/focus.env
+```
+
+Open `http://<hostname>.local:8765/display?k=<token>` in a browser and
+bookmark it. On an iPhone, Share > Add to Home Screen makes it an app-like
+icon. Anyone with that link on your Wi-Fi can read your priorities, so treat
+it like the other tokens.
 
 ### Speech (`outputs/speech.py`)
 

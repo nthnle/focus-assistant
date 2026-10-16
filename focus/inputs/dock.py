@@ -5,9 +5,12 @@ An iOS Shortcuts automation ("Charger is connected / disconnected") sends
     POST http://<pi>.local:8765/dock/in    (or /dock/out)
     Authorization: Bearer <FOCUS_DOCK_TOKEN>
 
-This is the only listening socket in the project. It answers private
-(home network) addresses with the right token and nothing else, and it can
-only append dock events to the state file.
+It also serves the display page (focus.display) for a browser at
+GET /display?k=<FOCUS_DISPLAY_TOKEN>, read-only.
+
+It answers private (home network) addresses with the right token and
+nothing else; it can only append dock events to the state file and read it
+for the page. It never holds the API key.
 
 Only focus time counts. If the phone comes off the charger during a focus
 block (FOCUS_BLOCKS, weekdays) and stays off for FOCUS_DOCK_SETTLE seconds,
@@ -28,7 +31,7 @@ from datetime import datetime, time as dtime
 from http.server import BaseHTTPRequestHandler
 from typing import Callable
 
-from .. import actions, config, state as st
+from .. import actions, config, display, state as st
 from ..config import Config
 from . import _web
 
@@ -125,11 +128,27 @@ class Dock:
             log.info("Phone back after %d min", minutes)
 
 
-def make_handler(dock: Dock, token: str) -> type[BaseHTTPRequestHandler]:
+def make_handler(dock: Dock, token: str, display_token: str | None = None) -> type[BaseHTTPRequestHandler]:
     routes = {"/dock/in": dock.phone_in, "/dock/out": dock.phone_out}
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 10
+
+        def do_GET(self) -> None:
+            # The display page lives here because this service is local-only and keyless.
+            if display_token is None or _web.path_of(self) != "/display":
+                self.send_error(404)
+                return
+            if not _web.authorized(self, display_token, in_query=True):
+                return
+            with st.locked_state(dock.cfg) as s:
+                page = display.render_html(s, st.now_iso()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(page)
 
         def do_POST(self) -> None:
             if not _web.authorized(self, token):
@@ -158,7 +177,9 @@ def main() -> int:
         parse_blocks(os.environ.get("FOCUS_BLOCKS", DEFAULT_BLOCKS)),
         float(os.environ.get("FOCUS_DOCK_SETTLE", "30")),
     )
-    _web.serve(make_handler(dock, token), os.environ.get("FOCUS_DOCK_HOST", "0.0.0.0"),
+    # Optional: without a display token the page is simply not served.
+    display_token = os.environ.get("FOCUS_DISPLAY_TOKEN") or None
+    _web.serve(make_handler(dock, token, display_token), os.environ.get("FOCUS_DOCK_HOST", "0.0.0.0"),
                int(os.environ.get("FOCUS_DOCK_PORT", DEFAULT_PORT)))
     return 0
 

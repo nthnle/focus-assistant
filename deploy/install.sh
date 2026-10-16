@@ -25,8 +25,8 @@ if [ ! -f "$ETC/focus.env" ]; then
     install -m 0600 -o root -g root deploy/focus.env.example "$ETC/focus.env"
     NEED_KEY=1
 fi
-# One token per iPhone Shortcut service, so each can be rotated on its own.
-for name in FOCUS_DOCK_TOKEN FOCUS_CHAT_TOKEN; do
+# One token per phone-facing use, so each can be rotated on its own.
+for name in FOCUS_DOCK_TOKEN FOCUS_CHAT_TOKEN FOCUS_DISPLAY_TOKEN; do
     if ! grep -q "^$name=" "$ETC/focus.env"; then
         echo "$name=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" >> "$ETC/focus.env"
     fi

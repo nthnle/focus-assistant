@@ -1,7 +1,8 @@
 """What the phone-facing services share: the token check and the server loop.
 
 Only private (home network) addresses with `Authorization: Bearer <token>`
-get past `authorized()`; everything else is a 403 and a log line.
+get past `authorized()`; everything else is a 403 and a log line. A browser
+page can't send that header, so it passes the token as `?k=<token>` instead.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 log = logging.getLogger(__name__)
 
@@ -26,15 +28,25 @@ def token_from_env(name: str) -> str | None:
     return token
 
 
-def authorized(handler: BaseHTTPRequestHandler, token: str) -> bool:
+def path_of(handler: BaseHTTPRequestHandler) -> str:
+    return urlsplit(handler.path).path
+
+
+def authorized(handler: BaseHTTPRequestHandler, token: str, in_query: bool = False) -> bool:
     try:
         private = ipaddress.ip_address(handler.client_address[0]).is_private
     except ValueError:
         private = False
-    given = handler.headers.get("Authorization", "").encode()
-    if private and hmac.compare_digest(given, f"Bearer {token}".encode()):
+    if in_query:
+        given = parse_qs(urlsplit(handler.path).query).get("k", [""])[0].encode()
+        expected = token.encode()
+    else:
+        given = handler.headers.get("Authorization", "").encode()
+        expected = f"Bearer {token}".encode()
+    if private and hmac.compare_digest(given, expected):
         return True
-    log.warning("Rejected %s %s from %s", handler.command, handler.path, handler.client_address[0])
+    # path_of() keeps a guessed token out of the log.
+    log.warning("Rejected %s %s from %s", handler.command, path_of(handler), handler.client_address[0])
     handler.send_error(403)
     return False
 

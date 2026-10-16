@@ -167,3 +167,39 @@ def test_http_routes_need_the_token(server):
     assert post(f"{base}/dock/in", token="wrong") == 403
     assert post(f"{base}/nope") == 404
     assert calls == ["out", "in"]
+
+
+DISPLAY_TOKEN = "d" * 24
+
+
+@pytest.fixture
+def display_server(cfg):
+    with st.locked_state(cfg) as s:
+        from focus import actions
+        actions.add_priority(s, "Write <spec>")
+        s.checkins.append({"slot": "midday", "at": "2026-10-16T13:00:00-05:00", "reply": "Keep going."})
+    d = dock.Dock(cfg, BLOCKS, settle=30, schedule=FakeTimers())
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), dock.make_handler(d, TOKEN, DISPLAY_TOKEN))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+    srv.server_close()
+
+
+def get(url):
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as exc:
+        return exc.code, ""
+
+
+def test_display_page_needs_its_token(display_server):
+    status, page = get(f"{display_server}/display?k={DISPLAY_TOKEN}")
+    assert status == 200
+    assert "MIDDAY CHECK-IN" in page
+    assert "Write &lt;spec&gt;" in page
+    assert "Keep going." in page
+    assert get(f"{display_server}/display?k={TOKEN}")[0] == 403
+    assert get(f"{display_server}/display")[0] == 403
+    assert get(f"{display_server}/other?k={DISPLAY_TOKEN}")[0] == 404
