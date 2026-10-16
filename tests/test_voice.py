@@ -1,5 +1,7 @@
 import array
 import io
+import sys
+import time
 import wave
 
 import pytest
@@ -55,8 +57,8 @@ def feed_all(ep, levels):
 
 def test_endpointer_speech_then_pause():
     ep = voice.Endpointer()
-    # 0.3 s of room noise sets the threshold, then 1 s of speech, then 0.8 s quiet.
-    assert feed_all(ep, [100, 120, 110] + [2000] * 10 + [100] * 7) is None
+    # Three chunks of room noise set the threshold, then speech, then 0.8 s (10 chunks) quiet.
+    assert feed_all(ep, [100, 120, 110] + [2000] * 10 + [100] * 9) is None
     assert ep.feed(100) == "done"
     assert ep.threshold == 330  # 3 x the median noise level (110)
 
@@ -141,7 +143,97 @@ def test_turn_speaks_coach_errors(cfg):
     assert r.spoken == ["Sorry, that didn't work. Daily chat limit (50) reached"]
 
 
-def test_run_stops_when_the_button_goes_away(cfg):
-    r = Recorder(cfg)
+SILENCE = b"\x00\x00" * voice.CHUNK_SAMPLES
+
+
+class Done(Exception):
+    pass
+
+
+class FakeMic:
+    """Hands out silent chunks, then stops the endless loop."""
+
+    def __init__(self, chunks=50):
+        self.left, self.cleared = chunks, 0
+
+    def read(self):
+        if self.left == 0:
+            raise Done
+        self.left -= 1
+        time.sleep(0.001)  # let the button thread run
+        return SILENCE
+
+    def clear(self):
+        self.cleared += 1
+
+
+class FakeWake:
+    name = "hey_jarvis"
+
+    def __init__(self, fire_on):
+        self.calls, self.resets, self.fire_on = 0, 0, fire_on
+
+    def heard(self, chunk):
+        self.calls += 1
+        return self.calls in self.fire_on
+
+    def reset(self):
+        self.resets += 1
+
+
+class CountingVoice:
+    def __init__(self):
+        self.turns = 0
+
+    def turn(self, pressed_again):
+        self.turns += 1
+
+
+def test_run_stops_when_the_button_goes_away():
     with pytest.raises(RuntimeError, match="Lost"):
-        voice.run(r.voice, iter([]))
+        voice.run(CountingVoice(), FakeMic(), iter([]))
+
+
+def test_wake_word_starts_a_turn_and_is_reset_after():
+    v, mic, wake = CountingVoice(), FakeMic(), FakeWake(fire_on={3, 10})
+    with pytest.raises(Done):
+        voice.run(v, mic, None, wake)
+    assert v.turns == 2
+    assert wake.resets == 2 and mic.cleared == 2
+
+
+def test_button_starts_a_turn_without_a_wake_word():
+    v = CountingVoice()
+    presses = iter([None])  # one press; then the button "goes away"
+    with pytest.raises((Done, RuntimeError)):
+        voice.run(v, FakeMic(), presses)
+    assert v.turns == 1
+
+
+def _mic(script, **kw):
+    return voice.Mic("test", command=[sys.executable, "-c", script], **kw)
+
+
+def test_mic_reads_whole_chunks_then_reports_arecord_failing():
+    mic = _mic(f"import sys; sys.stdout.buffer.write(b'\\x01\\x00' * {voice.CHUNK_SAMPLES * 2}); "
+               "sys.stderr.write('device gone')")
+    assert mic.read() == b"\x01\x00" * voice.CHUNK_SAMPLES
+    assert mic.read() == b"\x01\x00" * voice.CHUNK_SAMPLES
+    with pytest.raises(RuntimeError, match="device gone"):
+        mic.read()
+    with pytest.raises(RuntimeError):  # and keeps failing
+        mic.read()
+
+
+def test_mic_keeps_only_the_newest_audio():
+    # 10 chunks numbered 0..9 into a queue that holds 4: the oldest are dropped.
+    script = ("import sys\n"
+              f"for i in range(10): sys.stdout.buffer.write(bytes([i, 0]) * {voice.CHUNK_SAMPLES})\n")
+    mic = _mic(script, keep_s=4 * voice.CHUNK_SECONDS)
+    mic.proc.wait(timeout=10)
+    time.sleep(0.2)  # let the reader thread finish
+    first = mic.read()
+    assert first[0] >= 5  # at most four chunks plus the end marker survive
+    mic.clear()
+    with pytest.raises(RuntimeError):  # clear() keeps the end marker
+        mic.read()

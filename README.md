@@ -180,6 +180,26 @@ waits too long after you finish, set `FOCUS_VOICE_LEVEL` (try 800, higher
 for a noisy room). A spoken check-in and a voice answer at the same moment
 can't share the speaker; one of them fails and is logged.
 
+**Wake word ("Hey Jarvis").** Optional: instead of pressing play, say "Hey
+Jarvis", wait for the chime, then speak. The play button keeps working. With
+it on, the microphone is always open, but that audio only goes through
+openWakeWord on the Pi and is discarded; nothing is kept until it hears the
+phrase. Pause after "Hey Jarvis": what you say before the chime is not heard.
+
+```bash
+sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[wake]"
+sudo /opt/focus-assistant/venv/bin/pip install --no-deps "openwakeword==0.6.0"   # skips tflite-runtime
+sudo /opt/focus-assistant/venv/bin/python -c "from openwakeword.utils import download_models; download_models(['hey_jarvis'])"
+echo 'FOCUS_VOICE_WAKE=hey_jarvis' | sudo tee -a /etc/focus-assistant/focus.env
+sudo systemctl restart focus-voice
+journalctl -u focus-voice -f       # "Ready: say "hey jarvis" or press key 164", then "Listening (hey_jarvis)"
+```
+
+If it starts on its own (TV, calls), raise `FOCUS_VOICE_WAKE_THRESHOLD` from
+0.5 toward 0.7; if it misses you, lower it. Other built-in phrases:
+`hey_mycroft`, `hey_rhasspy`, `alexa`. Remove the `FOCUS_VOICE_WAKE` line to
+go back to the button only.
+
 ### Display page (`display.py`)
 
 Until the panel arrives, the same layout is served as a web page: the latest
