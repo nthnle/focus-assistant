@@ -71,6 +71,9 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
         assert s.chat[-1]["tokens"] == {"in": 200, "out": 40}
 
     first = sent[0]
+    assert first["model"] == "claude-haiku-5-5"   # chat uses FOCUS_CHAT_MODEL, not FOCUS_MODEL
+    assert "thinking" not in first and "fallbacks" not in first
+    assert first["output_config"] == {"effort": "low"}
     assert first["system"] == chat.SYSTEM_PROMPT
     assert {t["name"] for t in first["tools"]} == set(chat._HANDLERS)
     assert all(t["strict"] for t in first["tools"])
@@ -79,6 +82,46 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     result = sent[1]["messages"][-1]["content"][0]
     assert result["type"] == "tool_result" and result["tool_use_id"] == "tu_1"
     assert "[done] Write spec" in result["content"]
+
+
+def test_sonnet_chat_runs_without_thinking(cfg, monkeypatch):
+    monkeypatch.setenv("FOCUS_CHAT_MODEL", "claude-sonnet-5-5")
+    client, sent = scripted(_message([text("Sure.")]))
+    chat.run(config.load(), "hi", client=client)
+    assert sent[0]["thinking"] == {"type": "between_tools"}
+    assert sent[0]["fallbacks"] == "default"
+
+
+def sse(*texts):
+    """A streamed reply made of these text pieces, as server-sent events."""
+    msg = _message([], stop_reason=None) | {"usage": {"input_tokens": 100, "output_tokens": 1}}
+    events = [("message_start", {"type": "message_start", "message": msg}),
+              ("content_block_start", {"type": "content_block_start", "index": 0,
+                                       "content_block": {"type": "text", "text": ""}})]
+    events += [("content_block_delta", {"type": "content_block_delta", "index": 0,
+                                        "delta": {"type": "text_delta", "text": t}}) for t in texts]
+    events += [("content_block_stop", {"type": "content_block_stop", "index": 0}),
+               ("message_delta", {"type": "message_delta",
+                                  "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                                  "usage": {"output_tokens": 12}}),
+               ("message_stop", {"type": "message_stop"})]
+    return "".join(f"event: {name}\ndata: {json.dumps(data)}\n\n" for name, data in events)
+
+
+def test_streaming_hands_over_text_as_it_arrives(cfg):
+    def handler(request):
+        assert json.loads(request.content)["stream"] is True
+        return httpx2.Response(200, text=sse("Start with ", "the parser."),
+                               headers={"content-type": "text/event-stream"})
+
+    client = anthropic.Anthropic(api_key="test", max_retries=0,
+                                 http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
+    pieces = []
+    reply = chat.run(cfg, "what first?", client=client, on_text=pieces.append)
+    assert pieces == ["Start with ", "the parser."]
+    assert reply == "Start with the parser."
+    with st.locked_state(cfg) as s:
+        assert s.chat[-1]["tokens"] == {"in": 100, "out": 12}
 
 
 def test_bad_tool_input_is_reported_to_the_model(cfg):
@@ -133,7 +176,7 @@ def test_chat_clears_at_rollover(cfg):
 def server(cfg):
     calls = []
 
-    def fake_run(_cfg, text, daily_limit):
+    def fake_run(_cfg, text, daily_limit, on_text=None):
         calls.append(text)
         if text == "fail":
             raise CoachError("no network")

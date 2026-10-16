@@ -19,8 +19,12 @@ from __future__ import annotations
 import io
 import logging
 import os
+import queue
+import re
 import subprocess
 import sys
+import threading
+import time
 import wave
 from datetime import date
 from pathlib import Path
@@ -54,6 +58,56 @@ def save_to(path: str) -> Callable[[bytes], None]:
     return save
 
 
+# A sentence ends at . ! or ? followed by whitespace, so "3.5" stays whole.
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+class SentenceStream:
+    """Speak text that arrives in pieces, one sentence at a time.
+
+    feed() takes streamed text and queues each finished sentence; a worker
+    thread synthesizes and plays them in order, so the first sentence is
+    heard while the rest of the reply is still being written.
+    """
+
+    def __init__(self, speech: Speech):
+        self.speech = speech
+        self.first_audio_at: float | None = None
+        self.spoke = False
+        self._buffer = ""
+        self._queue: queue.Queue[str | None] = queue.Queue()
+        self._worker = threading.Thread(target=self._run, daemon=True)
+        self._worker.start()
+
+    def feed(self, text: str) -> None:
+        self._buffer += text
+        *done, self._buffer = _SENTENCE_END.split(self._buffer)
+        for sentence in done:
+            self._put(sentence)
+
+    def close(self) -> None:
+        """Speak whatever is left and wait until everything has been played."""
+        self._put(self._buffer)
+        self._buffer = ""
+        self._queue.put(None)
+        self._worker.join()
+
+    def _put(self, sentence: str) -> None:
+        if sentence.strip():
+            self.spoke = True
+            self._queue.put(sentence.strip())
+
+    def _run(self) -> None:
+        while (sentence := self._queue.get()) is not None:
+            try:
+                wav = synthesize(self.speech.voice, sentence)
+                if self.first_audio_at is None:
+                    self.first_audio_at = time.monotonic()
+                self.speech.play(wav)
+            except Exception:
+                log.exception("Could not speak %r", sentence)
+
+
 class Speech:
     def __init__(self, voice, play: Callable[[bytes], None]):
         self.voice = voice
@@ -63,6 +117,9 @@ class Speech:
         text = text.strip()
         if text:
             self.play(synthesize(self.voice, text))
+
+    def stream(self) -> SentenceStream:
+        return SentenceStream(self)
 
     def checkin(self, state: State, slot: str, reply: str) -> None:
         self.say(reply)

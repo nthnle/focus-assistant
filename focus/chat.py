@@ -23,6 +23,10 @@ MAX_STEPS = 6          # model calls per message, so a confused loop can't run u
 HISTORY_TURNS = 10     # earlier exchanges replayed for context
 MAX_MESSAGE_CHARS = 1000
 
+# Short spoken replies don't need a thinking pass. Claude Haiku 5.5 skips it on
+# simple requests at low effort; Claude Sonnet 5.5 turns it off this way.
+THINKING = {"claude-sonnet-5-5": {"type": "between_tools"}}
+
 SYSTEM_PROMPT = """\
 You are the user's focus coach, the same one that checks in three times a \
 day from a small device on their desk. Now they are messaging you from their \
@@ -100,7 +104,8 @@ def _run_tool(cfg: Config, name: str, args: dict) -> tuple[str, bool]:
 
 
 def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
-        daily_limit: int = 50) -> str:
+        daily_limit: int = 50, on_text: Callable[[str], None] | None = None) -> str:
+    """Answer one message. `on_text` receives the reply as it streams in."""
     message = message.strip()
     if not message:
         raise CoachError("Empty message")
@@ -129,7 +134,9 @@ def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
     tokens_in = tokens_out = 0
     changed: list[str] = []
     for _ in range(MAX_STEPS):
-        response = coach.create(cfg, client, system=SYSTEM_PROMPT, tools=TOOLS, messages=messages)
+        extra = {"thinking": THINKING[cfg.chat_model]} if cfg.chat_model in THINKING else {}
+        response = coach.create(cfg, client, model=cfg.chat_model, on_text=on_text,
+                                system=SYSTEM_PROMPT, tools=TOOLS, messages=messages, **extra)
         tokens_in += response.usage.input_tokens
         tokens_out += response.usage.output_tokens
         if response.stop_reason != "tool_use":

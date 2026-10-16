@@ -95,6 +95,7 @@ the day's check-ins and events are cleared. The coach is told to raise
 anything carried for 3+ days.
 
 Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-sonnet-5-5`; Opus 5.5 coached slightly better at about 3x the cost),
+`FOCUS_CHAT_MODEL` for phone chat and voice (default `claude-haiku-5-5`: quicker replies at about a twentieth of Sonnet's price),
 `FOCUS_EFFORT` (default `low`; it is a short reply), `FOCUS_OUTPUTS`,
 `FOCUS_HISTORY_DAYS`. Each check-in records its token use in `state.json`.
 
@@ -150,7 +151,8 @@ described under GPIO and SPI above.
 
 Talk to the coach at the desk through the PowerConf: press its **play**
 button, wait for the rising chime, speak, then stop. A falling chime means
-it heard you; a second or two later the coach answers through the speaker.
+it heard you; the coach starts answering through the speaker as soon as its
+first sentence is written, and the rest follows while it is being spoken.
 Pressing play again ends the recording early; a low tone means it heard
 nothing. It is the same coach as phone chat, with the same tools, the same
 conversation for the day and the same daily limit.
@@ -168,6 +170,10 @@ sudo chmod -R a+rX /opt/focus-assistant/models    # the download leaves some fil
 sudo systemctl enable --now focus-voice
 journalctl -u focus-voice -f       # "Ready", then "Heard: ..." for each question
 ```
+
+Each turn logs `Timing: ...`: how long you spoke, how long transcription
+took, and when the first word played, counted from the end of recording
+(0.8 s after you stop talking).
 
 It needs the Piper voice and `FOCUS_SPEECH_DEVICE` from the Speech setup. If it cuts you off or
 waits too long after you finish, set `FOCUS_VOICE_LEVEL` (try 800, higher

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from typing import Callable
 
 import anthropic
 
@@ -83,21 +84,29 @@ def make_client(hint: str, timeout: float = 60.0, max_retries: int = 3) -> anthr
     return anthropic.Anthropic(timeout=timeout, max_retries=max_retries)
 
 
-def create(cfg: Config, client: anthropic.Anthropic, **params):
-    """One Messages call with the fallback and error handling every caller wants."""
+def create(cfg: Config, client: anthropic.Anthropic, model: str | None = None,
+           on_text: Callable[[str], None] | None = None, **params):
+    """One Messages call with the fallback and error handling every caller wants.
+
+    With `on_text`, the reply is streamed and each piece of text is handed
+    over as it arrives (voice starts speaking before the reply is finished).
+    """
+    model = model or cfg.model
     # If a safety classifier ever declines, re-run on Anthropic's
     # recommended fallback model instead of returning nothing.
     fallback = {}
-    if cfg.model in FALLBACK_MODELS:
+    if model in FALLBACK_MODELS:
         fallback = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
+    request = dict(model=model, max_tokens=4000, output_config={"effort": cfg.effort},
+                   **fallback, **params)
     try:
-        response = client.beta.messages.create(
-            model=cfg.model,
-            max_tokens=4000,
-            output_config={"effort": cfg.effort},
-            **fallback,
-            **params,
-        )
+        if on_text is None:
+            response = client.beta.messages.create(**request)
+        else:
+            with client.beta.messages.stream(**request) as stream:
+                for text in stream.text_stream:
+                    on_text(text)
+                response = stream.get_final_message()
     except anthropic.AuthenticationError as exc:
         raise CoachError("API key rejected; check /etc/focus-assistant/focus.env") from exc
     except anthropic.RateLimitError as exc:

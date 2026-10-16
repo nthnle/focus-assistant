@@ -35,6 +35,24 @@ def test_empty_reply_is_silent():
     assert played == []
 
 
+def test_stream_speaks_each_sentence_as_it_completes():
+    played = []
+    voice = FakeVoice()
+    out = speech.Speech(voice, played.append).stream()
+    for piece in ["Start with ", "the parser. It's 3.5 hours", " of work! Then email", " Sam."]:
+        out.feed(piece)
+    out.close()
+    assert voice.texts == ["Start with the parser.", "It's 3.5 hours of work!", "Then email Sam."]
+    assert len(played) == 3 and out.spoke and out.first_audio_at is not None
+
+
+def test_stream_with_nothing_is_silent():
+    played = []
+    out = speech.Speech(FakeVoice(), played.append).stream()
+    out.close()
+    assert played == [] and not out.spoke
+
+
 def test_aplay_command(monkeypatch):
     seen = {}
     monkeypatch.setattr(speech.subprocess, "run", lambda cmd, **kw: seen.update(cmd=cmd, **kw))

@@ -32,6 +32,7 @@ import struct
 import subprocess
 import sys
 import threading
+import time
 import wave
 from pathlib import Path
 from typing import Callable, Iterator
@@ -79,7 +80,7 @@ class Endpointer:
     """Decides when an utterance is over from per-chunk loudness."""
 
     def __init__(self, fixed_level: float | None = None, floor: float = 300.0,
-                 silence_s: float = 1.2, start_timeout_s: float = 6.0, max_s: float = 20.0):
+                 silence_s: float = 0.8, start_timeout_s: float = 6.0, max_s: float = 20.0):
         self.fixed_level = fixed_level
         self.floor = floor
         self.silence_chunks = round(silence_s / CHUNK_SECONDS)
@@ -188,11 +189,12 @@ NOTHING = tone([(330, 0.25)])
 # --- the loop -----------------------------------------------------------
 
 class Voice:
-    def __init__(self, cfg: Config, speak, play: Callable[[bytes], None],
+    def __init__(self, cfg: Config, speak, stream, play: Callable[[bytes], None],
                  listen: Callable[[Callable[[], bool]], bytes | None],
                  transcribe: Callable[[bytes], str], ask=chat.run):
         self.cfg = cfg
         self.speak = speak          # text -> spoken (focus.outputs.speech.Speech.say)
+        self.stream = stream        # () -> SentenceStream, for speaking as the reply arrives
         self.play = play            # wav bytes -> played
         self.listen = listen
         self.transcribe = transcribe
@@ -206,17 +208,25 @@ class Voice:
             self.play(NOTHING)
             return
         self.play(GOT_IT)
+        stopped = time.monotonic()
         text = self.transcribe(audio)
+        heard = time.monotonic()
         if not text:
             self.speak("Sorry, I didn't catch that.")
             return
         log.info("Heard: %s", text)
+        out = self.stream()
         try:
-            reply = self.ask(self.cfg, text)
+            self.ask(self.cfg, text, on_text=out.feed)
         except CoachError as exc:
             log.warning("Voice chat failed: %s", exc)
-            reply = f"Sorry, that didn't work. {exc}"
-        self.speak(reply)
+            if not out.spoke:
+                out.feed(f"Sorry, that didn't work. {exc}")
+        out.close()
+        first = out.first_audio_at
+        log.info("Timing: %.1f s of speech, transcribed in %.1f s, first word %s after you stopped, done after %.1f s",
+                 len(audio) / 2 / RATE, heard - stopped,
+                 f"{first - stopped:.1f} s" if first else "never", time.monotonic() - stopped)
 
 
 def run(voice: Voice, presses: Iterator[None]) -> None:
@@ -269,6 +279,7 @@ def main() -> int:
     voice = Voice(
         config.load(),
         speak=spoken.say,
+        stream=spoken.stream,
         play=spoken.play,
         listen=lambda stop: record(device, Endpointer(float(fixed) if fixed else None), stop),
         transcribe=transcribe,

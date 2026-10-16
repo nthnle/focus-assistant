@@ -55,8 +55,8 @@ def feed_all(ep, levels):
 
 def test_endpointer_speech_then_pause():
     ep = voice.Endpointer()
-    # 0.3 s of room noise sets the threshold, then 1 s of speech, then quiet.
-    assert feed_all(ep, [100, 120, 110] + [2000] * 10 + [100] * 11) is None
+    # 0.3 s of room noise sets the threshold, then 1 s of speech, then 0.8 s quiet.
+    assert feed_all(ep, [100, 120, 110] + [2000] * 10 + [100] * 7) is None
     assert ep.feed(100) == "done"
     assert ep.threshold == 330  # 3 x the median noise level (110)
 
@@ -82,20 +82,34 @@ def test_tone_is_a_wav():
         assert w.getframerate() == 22050 and w.getnframes() > 0
 
 
+class FakeStream:
+    def __init__(self, sink):
+        self.sink, self.parts, self.spoke, self.first_audio_at = sink, [], False, None
+
+    def feed(self, text):
+        self.parts.append(text)
+        self.spoke = True
+
+    def close(self):
+        self.sink.append("".join(self.parts))
+
+
 class Recorder:
     def __init__(self, cfg, audio=b"\x00\x00" * 100, heard="add buy coffee filters",
                  reply="Added buy coffee filters.", fail=None):
         self.spoken, self.played, self.asked = [], [], []
 
-        def ask(_cfg, text):
+        def ask(_cfg, text, on_text):
             self.asked.append(text)
             if fail:
                 raise CoachError(fail)
+            for i, word in enumerate(reply.split(" ")):  # arrives in pieces, like a stream
+                on_text(word if i == 0 else " " + word)
             return reply
 
         self.voice = voice.Voice(
-            cfg, speak=self.spoken.append, play=self.played.append,
-            listen=lambda stop: audio, transcribe=lambda a: heard, ask=ask,
+            cfg, speak=self.spoken.append, stream=lambda: FakeStream(self.spoken),
+            play=self.played.append, listen=lambda stop: audio, transcribe=lambda a: heard, ask=ask,
         )
 
 

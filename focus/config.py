@@ -22,6 +22,7 @@ def _default_state_dir() -> Path:
 class Config:
     state_dir: Path
     model: str
+    chat_model: str
     effort: str
     outputs: tuple[str, ...]
     history_days: int
@@ -41,6 +42,8 @@ def load() -> Config:
     return Config(
         state_dir=Path(state_dir) if state_dir else _default_state_dir(),
         model=os.environ.get("FOCUS_MODEL", "claude-sonnet-5-5"),
+        # Chat and voice want a quick, cheap reply; check-ins keep the bigger model.
+        chat_model=os.environ.get("FOCUS_CHAT_MODEL", "claude-haiku-5-5"),
         effort=os.environ.get("FOCUS_EFFORT", "low"),
         outputs=tuple(o.strip() for o in outputs.split(",") if o.strip()),
         history_days=int(os.environ.get("FOCUS_HISTORY_DAYS", "14")),
