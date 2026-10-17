@@ -52,7 +52,7 @@ def make_handler(cfg: Config, token: str, daily_limit: int,
             if self.path != "/chat":
                 self.send_error(404)
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            length = _web.content_length(self) or 0
             if not 0 < length <= MAX_BODY:
                 self._reply(400, "Send a JSON body like {\"text\": \"...\"}")
                 return
@@ -64,7 +64,7 @@ def make_handler(cfg: Config, token: str, daily_limit: int,
                 self._reply(400, "Send a JSON body like {\"text\": \"...\"}")
                 return
 
-            log.info("Chat: %s", text[:80])
+            log.info("Chat: %s", config.words(text[:80]))
             with one_at_a_time:
                 try:
                     reply = run(cfg, text, daily_limit=daily_limit)

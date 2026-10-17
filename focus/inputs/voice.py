@@ -109,7 +109,7 @@ def mark_top_done(cfg: Config) -> str:
         top = s.open_priorities[0]
         actions.complete_priority(s, top.id)
         rest = s.open_priorities
-    log.info("Call button: marked %r done", top.text)
+    log.info("Call button: marked %s done", config.words(top.text))
     return f"Done: {top.text}. " + (f"Next is {rest[0].text}." if rest else "That's everything on your list.")
 
 
@@ -121,7 +121,7 @@ def undo_last_done(cfg: Config) -> str:
             return "Nothing to undo."
         last = max(done, key=lambda p: p.done_at)
         actions.reopen_priority(s, last.id)
-    log.info("Call button double press: reopened %r", last.text)
+    log.info("Call button double press: reopened %s", config.words(last.text))
     return f"Undone: {last.text} is back on your list."
 
 
@@ -451,10 +451,10 @@ class Voice:
         if text.strip(" .,!?").lower() in PHANTOMS or (hint and text.strip() in hint):
             # Whisper's usual output for near-silence, or the hint echoed back:
             # nobody was talking to us.
-            log.info("Ignored a likely mis-hearing: %r", text)
+            log.info("Ignored a likely mis-hearing: %s", config.words(text))
             self.play(NOTHING)
             return False
-        log.info("Heard: %s", text)
+        log.info("Heard: %s", config.words(text))
         out = self.stream()
         replied = True
         try:

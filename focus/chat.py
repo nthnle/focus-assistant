@@ -124,8 +124,11 @@ def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
 
     # Snapshot under the lock; never hold it during a model call.
     with st.locked_state(cfg) as s:
-        if len(s.chat) >= daily_limit:
+        # Count the attempt before any model call: a message that fails still
+        # costs tokens, so failures must not slip past the cap.
+        if s.chat_attempts >= daily_limit:
             raise CoachError(f"Daily chat limit ({daily_limit}) reached; it resets tomorrow")
+        s.chat_attempts += 1
         payload = coach.build_payload(s, "chat", st.now_iso())
         history = s.chat[-HISTORY_TURNS:]
 

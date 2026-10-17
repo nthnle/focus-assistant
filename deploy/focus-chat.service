@@ -20,8 +20,10 @@ RestartSec=5
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=@STATE_DIR@
+# An empty home with only the state folder in it: nothing else there (SSH
+# keys included) is visible even if this service were compromised.
+ProtectHome=tmpfs
+BindPaths=@STATE_DIR@
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes

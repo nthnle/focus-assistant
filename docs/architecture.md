@@ -66,7 +66,8 @@ imported only by the modules that use them, and only when used.
 ## Services and what they may do
 
 Each service is a systemd unit running as your user (never root) in a
-sandbox: read-only system and home directory except the state directory,
+sandbox: a read-only system, an empty home directory with only the state
+directory in it (so not even `~/.ssh` is visible),
 no capabilities, no new privileges, and only the devices and network it
 needs. The API key lives in `/etc/focus-assistant/focus.env`, readable by
 root only; systemd reads it and passes it to the services that need it.
@@ -84,7 +85,8 @@ root only to stop and start `focus-voice` at the quiet-hours times.
 
 The two services that listen on the network (`dock`, `chat`) answer only
 private addresses and require their own token (`Authorization: Bearer`, or
-`?k=` for the status page). Requests are plain HTTP on your LAN.
+`?k=` for the status page), optionally narrowed to listed devices with
+`FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN.
 
 ## Adding an output
 

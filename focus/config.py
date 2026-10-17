@@ -48,3 +48,15 @@ def load() -> Config:
         outputs=tuple(o.strip() for o in outputs.split(",") if o.strip()),
         history_days=int(os.environ.get("FOCUS_HISTORY_DAYS", "14")),
     )
+
+
+def words(text: str) -> str:
+    """What the logs may show of something the user said, typed or listed.
+
+    The journal outlives the day's state and is readable by admins, so by
+    default it gets only the length; FOCUS_LOG_WORDS=1 logs the words, which
+    helps when tuning voice.
+    """
+    if os.environ.get("FOCUS_LOG_WORDS") == "1":
+        return repr(text)
+    return f"<{len(text)} chars>"

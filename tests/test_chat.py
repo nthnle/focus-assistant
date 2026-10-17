@@ -163,6 +163,32 @@ def test_daily_limit(cfg):
         chat.run(cfg, "two", client=client, daily_limit=1)
 
 
+def test_failed_messages_count_toward_the_daily_limit(cfg):
+    def handler(request):
+        return httpx2.Response(500, json={"type": "error", "error": {"type": "api_error", "message": "boom"}})
+
+    client = anthropic.Anthropic(
+        api_key="test", max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(handler))
+    )
+    with pytest.raises(CoachError, match="500"):
+        chat.run(cfg, "one", client=client, daily_limit=1)
+    with pytest.raises(CoachError, match="limit"):
+        chat.run(cfg, "two", client=client, daily_limit=1)
+    with st.locked_state(cfg) as s:
+        assert s.chat == [] and s.chat_attempts == 1
+
+
+def test_attempts_reset_at_rollover_and_default_from_old_state(cfg):
+    from datetime import date
+    old = st.State.from_dict({"version": st.SCHEMA_VERSION, "date": "2026-10-14",
+                              "chat": [{"at": "x", "user": "hi", "reply": "hey"}]})
+    assert old.chat_attempts == 1  # a state file from before the counter existed
+    with st.locked_state(cfg, today=date(2026, 10, 14)) as s:
+        s.chat_attempts = 7
+    with st.locked_state(cfg, today=date(2026, 10, 15)) as s:
+        assert s.chat_attempts == 0
+
+
 def test_chat_clears_at_rollover(cfg):
     from datetime import date
     with st.locked_state(cfg, today=date(2026, 10, 14)) as s:

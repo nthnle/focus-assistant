@@ -141,7 +141,10 @@ def make_handler(dock: Dock, token: str, display_token: str | None = None) -> ty
             if not _web.authorized(self, token):
                 return
             # Dock reports carry no body, but read any so keep-alive stays in step.
-            length = int(self.headers.get("Content-Length") or 0)
+            length = _web.content_length(self)
+            if length is None:
+                self.send_error(400)
+                return
             if length > 65536:
                 self.send_error(413)
                 return
