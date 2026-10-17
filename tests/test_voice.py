@@ -92,8 +92,14 @@ class FakeStream:
         self.parts.append(text)
         self.spoke = True
 
-    def close(self):
+    def finish(self):
         self.sink.append("".join(self.parts))
+
+    def wait(self, timeout=None):
+        return True  # "played" instantly
+
+    def stop(self):
+        pass
 
 
 class Recorder:
@@ -300,14 +306,14 @@ def test_timing_when_nothing_was_spoken():
 def test_priorities_go_to_the_recogniser_as_a_hint(cfg):
     from focus import actions, state as st
     with st.locked_state(cfg) as s:
-        actions.add_priority(s, "Study for the GEIR exam")
+        actions.add_priority(s, "Study for the biology exam")
         done = actions.add_priority(s, "Old thing")
         actions.complete_priority(s, done.id)
-    assert voice.vocabulary(cfg) == "My priorities: Study for the GEIR exam."
+    assert voice.vocabulary(cfg) == "My priorities: Study for the biology exam."
     hint = voice.vocabulary(cfg)
-    r = Recorder(cfg, heard="add review GEIR notes", hint=hint)
+    r = Recorder(cfg, heard="add review biology notes", hint=hint)
     r.voice.turn(lambda: False)
-    assert r.hints == [hint] and r.asked == ["add review GEIR notes"]
+    assert r.hints == [hint] and r.asked == ["add review biology notes"]
 
 
 def test_no_priorities_no_hint(cfg):
@@ -315,8 +321,8 @@ def test_no_priorities_no_hint(cfg):
 
 
 def test_hint_echoed_back_is_ignored(cfg):
-    hint = "My priorities: Study for the GEIR exam."
-    r = Recorder(cfg, heard="Study for the GEIR exam", hint=hint)
+    hint = "My priorities: Study for the biology exam."
+    r = Recorder(cfg, heard="Study for the biology exam", hint=hint)
     r.voice.turn(lambda: False)
     assert r.asked == [] and r.played[-1] == voice.NOTHING
 
@@ -328,3 +334,187 @@ def test_model_setting_picks_the_recogniser(monkeypatch):
     voice.make_transcriber("tiny.en", "/m")
     voice.make_transcriber("moonshine/tiny", "/m")
     assert made == [("whisper", "tiny.en"), ("moonshine", "moonshine/tiny")]
+
+
+def followup_voice(cfg, heard, listens, fail_on=()):
+    """A Voice whose listen() returns `listens` in order; records what happened."""
+    log = {"listen": [], "asked": [], "played": [], "spoken": []}
+    queue = list(listens)
+    heard_queue = list(heard)
+
+    def listen(stop, start_timeout_s=None):
+        log["listen"].append(start_timeout_s)
+        return queue.pop(0)
+
+    def ask(_cfg, text, on_text, voice):
+        log["asked"].append(text)
+        if text in fail_on:
+            raise CoachError("no network")
+        on_text("Done.")
+
+    v = voice.Voice(cfg, speak=log["spoken"].append, stream=lambda: FakeStream(log["spoken"]),
+                    play=log["played"].append, listen=listen,
+                    transcribe=lambda a, hint: heard_queue.pop(0), ask=ask, followup_s=5)
+    return v, log
+
+
+def test_follow_up_needs_no_wake_word(cfg):
+    audio = b"\x00\x00" * 100
+    v, log = followup_voice(cfg, ["add car inspection", "move it to the top"], [audio, audio, None])
+    v.turn(lambda: False)
+    assert log["asked"] == ["add car inspection", "move it to the top"]
+    assert log["listen"] == [None, 5, 5]          # the first waits as usual, follow-ups 5 s
+    assert log["played"].count(voice.FOLLOW_UP) == 2
+    assert voice.NOTHING not in log["played"]     # a quiet end, no low tone
+
+
+def test_no_follow_up_after_a_mis_hearing_or_failure(cfg):
+    audio = b"\x00\x00" * 100
+    v, log = followup_voice(cfg, ["You"], [audio])
+    v.turn(lambda: False)
+    assert log["asked"] == [] and voice.FOLLOW_UP not in log["played"]
+
+    v, log = followup_voice(cfg, ["add x"], [audio], fail_on={"add x"})
+    v.turn(lambda: False)
+    assert log["asked"] == ["add x"] and voice.FOLLOW_UP not in log["played"]
+
+
+def test_follow_up_off_with_zero(cfg):
+    audio = b"\x00\x00" * 100
+    v, log = followup_voice(cfg, ["add x"], [audio])
+    v.followup_s = 0
+    v.turn(lambda: False)
+    assert log["listen"] == [None] and voice.FOLLOW_UP not in log["played"]
+
+
+class Reports:
+    """Hands out one HID report per read(), as /dev/hidraw does."""
+
+    def __init__(self, *reports):
+        self.reports = list(reports)
+
+    def read(self, n):
+        return self.reports.pop(0) if self.reports else b""
+
+
+def test_call_presses_are_the_02_01_reports():
+    stream = Reports(b"\x02\x01", b"\x01\x08", b"\x01\x00", b"\x02\x01", b"\x02\x01")
+    assert len(list(voice.call_presses(stream))) == 3   # play's 01 08 / 01 00 don't count
+
+
+def test_find_hidraw_by_usb_id(tmp_path):
+    for n, hid in [(0, "0003:0000046D:0000C52B"), (1, "0003:0000291A:00003301")]:
+        (tmp_path / f"hidraw{n}" / "device").mkdir(parents=True)
+        (tmp_path / f"hidraw{n}" / "device" / "uevent").write_text(f"DRIVER=hid-generic\nHID_ID={hid}\n")
+    assert voice.find_hidraw(voice.POWERCONF_HID, tmp_path).name == "hidraw1"
+    assert voice.find_hidraw("0000FFFF:0000FFFF", tmp_path) is None
+
+
+def test_mark_top_done(cfg):
+    from focus import actions, state as st
+    assert voice.mark_top_done(cfg) == "Nothing left to mark done."
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Write the report")
+        actions.add_priority(s, "Email Sam")
+    assert voice.mark_top_done(cfg) == "Done: Write the report. Next is Email Sam."
+    assert voice.mark_top_done(cfg) == "Done: Email Sam. That's everything on your list."
+    with st.locked_state(cfg) as s:
+        assert s.open_priorities == []
+
+
+def _spaced_presses(*gaps):
+    """Call presses separated by these gaps (seconds), then the button stays connected."""
+    import threading
+    for gap in gaps:
+        time.sleep(gap)
+        yield None
+    threading.Event().wait()
+
+
+def test_single_call_presses_mark_done():
+    v, singles, doubles = CountingVoice(), [], []
+    with pytest.raises(Done):
+        voice.run(v, FakeMic(chunks=400), None, calls=_spaced_presses(0, 0.6),
+                  on_call=lambda: singles.append(1), on_double_call=lambda: doubles.append(1))
+    assert len(singles) == 2 and doubles == [] and v.turns == 0
+
+
+def test_double_call_press_undoes():
+    v, singles, doubles = CountingVoice(), [], []
+    with pytest.raises(Done):
+        voice.run(v, FakeMic(chunks=400), None, calls=_spaced_presses(0, 0.1),
+                  on_call=lambda: singles.append(1), on_double_call=lambda: doubles.append(1))
+    assert singles == [] and doubles == [1]
+
+
+def test_play_press_during_the_double_press_wait_still_starts_a_turn():
+    q = voice.queue.Queue()
+    q.put("play")
+    assert voice.second_call_follows(q, window_s=0.05) is False
+    assert q.get_nowait() == "play"
+
+
+def test_undo_last_done(cfg):
+    from focus import actions, state as st
+    assert voice.undo_last_done(cfg) == "Nothing to undo."
+    with st.locked_state(cfg) as s:
+        a = actions.add_priority(s, "Write the report")
+        b = actions.add_priority(s, "Email Sam")
+        actions.complete_priority(s, a.id)
+        s.find(a.id).done_at = "2026-10-12T10:00:00-05:00"
+        actions.complete_priority(s, b.id)
+        s.find(b.id).done_at = "2026-10-12T11:00:00-05:00"
+    assert voice.undo_last_done(cfg) == "Undone: Email Sam is back on your list."
+    with st.locked_state(cfg) as s:
+        assert [p.text for p in s.open_priorities] == ["Email Sam"]
+
+
+def test_play_while_the_coach_speaks_cuts_it_off(cfg):
+    class SlowStream(FakeStream):
+        stopped = False
+
+        def wait(self, timeout=None):
+            if timeout is not None:
+                time.sleep(timeout)
+            return self.stopped           # never finishes on its own
+
+        def stop(self):
+            SlowStream.stopped = True
+
+    presses = iter([False, False, True])   # the third check sees a play press
+    asked = []
+    v = voice.Voice(cfg, speak=lambda t: None, stream=lambda: SlowStream([]), play=lambda w: None,
+                    listen=lambda stop, start_timeout_s=None: b"\x00\x00" * 100,
+                    transcribe=lambda a, hint: "tell me everything",
+                    ask=lambda c, t, on_text, voice: (asked.append(t), on_text("A long answer. "))[0],
+                    followup_s=5)
+    assert v.answer(b"\x00\x00" * 100, lambda: next(presses)) is False   # cut off: no follow-up
+    assert SlowStream.stopped and asked == ["tell me everything"]
+
+
+def test_call_during_a_turn_is_ignored():
+    import threading
+    turn_started, forever = threading.Event(), threading.Event()
+
+    def presses():          # one play press, then the button stays connected
+        yield None
+        forever.wait()
+
+    def calls():            # a call press that arrives during the turn
+        turn_started.wait()
+        yield None
+        forever.wait()
+
+    seen, called = [], []
+
+    class PeekingVoice:
+        def turn(self, pressed_again):
+            turn_started.set()
+            time.sleep(0.1)                 # let the call press land in the queue
+            seen.append(pressed_again())    # a call press must not end the turn
+
+    with pytest.raises(Done):
+        voice.run(PeekingVoice(), FakeMic(), presses(), calls=calls(), on_call=lambda: called.append(1))
+    forever.set()
+    assert seen == [False]   # ignored during the turn...
+    assert called == []      # ...and dropped afterwards, not run late

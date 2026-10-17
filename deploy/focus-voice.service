@@ -30,6 +30,8 @@ PrivateTmp=yes
 DevicePolicy=closed
 DeviceAllow=char-alsa rw
 DeviceAllow=char-input r
+# The PowerConf's call button arrives only on its hidraw device.
+DeviceAllow=char-hidraw r
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

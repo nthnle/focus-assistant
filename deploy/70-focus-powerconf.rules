@@ -1,0 +1,4 @@
+# Lets the focus-voice service (group "input") read the Anker PowerConf's raw
+# HID reports, where its call button shows up. Installed by install.sh into
+# /etc/udev/rules.d/. Without it, /dev/hidraw* is readable by root only.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="291a", ATTRS{idProduct}=="3301", MODE="0640", GROUP="input"

@@ -34,6 +34,11 @@ done
 chown root:root "$ETC/focus.env"
 chmod 0600 "$ETC/focus.env"
 
+echo "==> udev rule (speakerphone call button)"
+install -m 0644 deploy/70-focus-powerconf.rules /etc/udev/rules.d/70-focus-powerconf.rules
+udevadm control --reload
+udevadm trigger --subsystem-match=hidraw
+
 echo "==> systemd units"
 for unit in focus-checkin.service focus-checkin.timer focus-dock.service focus-chat.service \
             focus-voice.service focus-stretch.service focus-stretch.timer \

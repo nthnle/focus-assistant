@@ -45,10 +45,33 @@ def synthesize(voice, text: str) -> bytes:
     return buf.getvalue()
 
 
-def aplay(device: str) -> Callable[[bytes], None]:
-    def play(wav: bytes) -> None:
-        subprocess.run(["aplay", "-q", "-D", device, "-"], input=wav, check=True, timeout=120)
-    return play
+class Aplay:
+    """Plays a WAV through aplay; stop() cuts off whatever is playing (a play press)."""
+
+    def __init__(self, device: str):
+        self.device = device
+        self._proc: subprocess.Popen | None = None
+        self._stopped = False
+
+    def __call__(self, wav: bytes) -> None:
+        self._stopped = False
+        self._proc = subprocess.Popen(["aplay", "-q", "-D", self.device, "-"], stdin=subprocess.PIPE)
+        try:
+            self._proc.communicate(wav, timeout=120)
+        except BrokenPipeError:
+            pass  # stopped while writing
+        if self._proc.returncode and not self._stopped:
+            raise subprocess.CalledProcessError(self._proc.returncode, "aplay")
+
+    def stop(self) -> None:
+        self._stopped = True
+        proc = self._proc
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+
+
+def aplay(device: str) -> Aplay:
+    return Aplay(device)
 
 
 def save_to(path: str) -> Callable[[bytes], None]:
@@ -77,6 +100,7 @@ class SentenceStream:
         self.first_sentence_at: float | None = None  # first whole sentence ready to speak
         self.first_audio_at: float | None = None     # Piper done, first sentence starts playing
         self.spoke = False
+        self.stopped = False
         self._buffer = ""
         self._queue: queue.Queue[str | None] = queue.Queue()
         self._worker = threading.Thread(target=self._run, daemon=True)
@@ -90,15 +114,35 @@ class SentenceStream:
         for sentence in done:
             self._put(sentence)
 
-    def close(self) -> None:
-        """Speak whatever is left and wait until everything has been played."""
+    def finish(self) -> None:
+        """No more text is coming: queue what's left; playback carries on."""
         self._put(self._buffer)
         self._buffer = ""
         self._queue.put(None)
-        self._worker.join()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait for playback to end; True once everything has been played (or stopped)."""
+        self._worker.join(timeout)
+        return not self._worker.is_alive()
+
+    def close(self) -> None:
+        """Speak whatever is left and wait until everything has been played."""
+        self.finish()
+        self.wait()
+
+    def stop(self) -> None:
+        """Cut the reply off now: drop unspoken sentences, stop the one playing."""
+        self.stopped = True
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+        self._queue.put(None)
+        self.speech.stop()
 
     def _put(self, sentence: str) -> None:
-        if sentence.strip():
+        if sentence.strip() and not self.stopped:
             self.spoke = True
             if self.first_sentence_at is None:
                 self.first_sentence_at = time.monotonic()
@@ -106,8 +150,12 @@ class SentenceStream:
 
     def _run(self) -> None:
         while (sentence := self._queue.get()) is not None:
+            if self.stopped:
+                break
             try:
                 wav = synthesize(self.speech.voice, sentence)
+                if self.stopped:
+                    break
                 if self.first_audio_at is None:
                     self.first_audio_at = time.monotonic()
                 self.speech.play(wav)
@@ -128,6 +176,12 @@ class Speech:
 
     def stream(self) -> SentenceStream:
         return SentenceStream(self)
+
+    def stop(self) -> None:
+        """Stop whatever is playing, if the player can (aplay can; saving a WAV can't)."""
+        stop = getattr(self.play, "stop", None)
+        if stop is not None:
+            stop()
 
     def checkin(self, state: State, slot: str, reply: str) -> None:
         if self.cfg and presence.away(self.cfg, state, datetime.now().astimezone()):

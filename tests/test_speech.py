@@ -53,12 +53,51 @@ def test_stream_with_nothing_is_silent():
     assert played == [] and not out.spoke
 
 
+class FakeAplay:
+    """Stands in for the aplay process."""
+    made = []
+
+    def __init__(self, cmd, stdin=None):
+        self.cmd, self.returncode, self.fed, self.terminated = cmd, None, None, False
+        FakeAplay.made.append(self)
+
+    def communicate(self, data, timeout=None):
+        self.fed = data
+        self.returncode = -15 if self.terminated else 0
+
+    def poll(self):
+        return self.returncode
+
+    def terminate(self):
+        self.terminated = True
+
+
 def test_aplay_command(monkeypatch):
-    seen = {}
-    monkeypatch.setattr(speech.subprocess, "run", lambda cmd, **kw: seen.update(cmd=cmd, **kw))
+    monkeypatch.setattr(speech.subprocess, "Popen", FakeAplay)
     speech.aplay("plughw:CARD=PowerConf,DEV=0")(b"RIFF")
-    assert seen["cmd"] == ["aplay", "-q", "-D", "plughw:CARD=PowerConf,DEV=0", "-"]
-    assert seen["input"] == b"RIFF"
+    proc = FakeAplay.made[-1]
+    assert proc.cmd == ["aplay", "-q", "-D", "plughw:CARD=PowerConf,DEV=0", "-"]
+    assert proc.fed == b"RIFF"
+
+
+def test_aplay_stop_terminates_and_is_not_an_error(monkeypatch):
+    monkeypatch.setattr(speech.subprocess, "Popen", FakeAplay)
+    player = speech.aplay("x")
+    player._proc = FakeAplay(["aplay"])
+    player.stop()
+    assert player._proc.terminated
+
+
+def test_stream_stop_drops_unspoken_sentences():
+    played = []
+    voice = FakeVoice()
+    sp = speech.Speech(voice, played.append)
+    out = sp.stream()
+    out.stop()
+    out.feed("One. Two. Three.")
+    out.finish()
+    assert out.wait(1)
+    assert played == [] and out.stopped
 
 
 def test_stream_records_when_text_sentence_and_audio_arrive():

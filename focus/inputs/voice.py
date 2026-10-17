@@ -27,6 +27,8 @@ release right after the press, so it is press-to-talk, not hold-to-talk.
     FOCUS_VOICE_WAKE_THRESHOLD  0 to 1, default 0.5; higher means fewer false starts
     FOCUS_VOICE_WAKE_FRAMES     80 ms frames in a row above it to fire, default 3
     FOCUS_VOICE_WAKE_VAD        speech-detector threshold, default 0.5; 0 turns it off
+    FOCUS_VOICE_FOLLOWUP  seconds to keep listening after a reply, no wake word needed
+                          (default 5; 0 = one trigger per turn)
 
     python -m focus.inputs.voice    the service (what focus-voice runs)
 """
@@ -34,6 +36,7 @@ release right after the press, so it is press-to-talk, not hold-to-talk.
 from __future__ import annotations
 
 import array
+import contextlib
 import io
 import logging
 import math
@@ -49,7 +52,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import chat, config, presence, state as st
+from .. import actions, chat, config, presence, state as st
 from ..coach import CoachError
 from ..config import Config
 
@@ -73,6 +76,56 @@ def find_input(name_part: str, sys_root: Path = Path("/sys/class/input")) -> Pat
         if name_part.lower() in name.lower():
             return Path("/dev/input") / node.name
     raise FileNotFoundError(f"No input device matching {name_part!r}; is the speakerphone plugged in?")
+
+
+# The call button never becomes a Linux key: it arrives only as a raw HID
+# report on the PowerConf's hidraw device, 02 01 once per press (no release).
+POWERCONF_HID = "0000291A:00003301"  # USB 291a:3301, as it appears in the hidraw uevent
+CALL_REPORT = b"\x02\x01"
+
+
+def find_hidraw(hid_id: str, sys_root: Path = Path("/sys/class/hidraw")) -> Path | None:
+    for node in sorted(sys_root.glob("hidraw*")):
+        try:
+            uevent = (node / "device" / "uevent").read_text(errors="replace")
+        except OSError:
+            continue
+        if hid_id.upper() in uevent.upper():
+            return Path("/dev") / node.name
+    return None
+
+
+def call_presses(stream: io.BufferedReader, report: bytes = CALL_REPORT) -> Iterator[None]:
+    while chunk := stream.read(64):  # hidraw hands over one report per read
+        if chunk.startswith(report):
+            yield None
+
+
+def mark_top_done(cfg: Config) -> str:
+    """The call button: mark the top open priority done; returns what to say."""
+    with st.locked_state(cfg) as s:
+        if not s.open_priorities:
+            return "Nothing left to mark done."
+        top = s.open_priorities[0]
+        actions.complete_priority(s, top.id)
+        rest = s.open_priorities
+    log.info("Call button: marked %r done", top.text)
+    return f"Done: {top.text}. " + (f"Next is {rest[0].text}." if rest else "That's everything on your list.")
+
+
+def undo_last_done(cfg: Config) -> str:
+    """A double press on the call button: reopen whatever was marked done most recently."""
+    with st.locked_state(cfg) as s:
+        done = [p for p in s.priorities if p.done]
+        if not done:
+            return "Nothing to undo."
+        last = max(done, key=lambda p: p.done_at)
+        actions.reopen_priority(s, last.id)
+    log.info("Call button double press: reopened %r", last.text)
+    return f"Undone: {last.text} is back on your list."
+
+
+DOUBLE_PRESS_S = 0.4  # a second call press this soon after the first means "undo"
 
 
 def key_presses(stream: io.BufferedReader, code: int = KEY_PLAYPAUSE) -> Iterator[None]:
@@ -340,6 +393,7 @@ def tone(notes: list[tuple[float, float]], rate: int = 22050, volume: float = 0.
 LISTENING = tone([(660, 0.08), (880, 0.12)])
 GOT_IT = tone([(880, 0.08), (660, 0.10)])
 NOTHING = tone([(330, 0.25)])
+FOLLOW_UP = tone([(880, 0.06)], volume=0.15)  # soft: "still listening, no wake word needed"
 
 # What Whisper tends to "hear" in near-silence (it was trained on subtitles).
 PHANTOMS = {"you", "thank you", "thanks", "bye", "thank you for watching", "thanks for watching"}
@@ -349,25 +403,43 @@ PHANTOMS = {"you", "thank you", "thanks", "bye", "thank you for watching", "than
 
 class Voice:
     def __init__(self, cfg: Config, speak, stream, play: Callable[[bytes], None],
-                 listen: Callable[[Callable[[], bool]], bytes | None],
+                 listen: Callable[..., bytes | None],
                  transcribe: Callable[..., str], ask=chat.run,
-                 hint: Callable[[], str | None] = lambda: None):
+                 hint: Callable[[], str | None] = lambda: None, followup_s: float = 0.0):
         self.cfg = cfg
         self.speak = speak          # text -> spoken (focus.outputs.speech.Speech.say)
         self.stream = stream        # () -> SentenceStream, for speaking as the reply arrives
         self.play = play            # wav bytes -> played
-        self.listen = listen
+        self.listen = listen        # (stop, start_timeout_s=None) -> audio or None
         self.transcribe = transcribe  # (audio, hint) -> text
         self.ask = ask
         self.hint = hint            # () -> vocabulary for the recogniser, or None
+        self.followup_s = followup_s  # after a reply, listen this long without a wake word
 
     def turn(self, pressed_again: Callable[[], bool]) -> None:
-        """One turn: listen, understand, answer out loud."""
+        """One turn: listen, understand, answer out loud, then stay open for a follow-up.
+
+        After each reply a soft chime opens a FOCUS_VOICE_FOLLOWUP-second window:
+        speak and it's another turn, no wake word needed; stay quiet and it ends.
+        """
         self.play(LISTENING)
         audio = self.listen(pressed_again)
         if audio is None:
             self.play(NOTHING)
             return
+        while self.answer(audio, pressed_again) and self.followup_s > 0:
+            self.play(FOLLOW_UP)
+            audio = self.listen(pressed_again, start_timeout_s=self.followup_s)
+            if audio is None:
+                log.info("No follow-up")
+                return
+
+    def answer(self, audio: bytes, pressed_again: Callable[[], bool] = lambda: False) -> bool:
+        """Understand one utterance and speak the coach's reply.
+
+        True if the coach replied and was heard out; a play press while it
+        speaks cuts the reply off (and skips the follow-up window).
+        """
         self.play(GOT_IT)
         stopped = time.monotonic()
         hint = self.hint()
@@ -375,23 +447,33 @@ class Voice:
         heard = time.monotonic()
         if not text:
             self.speak("Sorry, I didn't catch that.")
-            return
+            return False
         if text.strip(" .,!?").lower() in PHANTOMS or (hint and text.strip() in hint):
             # Whisper's usual output for near-silence, or the hint echoed back:
             # nobody was talking to us.
             log.info("Ignored a likely mis-hearing: %r", text)
             self.play(NOTHING)
-            return
+            return False
         log.info("Heard: %s", text)
         out = self.stream()
+        replied = True
         try:
             self.ask(self.cfg, text, on_text=out.feed, voice=True)
         except CoachError as exc:
             log.warning("Voice chat failed: %s", exc)
+            replied = False
             if not out.spoke:
                 out.feed(f"Sorry, that didn't work. {exc}")
-        out.close()
+        out.finish()
+        while not out.wait(0.05):
+            if pressed_again():
+                out.stop()
+                out.wait()
+                log.info("Reply cut short with the play button")
+                replied = False
+                break
         log.info("Timing: %s", timing(len(audio) / 2 / RATE, stopped, heard, out, time.monotonic()))
+        return replied
 
 
 def timing(spoke_s: float, stopped: float, heard: float, out, done: float) -> str:
@@ -422,6 +504,24 @@ def timing(spoke_s: float, stopped: float, heard: float, out, done: float) -> st
 _LOST = object()
 
 
+def second_call_follows(events: queue.Queue, window_s: float = DOUBLE_PRESS_S) -> bool:
+    """After a call press, wait briefly for a second one (a double press).
+
+    Anything else that arrives meanwhile (a play press) goes back in the queue.
+    """
+    deadline = time.monotonic() + window_s
+    while (left := deadline - time.monotonic()) > 0:
+        try:
+            item = events.get(timeout=left)
+        except queue.Empty:
+            return False
+        if item == "call":
+            return True
+        events.put(item)
+        return False
+    return False
+
+
 def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> bool:
     """Say the latest check-in that was held while you were away, once you're back."""
     with st.locked_state(cfg, today=now.date()) as s:
@@ -438,31 +538,43 @@ def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> b
 
 def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
         on_chunk: Callable[[bytes], None] | None = None,
-        idle: Callable[[], None] | None = None, idle_every_s: float = 30.0) -> None:
-    """Start a turn on each button press or wake word, until the hardware goes away.
+        idle: Callable[[], None] | None = None, idle_every_s: float = 30.0,
+        calls: Iterator[None] | None = None, on_call: Callable[[], None] | None = None,
+        on_double_call: Callable[[], None] | None = None) -> None:
+    """Start a turn on each play press or wake word, until the hardware goes away.
 
     `on_chunk` sees every chunk (presence keeps only a loudness reading);
-    `idle` runs between turns every `idle_every_s` (held check-ins).
+    `idle` runs between turns every `idle_every_s` (held check-ins);
+    `on_call` runs on a call-button press between turns, `on_double_call`
+    on two presses within DOUBLE_PRESS_S.
     """
     events: queue.Queue = queue.Queue()
     next_idle = time.monotonic() + idle_every_s
 
-    if presses is not None:
-        def pump() -> None:
-            for _ in presses:
-                events.put(None)
-            events.put(_LOST)
+    def pump(source: Iterator[None], kind: str) -> None:
+        for _ in source:
+            events.put(kind)
+        events.put(_LOST)
 
-        threading.Thread(target=pump, daemon=True).start()
+    for source, kind in ((presses, "play"), (calls, "call")):
+        if source is not None:
+            threading.Thread(target=pump, args=(source, kind), daemon=True).start()
 
-    def pressed_again() -> bool:
+    def next_event() -> str | None:
         try:
             item = events.get_nowait()
         except queue.Empty:
-            return False
+            return None
         if item is _LOST:
-            raise RuntimeError("Lost the speakerphone's button")
-        return True
+            raise RuntimeError("Lost the speakerphone's buttons")
+        return item
+
+    def pressed_again() -> bool:
+        """During a turn: only play counts (it ends the recording); call is ignored."""
+        item = next_event()
+        if item == "call":
+            log.info("Call button ignored during a turn")
+        return item == "play"
 
     while True:
         chunk = mic.read()
@@ -475,7 +587,17 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
             except Exception:
                 log.exception("Idle task failed")
             mic.clear()  # what it just said isn't anyone at the desk
-        if pressed_again():
+        event = next_event()
+        if event == "call":
+            action = on_double_call if second_call_follows(events) else on_call
+            if action is not None:
+                try:
+                    action()
+                except Exception:
+                    log.exception("Call button action failed")
+            mic.clear()
+            continue
+        if event == "play":
             trigger = "button"
         elif wake is not None and wake.heard(chunk):
             trigger = f"{wake.name}, score {wake.last_score:.2f}"
@@ -491,7 +613,7 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
         # Nothing pressed or said while it was answering starts another turn,
         # and the reply it just spoke can't trigger the wake word.
         mic.clear()
-        while pressed_again():
+        while next_event() is not None:
             pass
         if wake is not None:
             wake.reset()
@@ -529,24 +651,38 @@ def main() -> int:
     spoken = speech.create()
     mic = Mic(device)
 
-    def listen(stop: Callable[[], bool]) -> bytes | None:
-        mic.clear()  # start after the chime, not with it
-        return record(mic.read, Endpointer(float(fixed) if fixed else None), stop)
+    def listen(stop: Callable[[], bool], start_timeout_s: float | None = None) -> bytes | None:
+        mic.clear()  # start after the chime (and the reply), not with it
+        endpointer = Endpointer(float(fixed) if fixed else None,
+                                **({"start_timeout_s": start_timeout_s} if start_timeout_s else {}))
+        return record(mic.read, endpointer, stop)
 
     cfg = config.load()
     voice = Voice(cfg, speak=spoken.say, stream=spoken.stream, play=spoken.play,
-                  listen=listen, transcribe=transcribe, hint=lambda: vocabulary(cfg))
+                  listen=listen, transcribe=transcribe, hint=lambda: vocabulary(cfg),
+                  followup_s=float(os.environ.get("FOCUS_VOICE_FOLLOWUP", "5")))
     tracker = presence.SoundTracker(cfg)
     extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)),
                   idle=lambda: replay_missed(cfg, spoken.say, datetime.now().astimezone()))
     key = int(os.environ.get("FOCUS_VOICE_KEY", KEY_PLAYPAUSE))
     ways = ([f'say "{wake_name.replace("_", " ")}"'] if wake else []) + ([f"press key {key}"] if button else [])
-    log.info("Ready: %s, then speak", " or ".join(ways))
-    if button is None:
-        run(voice, mic, None, wake, **extras)
-        return 0
-    with open(button, "rb", buffering=0) as stream:
-        run(voice, mic, key_presses(stream, key), wake, **extras)
+
+    with contextlib.ExitStack() as stack:
+        presses = key_presses(stack.enter_context(open(button, "rb", buffering=0)), key) if button else None
+        calls = None
+        hidraw = find_hidraw(POWERCONF_HID)
+        if hidraw is None:
+            log.info("No PowerConf call button found; it won't mark priorities done")
+        else:
+            try:
+                calls = call_presses(stack.enter_context(open(hidraw, "rb", buffering=0)))
+                log.info("Call button on %s marks the top priority done", hidraw)
+            except PermissionError:
+                log.warning("Can't read %s; install.sh adds the udev rule that allows it", hidraw)
+        log.info("Ready: %s, then speak", " or ".join(ways))
+        run(voice, mic, presses, wake, calls=calls,
+            on_call=lambda: spoken.say(mark_top_done(cfg)),
+            on_double_call=lambda: spoken.say(undo_last_done(cfg)), **extras)
     return 0
 
 
