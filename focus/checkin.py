@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from . import coach, outputs, state as st
+from . import coach, outputs, pricing, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -42,10 +42,10 @@ def run(cfg: Config, slot: str | None = None) -> str:
         if reply is None:
             text, record = coach.offline_reply(s, slot), {"model": "offline"}
         else:
-            text, record = reply.text, {
+            text, record = reply.text, pricing.priced({
                 "model": reply.model,
                 "tokens": {"in": reply.input_tokens, "out": reply.output_tokens},
-            }
+            }, reply.model, reply.input_tokens, reply.output_tokens)
         s.checkins.append({"slot": slot, "at": st.now_iso(), "reply": text, **record})
         outputs.deliver(outputs.load(cfg.outputs), s, slot, text)
 

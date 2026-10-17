@@ -155,3 +155,12 @@ def test_last_prints_latest_reply(cfg, capsys):
     assert cli.main(["last"]) == 0
     out = capsys.readouterr().out
     assert out == "[midday check-in, 13:00]\nDock the phone.\n"
+
+
+def test_checkin_saves_its_cost_when_the_price_is_known(cfg, monkeypatch):
+    monkeypatch.setenv("FOCUS_MODEL_PRICE", "0.15,0.60")
+    monkeypatch.setattr(coach, "ask", lambda _cfg, payload, client=None:
+                        coach.CoachReply("Go.", "test-model", 1000, 100))
+    checkin.run(cfg, "morning")
+    with st.locked_state(cfg) as s:
+        assert s.checkins[-1]["usd"] == pytest.approx((1000 * 0.15 + 100 * 0.60) / 1e6)

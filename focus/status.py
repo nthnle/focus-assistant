@@ -7,63 +7,39 @@ from the token counts recorded in state.json.
 
 from __future__ import annotations
 
-import os
 import subprocess
 from datetime import datetime
 from typing import Callable
 
 from . import blocks, presence, stretch
+from .pricing import cost, prices  # noqa: F401  (tests use these here)
 from .config import Config
 from .state import State
 
 UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-dock", "focus-chat", "focus-voice"]
 
 
-def prices() -> dict[str, tuple[float, float]]:
-    """US$ per million input / output tokens, from focus.env. Open-model prices
-    depend on the provider, so they are settings, not a table here:
-
-        FOCUS_MODEL_PRICE=0.59,0.79        for FOCUS_MODEL
-        FOCUS_CHAT_MODEL_PRICE=0.05,0.08   for FOCUS_CHAT_MODEL
-    """
-    table = {}
-    for model_var, price_var in (("FOCUS_MODEL", "FOCUS_MODEL_PRICE"),
-                                 ("FOCUS_CHAT_MODEL", "FOCUS_CHAT_MODEL_PRICE")):
-        model, raw = os.environ.get(model_var), os.environ.get(price_var, "")
-        try:
-            tin, tout = (float(x) for x in raw.split(","))
-        except ValueError:
-            continue
-        if model:
-            table[model] = (tin, tout)
-    return table
-
-
-def cost(model: str, tokens_in: int, tokens_out: int) -> float | None:
-    price = prices().get(model)
-    if price is None:
-        return None
-    return (tokens_in * price[0] + tokens_out * price[1]) / 1_000_000
-
-
 def usage_today(cfg: Config, s: State) -> list[tuple[str, int, int, int, float | None]]:
     """(what, calls, tokens in, tokens out, dollars or None if a model's price is unknown)."""
-    groups: dict[str, list[tuple[str, int, int]]] = {"check-ins": [], "chat": [], "stretch": []}
+    # (model, tokens in, tokens out, dollars saved at call time if any)
+    groups: dict[str, list[tuple[str, int, int, float | None]]] = {"check-ins": [], "chat": [], "stretch": []}
     for c in s.checkins:
-        t = c.get("tokens", {})
-        groups["check-ins"].append((c.get("model", cfg.model), t.get("in", 0), t.get("out", 0)))
+        t = c.get("tokens")
+        if t is not None:  # an offline check-in made no call
+            groups["check-ins"].append((c.get("model", cfg.model), t.get("in", 0), t.get("out", 0), c.get("usd")))
     for c in s.chat:
         t = c.get("tokens", {})
-        groups["chat"].append((c.get("model", cfg.chat_model), t.get("in", 0), t.get("out", 0)))
+        groups["chat"].append((c.get("model", cfg.chat_model), t.get("in", 0), t.get("out", 0), c.get("usd")))
     for e in s.events:
         if e["kind"] == stretch.STRETCH and "usage" in e:
             u = e["usage"]
-            groups["stretch"].append((u["model"], u["in"], u["out"]))
+            groups["stretch"].append((u["model"], u["in"], u["out"], u.get("usd")))
 
     rows = []
     for name, calls in groups.items():
-        dollars = [cost(m, i, o) for m, i, o in calls]
-        rows.append((name, len(calls), sum(i for _, i, _ in calls), sum(o for _, _, o in calls),
+        # Saved at call time, where the prices are visible; else from this process's env.
+        dollars = [usd if usd is not None else cost(m, i, o) for m, i, o, usd in calls]
+        rows.append((name, len(calls), sum(c[1] for c in calls), sum(c[2] for c in calls),
                      None if None in dollars else sum(dollars)))
     return rows
 
@@ -129,7 +105,7 @@ def report(cfg: Config, s: State, now: datetime,
     ]
     total, unknown = 0.0, False
     for name, calls, tin, tout, dollars in usage_today(cfg, s):
-        price = f"${dollars:.4f}" if dollars is not None else "$? (set FOCUS_MODEL_PRICE)"
+        price = f"${dollars:.4f}" if dollars is not None else "$? (no FOCUS_MODEL_PRICE when it ran)"
         lines.append(f"  {name:<10} {calls:>3} calls  {tin:>7,} in / {tout:>6,} out  {price}")
         if dollars is None:
             unknown = True

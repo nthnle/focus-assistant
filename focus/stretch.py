@@ -24,7 +24,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, blocks, coach, config, presence, state as st
+from . import actions, blocks, coach, config, presence, pricing, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -71,8 +71,10 @@ def compose(cfg: Config, now: datetime, client: openai.OpenAI | None = None) -> 
             messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
         )
         return {"text": coach.reply_text(response),
-                "usage": {"model": cfg.chat_model, "in": response.usage.input_tokens,
-                          "out": response.usage.output_tokens}}
+                "usage": pricing.priced({"model": cfg.chat_model, "in": response.usage.input_tokens,
+                                         "out": response.usage.output_tokens},
+                                        cfg.chat_model, response.usage.input_tokens,
+                                        response.usage.output_tokens)}
     except coach.CoachError as exc:
         log.warning("Coach unavailable (%s); using a fixed phrase", exc)
         return None

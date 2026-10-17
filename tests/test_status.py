@@ -91,3 +91,21 @@ def test_report_without_systemd(cfg):
     text = status.report(cfg, st.State(date=NOW.date().isoformat()), NOW, systemctl=lambda *a: None)
     assert "systemctl not available" in text
     assert "total      $0.0000" in text
+
+
+def test_saved_costs_count_even_without_prices_here(cfg, monkeypatch):
+    """`focus status` runs from a shell that can't read focus.env: it must use
+    what the services saved, and skip offline check-ins (no call was made)."""
+    monkeypatch.delenv("FOCUS_MODEL_PRICE")
+    monkeypatch.delenv("FOCUS_CHAT_MODEL_PRICE")
+    s = st.State(date=NOW.date().isoformat())
+    s.checkins = [
+        {"slot": "morning", "at": at(9, 0), "reply": "x", "model": "test-model",
+         "tokens": {"in": 1000, "out": 100}, "usd": 0.0003},
+        {"slot": "midday", "at": at(13, 0), "reply": "The coach is offline.", "model": "offline"},
+    ]
+    s.chat = [{"at": at(10, 0), "user": "hi", "reply": "hey", "voice": False,
+               "model": "test-chat-model", "tokens": {"in": 500, "out": 20}, "usd": 0.0001}]
+    rows = {name: rest for name, *rest in status.usage_today(cfg, s)}
+    assert rows["check-ins"] == [1, 1000, 100, pytest.approx(0.0003)]
+    assert rows["chat"] == [1, 500, 20, pytest.approx(0.0001)]

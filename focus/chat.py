@@ -14,7 +14,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, coach, state as st
+from . import actions, coach, pricing, state as st
 from .coach import CoachError
 from .config import Config
 from .state import State
@@ -194,7 +194,7 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
 
     reply = coach.reply_text(response)
     with st.locked_state(cfg) as s:
-        s.chat.append({
+        s.chat.append(pricing.priced({
             "at": st.now_iso(),
             "user": message,
             "reply": reply,
@@ -202,5 +202,5 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
             "voice": voice,
             "model": cfg.chat_model,
             "tokens": {"in": tokens_in, "out": tokens_out},
-        })
+        }, cfg.chat_model, tokens_in, tokens_out))
     return reply

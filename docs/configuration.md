@@ -18,7 +18,7 @@ point that `install.sh` copies.
 | `FOCUS_LLM_API_KEY` | (required) | The host's API key. Use one just for this device, and set a spend limit at the host if it offers one. |
 | `FOCUS_MODEL` | (required) | The host's name for the model used for check-ins. Pick an instruction-tuned model that supports tool calling (needed for chat and voice), roughly 8B parameters or larger. |
 | `FOCUS_CHAT_MODEL` | `FOCUS_MODEL` | Model for chat, voice commands and stretch reminders. A smaller, faster model makes voice feel quicker. |
-| `FOCUS_MODEL_PRICE`, `FOCUS_CHAT_MODEL_PRICE` | (unset) | US$ per million tokens in and out, e.g. `0.59,0.79`, from the host's price list. Only `focus status` uses them. |
+| `FOCUS_MODEL_PRICE`, `FOCUS_CHAT_MODEL_PRICE` | (unset) | US$ per million tokens in and out, e.g. `0.59,0.79`, from the host's price list. Each call's cost is saved with it, so `focus status` can show it. Calls made before a price was set show `$?`. |
 | `FOCUS_EFFORT` | (unset) | Sent as `reasoning_effort` (`low`, `medium`, `high`). Only reasoning models accept it; leave it unset for the rest, or requests fail. |
 | `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. |
 | `FOCUS_HISTORY_DAYS` | `14` | Days of daily summaries kept for the coach's context. |
