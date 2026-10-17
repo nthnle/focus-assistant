@@ -22,9 +22,9 @@ import sys
 from datetime import datetime
 from typing import Callable
 
-import anthropic
+import openai
 
-from . import actions, blocks, chat, coach, config, presence, state as st
+from . import actions, blocks, coach, config, presence, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -58,18 +58,17 @@ def phrase_for(now: datetime) -> str:
     return PHRASES[now.hour % len(PHRASES)]
 
 
-def compose(cfg: Config, now: datetime, client: anthropic.Anthropic | None = None) -> dict | None:
+def compose(cfg: Config, now: datetime, client: openai.OpenAI | None = None) -> dict | None:
     """The coach's reminder as {"text", "usage"}, or None if it can't produce one quickly."""
     with st.locked_state(cfg, today=now.date()) as s:
         payload = coach.build_payload(s, "stretch_break", now.astimezone().isoformat(timespec="seconds"))
-    extra = {"thinking": chat.THINKING[cfg.chat_model]} if cfg.chat_model in chat.THINKING else {}
     try:
         # One short try: a late reminder is worse than a plain one.
         client = client or coach.make_client("the stretch timer gets it from focus.env",
                                              timeout=COACH_TIMEOUT, max_retries=0)
         response = coach.create(
             cfg, client, model=cfg.chat_model, system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}], **extra,
+            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
         )
         return {"text": coach.reply_text(response),
                 "usage": {"model": cfg.chat_model, "in": response.usage.input_tokens,

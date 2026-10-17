@@ -7,8 +7,11 @@ optional feature builds on it; see the other guides when you're ready.
 
 - A **Raspberry Pi 4** (2 GB or more) with a microSD card and power supply.
   Any Debian-based Linux machine should also work, but only the Pi is tested.
-- An **Anthropic API key** from the [Console](https://console.anthropic.com/).
-  Make a separate key for the Pi, so you can revoke it on its own.
+- An account with a **host for open models** that offers an
+  OpenAI-compatible API (Groq, Together, OpenRouter, Fireworks, DeepInfra
+  and others): its base URL, an API key, and the name of a model that
+  supports tool calling. Make a separate key for the Pi, so you can revoke
+  it on its own.
 
 ## 1. Prepare the Pi
 
@@ -53,13 +56,14 @@ sudo deploy/install.sh
 The optional services (dock, chat, voice, stretch reminders) are installed
 but **not enabled**: you turn each one on when you set it up.
 
-## 3. Add your API key
+## 3. Set the model
 
 ```bash
 sudo nano /etc/focus-assistant/focus.env
 ```
 
-Set `ANTHROPIC_API_KEY=...` and save. Then try a check-in:
+Set `FOCUS_LLM_BASE_URL`, `FOCUS_LLM_API_KEY` and `FOCUS_MODEL` (see
+[configuration.md](configuration.md#core)) and save. Then try a check-in:
 
 ```bash
 focus add Write the project proposal
@@ -117,9 +121,11 @@ journalctl -u focus-checkin -n 30              # recent check-ins
 
 | Problem | Try |
 |---|---|
-| `ANTHROPIC_API_KEY is not set` | Check-ins get the key from systemd. Run them with `sudo systemctl start focus-checkin`, not `focus checkin`. |
-| `API key rejected` | Check the key in `/etc/focus-assistant/focus.env`, with no quotes or spaces. |
-| `Could not reach the API` | Check the Pi's network. The check-in retries a few times before giving up. |
+| Check-in says "The coach is offline" | The journal says why: `journalctl -u focus-checkin -n 20`. |
+| `FOCUS_LLM_BASE_URL and FOCUS_LLM_API_KEY must be set` | Check-ins get them from systemd. Run them with `sudo systemctl start focus-checkin`, not `focus checkin`. |
+| `API key rejected` | Check `FOCUS_LLM_API_KEY` in `/etc/focus-assistant/focus.env`, with no quotes or spaces. |
+| `Model provider error 404` or `400` | Usually a wrong `FOCUS_MODEL` name (copy it exactly from the host's model list), a model without tool calling, or `FOCUS_EFFORT` set for a model that isn't a reasoning model. |
+| `can't reach the model provider` | Check the Pi's network and `FOCUS_LLM_BASE_URL`. The check-in retries a few times before giving up. |
 | Check-ins at the wrong time | `timedatectl` shows the Pi's time zone; set it with `sudo raspi-config` under Localisation. |
 | `focus: ... is not valid state JSON` | The state file was edited by hand or damaged. Move `~/.local/state/focus-assistant/state.json` aside and start fresh. |
 

@@ -1,8 +1,8 @@
 """Runtime settings, all from environment variables so systemd can set them.
 
-The API key is deliberately not read here: the Anthropic SDK reads
-ANTHROPIC_API_KEY itself, and systemd injects it from a root-only
-EnvironmentFile. Nothing in this package ever writes or logs it.
+The model provider's key is deliberately not read here: only
+`coach.make_client()` reads FOCUS_LLM_API_KEY, which systemd injects from a
+root-only EnvironmentFile. Nothing in this package ever writes or logs it.
 """
 
 from __future__ import annotations
@@ -41,10 +41,12 @@ def load() -> Config:
     outputs = os.environ.get("FOCUS_OUTPUTS", "console")
     return Config(
         state_dir=Path(state_dir) if state_dir else _default_state_dir(),
-        model=os.environ.get("FOCUS_MODEL", "claude-sonnet-5-5"),
-        # Chat and voice want a quick, cheap reply; check-ins keep the bigger model.
-        chat_model=os.environ.get("FOCUS_CHAT_MODEL", "claude-haiku-5-5"),
-        effort=os.environ.get("FOCUS_EFFORT", "low"),
+        # The provider's model name; there is no default, as every host names models differently.
+        model=os.environ.get("FOCUS_MODEL", ""),
+        # Chat and voice may use a quicker, cheaper model; the same one if unset.
+        chat_model=os.environ.get("FOCUS_CHAT_MODEL") or os.environ.get("FOCUS_MODEL", ""),
+        # Sent as reasoning_effort, which only reasoning models accept.
+        effort=os.environ.get("FOCUS_EFFORT", ""),
         outputs=tuple(o.strip() for o in outputs.split(",") if o.strip()),
         history_days=int(os.environ.get("FOCUS_HISTORY_DAYS", "14")),
     )

@@ -1,84 +1,92 @@
 import json
 
-import anthropic
-import httpx2
+import httpx
 import pytest
+from conftest import client_for, completion, scripted
 
 from focus import coach, config
-
-
-def _client(handler):
-    return anthropic.Anthropic(
-        api_key="test", max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(handler))
-    )
-
-
-def _message(content, stop_reason="end_turn"):
-    return {
-        "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
-        "content": content, "stop_reason": stop_reason, "stop_sequence": None,
-        "usage": {"input_tokens": 50, "output_tokens": 9},
-    }
+from focus.state import Priority, State
 
 
 def test_request_shape_and_reply():
-    sent = {}
-
-    def handler(request):
-        sent["beta"] = request.headers.get("anthropic-beta")
-        sent["body"] = json.loads(request.content)
-        return httpx2.Response(200, json=_message([{"type": "text", "text": "Start with the parser."}]))
-
-    reply = coach.ask(config.load(), {"checkin": "morning"}, client=_client(handler))
+    client, sent = scripted(completion("Start with the parser.", usage=(50, 9)))
+    reply = coach.ask(config.load(), {"checkin": "morning"}, client=client)
 
     assert reply.text == "Start with the parser."
     assert (reply.input_tokens, reply.output_tokens) == (50, 9)
-    assert sent["beta"] == "server-side-fallback-2026-07-01"
-    body = sent["body"]
-    assert body["fallbacks"] == "default"
-    assert body["output_config"] == {"effort": "low"}
-    assert body["system"] == coach.SYSTEM_PROMPT
-    assert json.loads(body["messages"][0]["content"]) == {"checkin": "morning"}
+    body = sent[0]
+    assert body["model"] == "test-model"
+    assert body["messages"][0] == {"role": "system", "content": coach.SYSTEM_PROMPT}
+    assert json.loads(body["messages"][1]["content"]) == {"checkin": "morning"}
+    assert "tools" not in body
+    assert "reasoning_effort" not in body  # most open models reject it
 
 
-def test_no_fallback_for_models_without_it(monkeypatch):
-    monkeypatch.setenv("FOCUS_MODEL", "claude-haiku-5-5")
-    sent = {}
-
-    def handler(request):
-        sent["beta"] = request.headers.get("anthropic-beta")
-        sent["body"] = json.loads(request.content)
-        return httpx2.Response(200, json=_message([{"type": "text", "text": "Go."}]))
-
-    coach.ask(config.load(), {"checkin": "morning"}, client=_client(handler))
-
-    assert sent["body"]["model"] == "claude-haiku-5-5"
-    assert "fallbacks" not in sent["body"]
-    assert not sent["beta"]
+def test_effort_is_sent_only_when_set(monkeypatch):
+    monkeypatch.setenv("FOCUS_EFFORT", "low")
+    client, sent = scripted(completion("Go."))
+    coach.ask(config.load(), {}, client=client)
+    assert sent[0]["reasoning_effort"] == "low"
 
 
-def test_refusal_is_an_error():
-    handler = lambda r: httpx2.Response(200, json=_message([], stop_reason="refusal"))
-    with pytest.raises(coach.CoachError, match="declined"):
-        coach.ask(config.load(), {}, client=_client(handler))
+def test_thinking_is_stripped_from_the_reply():
+    client, _ = scripted(completion("<think>They have two tasks...</think>\n\nStart with the parser."))
+    assert coach.ask(config.load(), {}, client=client).text == "Start with the parser."
+
+
+def test_think_filter_handles_tags_split_across_pieces():
+    f = coach.ThinkFilter()
+    pieces = ["Hi <thi", "nk>hidden</th", "ink> there", ", 3 < 4"]
+    assert "".join(f.feed(p) for p in pieces) + f.flush() == "Hi  there, 3 < 4"
+
+
+def test_empty_reply_is_an_error():
+    client, _ = scripted(completion("<think>only thoughts</think>", finish_reason="length"))
+    with pytest.raises(coach.CoachError, match="length"):
+        coach.ask(config.load(), {}, client=client)
 
 
 def test_auth_failure_points_at_env_file():
+    client = client_for(lambda r: httpx.Response(401, json={"error": {"message": "bad key"}}))
+    with pytest.raises(coach.CoachError, match="FOCUS_LLM_API_KEY"):
+        coach.ask(config.load(), {}, client=client)
+
+
+def test_unreachable_provider_says_offline():
     def handler(request):
-        return httpx2.Response(401, json={"type": "error", "error": {"type": "authentication_error", "message": "bad key"}})
+        raise httpx.ConnectError("no route to host")
 
-    with pytest.raises(coach.CoachError, match="focus.env"):
-        coach.ask(config.load(), {}, client=_client(handler))
+    with pytest.raises(coach.CoachError, match="offline"):
+        coach.ask(config.load(), {}, client=client_for(handler))
 
 
-def test_missing_key_is_explained(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_missing_provider_settings_are_explained():
     with pytest.raises(coach.CoachError, match="systemctl start focus-checkin"):
         coach.ask(config.load(), {})
 
 
+def test_missing_model_is_explained(monkeypatch):
+    monkeypatch.delenv("FOCUS_MODEL")
+    client, _ = scripted()
+    with pytest.raises(coach.CoachError, match="FOCUS_MODEL"):
+        coach.ask(config.load(), {}, client=client)
+
+
+@pytest.mark.parametrize("slot, open_, expected", [
+    ("morning", ["Ship the parser"], "Start with: Ship the parser."),
+    ("morning", [], "Set up to three priorities"),
+    ("midday", ["Ship the parser"], "Still open at the top: Ship the parser."),
+    ("evening", ["Email Sam"], "1 done today; first thing tomorrow: Email Sam."),
+])
+def test_offline_reply_uses_the_data(slot, open_, expected):
+    s = State(date="2026-10-12", priorities=[Priority(1, "Write spec", done_at="2026-10-12T10:00:00")]
+              + [Priority(i, t) for i, t in enumerate(open_, 2)])
+    reply = coach.offline_reply(s, slot)
+    assert reply.startswith("The coach is offline.")
+    assert expected in reply
+
+
 def _week_state(today):
-    from focus.state import State
     days = ["2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]  # last Fri, Mon-Thu
     return State(date=today, history=[{"date": d, "done": [d], "open": [], "checkins": 3,
                                        "chats": 0, "events": {}} for d in days])

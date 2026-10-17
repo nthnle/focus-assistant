@@ -82,8 +82,7 @@ After each reply a soft chime means it's still listening for 5 seconds:
 speak again and it's another turn, with no button or wake word. Say nothing
 and it stops. The coach is the same one as [phone chat](phone.md#chat): it
 can add, complete, reopen, drop and move priorities, and log how a block is
-going. It's built for quick commands; for long conversations, the Claude app
-is a better fit.
+going. It's built for quick commands, not long conversations.
 
 Install the voice extras and a speech model:
 

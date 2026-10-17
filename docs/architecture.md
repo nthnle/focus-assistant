@@ -29,12 +29,18 @@ add your own inputs and outputs.
 - **`focus.actions`** is every state change (add, complete, reopen, drop,
   move, log an event). The CLI, chat tools, voice and buttons all call it, so
   behaviour is the same whichever input you use.
-- **The coach** (`coach.py`) is a single Anthropic API call per check-in. It
-  gets a JSON payload: priorities, today's check-ins, events and chat, and
-  the last five daily summaries. The lock is never held during an API call.
+- **The coach** (`coach.py`) is a single chat-completions call per check-in,
+  to an open model on any OpenAI-compatible host. It gets a JSON payload:
+  priorities, today's check-ins, events and chat, and the last five daily
+  summaries. The lock is never held during a model call. `<think>` text from
+  reasoning models is stripped, streamed or not. If the host can't be
+  reached, the check-in is a fixed nudge built from the same data
+  (`offline_reply`), recorded with model `offline`.
 - **Chat** (`chat.py`) adds a small tool loop: the model can change
   priorities only through six tools that call `focus.actions`, at most six
-  model calls per message. Earlier turns are replayed as plain text.
+  model calls per message. Open models don't always follow a tool schema,
+  so every argument is checked (JSON, whole-number ids, known values,
+  length) before anything changes. Earlier turns are replayed as plain text.
 
 ## Modules
 
@@ -143,7 +149,7 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
 ```
 
-The tests mock the API (with `httpx2.MockTransport`) and all hardware
+The tests mock the model host (with `httpx.MockTransport`) and all hardware
 (microphone, buttons, `aplay`, systemd), so they need no key, no network and
 no Pi, and they run on Linux, macOS and Windows. The speech libraries aren't
 needed for the tests either.

@@ -8,6 +8,12 @@ TZ = timezone(timedelta(hours=-5))
 NOW = datetime(2026, 10, 12, 14, 5, tzinfo=TZ)  # Monday afternoon, in a block
 
 
+@pytest.fixture(autouse=True)
+def priced(monkeypatch):
+    monkeypatch.setenv("FOCUS_MODEL_PRICE", "2,10")
+    monkeypatch.setenv("FOCUS_CHAT_MODEL_PRICE", "0.10,0.50")
+
+
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("FOCUS_STATE_DIR", str(tmp_path))
@@ -24,16 +30,16 @@ def busy_day():
     actions.add_priority(s, "Email Sam")
     actions.complete_priority(s, a.id)
     s.checkins = [
-        {"slot": "morning", "at": at(9, 0), "reply": "x", "model": "claude-sonnet-5-5",
+        {"slot": "morning", "at": at(9, 0), "reply": "x", "model": "test-model",
          "tokens": {"in": 1000, "out": 100}},
-        {"slot": "midday", "at": at(13, 0), "reply": "y", "model": "claude-sonnet-5-5",
+        {"slot": "midday", "at": at(13, 0), "reply": "y", "model": "test-model",
          "tokens": {"in": 1000, "out": 100}, "unheard": True},
     ]
     s.chat = [{"at": at(10, 0), "user": "hi", "reply": "hey", "voice": True,
-               "model": "claude-haiku-5-5", "tokens": {"in": 2000, "out": 50}}]
+               "model": "test-chat-model", "tokens": {"in": 2000, "out": 50}}]
     s.events = [
         {"at": at(10, 50), "kind": stretch.STRETCH, "detail": "coach",
-         "usage": {"model": "claude-haiku-5-5", "in": 300, "out": 20}},
+         "usage": {"model": "test-chat-model", "in": 300, "out": 20}},
         {"at": at(11, 50), "kind": stretch.STRETCH, "detail": "fixed"},
         {"at": at(13, 42), "kind": st.PHONE_OUT},
     ]
@@ -41,9 +47,16 @@ def busy_day():
 
 
 def test_cost():
-    assert status.cost("claude-sonnet-5-5", 1_000_000, 100_000) == pytest.approx(3.0)
-    assert status.cost("claude-haiku-5-5", 1_000_000, 1_000_000) == pytest.approx(0.6)
+    assert status.cost("test-model", 1_000_000, 100_000) == pytest.approx(3.0)
+    assert status.cost("test-chat-model", 1_000_000, 1_000_000) == pytest.approx(0.6)
     assert status.cost("some-other-model", 1, 1) is None
+
+
+def test_unset_or_bad_price_is_unknown(monkeypatch):
+    monkeypatch.delenv("FOCUS_MODEL_PRICE")
+    monkeypatch.setenv("FOCUS_CHAT_MODEL_PRICE", "cheap")
+    assert status.cost("test-model", 1, 1) is None
+    assert status.cost("test-chat-model", 1, 1) is None
 
 
 def test_usage_today_groups_and_prices(cfg):

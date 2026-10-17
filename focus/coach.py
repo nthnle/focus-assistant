@@ -1,20 +1,33 @@
-"""The single Anthropic API call that turns state into a short coaching reply."""
+"""The model call that turns state into a short coaching reply.
+
+The model is an open model on any OpenAI-compatible host (Groq, Together,
+OpenRouter, Fireworks, DeepInfra, a local Ollama...), set in focus.env:
+
+    FOCUS_LLM_BASE_URL   e.g. https://api.groq.com/openai/v1
+    FOCUS_LLM_API_KEY    the provider's key
+    FOCUS_MODEL          the provider's name for the model
+
+`create()` turns the provider's answer into a small `Response`, so callers
+(check-ins, chat, voice, stretch) never see the wire format. Some open
+models think out loud in <think>...</think> before answering; that is
+stripped here, streamed or not, so it never reaches the screen or speaker.
+"""
 
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Callable
 
-import anthropic
+import openai
 
 from .config import Config
 from .state import State
 
-# Kept byte-stable so it can be prompt-cached if it ever grows past the
-# minimum cacheable size. Per-run data goes in the user message, not here.
+# Kept byte-stable so providers that cache prompts can reuse it. Per-run
+# data goes in the user message, not here.
 SYSTEM_PROMPT = """\
 You are a focus coach on a small device on the user's desk. Three times a \
 day you get their priorities, what they have done, and what the device has \
@@ -43,11 +56,6 @@ Be warm and direct. Do not invent tasks, progress or events that are not in \
 the data."""
 
 
-# Models that accept the server-side refusal fallback. Sending it to any
-# other model (Haiku 5.5, for one) is a 400, so FOCUS_MODEL can't break it.
-FALLBACK_MODELS = frozenset({"claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-1"})
-
-
 @dataclass
 class CoachReply:
     text: str
@@ -58,6 +66,42 @@ class CoachReply:
 
 class CoachError(Exception):
     pass
+
+
+@dataclass
+class Usage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+@dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: str  # JSON text, exactly as the model wrote it
+
+
+@dataclass
+class Response:
+    text: str
+    model: str
+    usage: Usage
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    finish_reason: str | None = None
+
+    @property
+    def stop_reason(self) -> str | None:
+        return "tool_use" if self.tool_calls else self.finish_reason
+
+    def as_message(self) -> dict:
+        """This turn as an assistant message, to send back with the tool results."""
+        message: dict = {"role": "assistant", "content": self.text or None}
+        if self.tool_calls:
+            message["tool_calls"] = [
+                {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}
+                for c in self.tool_calls
+            ]
+        return message
 
 
 def build_payload(s: State, slot: str, now: str) -> dict:
@@ -91,59 +135,153 @@ def build_payload(s: State, slot: str, now: str) -> dict:
     return payload
 
 
-def make_client(hint: str, timeout: float = 60.0, max_retries: int = 3) -> anthropic.Anthropic:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise CoachError(f"ANTHROPIC_API_KEY is not set; {hint}")
-    return anthropic.Anthropic(timeout=timeout, max_retries=max_retries)
+def make_client(hint: str, timeout: float = 60.0, max_retries: int = 3) -> openai.OpenAI:
+    base_url = os.environ.get("FOCUS_LLM_BASE_URL")
+    key = os.environ.get("FOCUS_LLM_API_KEY")
+    if not base_url or not key:
+        raise CoachError(f"FOCUS_LLM_BASE_URL and FOCUS_LLM_API_KEY must be set; {hint}")
+    return openai.OpenAI(base_url=base_url, api_key=key, timeout=timeout, max_retries=max_retries)
 
 
-def create(cfg: Config, client: anthropic.Anthropic, model: str | None = None,
-           on_text: Callable[[str], None] | None = None, **params):
-    """One Messages call with the fallback and error handling every caller wants.
+class ThinkFilter:
+    """Drops <think>...</think> from text that may arrive in pieces."""
 
-    With `on_text`, the reply is streamed and each piece of text is handed
-    over as it arrives (voice starts speaking before the reply is finished).
+    OPEN, CLOSE = "<think>", "</think>"
+
+    def __init__(self) -> None:
+        self._buf = ""
+        self._inside = False
+
+    def feed(self, text: str) -> str:
+        self._buf += text
+        out = []
+        while self._buf:
+            tag = self.CLOSE if self._inside else self.OPEN
+            i = self._buf.find(tag)
+            if i >= 0:
+                if not self._inside:
+                    out.append(self._buf[:i])
+                self._buf = self._buf[i + len(tag):]
+                self._inside = not self._inside
+                continue
+            # Hold back what could be the start of a tag split across pieces.
+            keep = next((k for k in range(min(len(tag) - 1, len(self._buf)), 0, -1)
+                         if tag.startswith(self._buf[-k:])), 0)
+            if not self._inside:
+                out.append(self._buf[:len(self._buf) - keep])
+            self._buf = self._buf[len(self._buf) - keep:]
+            break
+        return "".join(out)
+
+    def flush(self) -> str:
+        rest = "" if self._inside else self._buf
+        self._buf = ""
+        return rest
+
+
+def strip_thinking(text: str) -> str:
+    f = ThinkFilter()
+    return (f.feed(text) + f.flush()).strip()
+
+
+def create(cfg: Config, client: openai.OpenAI, model: str | None = None,
+           on_text: Callable[[str], None] | None = None, system: str | None = None,
+           messages: list[dict] | None = None, tools: list[dict] | None = None) -> Response:
+    """One chat-completions call with the error handling every caller wants.
+
+    With `on_text`, the reply is streamed and each piece of visible text is
+    handed over as it arrives (voice starts speaking before it is finished).
     """
     model = model or cfg.model
-    # If a safety classifier ever declines, re-run on Anthropic's
-    # recommended fallback model instead of returning nothing.
-    fallback = {}
-    if model in FALLBACK_MODELS:
-        fallback = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
-    request = dict(model=model, max_tokens=4000, output_config={"effort": cfg.effort},
-                   **fallback, **params)
+    if not model:
+        raise CoachError("FOCUS_MODEL is not set; check /etc/focus-assistant/focus.env")
+    request: dict = dict(
+        model=model,
+        max_tokens=4000,
+        messages=([{"role": "system", "content": system}] if system else []) + list(messages or []),
+    )
+    if tools:
+        request["tools"] = tools
+    if cfg.effort:
+        # Only reasoning models accept this; leave FOCUS_EFFORT empty for the rest.
+        request["reasoning_effort"] = cfg.effort
     try:
         if on_text is None:
-            response = client.beta.messages.create(**request)
-        else:
-            with client.beta.messages.stream(**request) as stream:
-                for text in stream.text_stream:
-                    on_text(text)
-                response = stream.get_final_message()
-    except anthropic.AuthenticationError as exc:
-        raise CoachError("API key rejected; check /etc/focus-assistant/focus.env") from exc
-    except anthropic.RateLimitError as exc:
-        raise CoachError("Rate limited by the API, even after retries") from exc
-    except anthropic.APIStatusError as exc:
-        raise CoachError(f"API error {exc.status_code}: {exc.message}") from exc
-    except anthropic.APIConnectionError as exc:
-        raise CoachError("Could not reach the API; is the network up?") from exc
-
-    if response.stop_reason == "refusal":
-        raise CoachError("The coach declined to answer")
-    return response
+            return _complete(client.chat.completions.create(**request))
+        return _stream(client.chat.completions.create(
+            **request, stream=True, stream_options={"include_usage": True}), model, on_text)
+    except openai.AuthenticationError as exc:
+        raise CoachError("API key rejected; check FOCUS_LLM_API_KEY in /etc/focus-assistant/focus.env") from exc
+    except openai.RateLimitError as exc:
+        raise CoachError("Rate limited by the model provider, even after retries") from exc
+    except openai.APIStatusError as exc:
+        raise CoachError(f"Model provider error {exc.status_code}: {exc.message}") from exc
+    except openai.APIConnectionError as exc:
+        raise CoachError("The coach is offline: can't reach the model provider") from exc
 
 
-def reply_text(response) -> str:
-    text = "".join(b.text for b in response.content if b.type == "text").strip()
-    if not text:
-        raise CoachError(f"Empty reply (stop_reason={response.stop_reason})")
-    return text
+def _complete(completion) -> Response:
+    choice = completion.choices[0]
+    message = choice.message
+    usage = completion.usage
+    return Response(
+        text=strip_thinking(message.content or ""),
+        model=completion.model or "",
+        usage=Usage(usage.prompt_tokens, usage.completion_tokens) if usage else Usage(),
+        tool_calls=[ToolCall(c.id, c.function.name, c.function.arguments or "{}")
+                    for c in (message.tool_calls or [])],
+        finish_reason=choice.finish_reason,
+    )
 
 
-def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -> CoachReply:
+def _stream(chunks, model: str, on_text: Callable[[str], None]) -> Response:
+    visible = ThinkFilter()
+    text: list[str] = []
+    calls: dict[int, dict] = {}  # tool calls arrive in pieces, keyed by index
+    usage = Usage()
+    finish = None
+    for chunk in chunks:
+        model = chunk.model or model
+        if chunk.usage:
+            usage = Usage(chunk.usage.prompt_tokens, chunk.usage.completion_tokens)
+        if not chunk.choices:
+            continue
+        choice = chunk.choices[0]
+        finish = choice.finish_reason or finish
+        delta = choice.delta
+        if delta.content:
+            piece = visible.feed(delta.content)
+            if piece:
+                text.append(piece)
+                on_text(piece)
+        for d in delta.tool_calls or []:
+            call = calls.setdefault(d.index, {"id": "", "name": "", "arguments": ""})
+            call["id"] = d.id or call["id"]
+            if d.function:
+                call["name"] += d.function.name or ""
+                call["arguments"] += d.function.arguments or ""
+    tail = visible.flush()
+    if tail:
+        text.append(tail)
+        on_text(tail)
+    return Response(
+        text="".join(text).strip(),
+        model=model,
+        usage=usage,
+        tool_calls=[ToolCall(c["id"], c["name"], c["arguments"] or "{}") for _, c in sorted(calls.items())],
+        finish_reason=finish,
+    )
+
+
+def reply_text(response: Response) -> str:
+    if not response.text:
+        raise CoachError(f"Empty reply (finish_reason={response.finish_reason})")
+    return response.text
+
+
+def ask(cfg: Config, payload: dict, client: openai.OpenAI | None = None) -> CoachReply:
     client = client or make_client(
-        "check-ins get it from the systemd unit (run one with: sudo systemctl start focus-checkin)"
+        "check-ins get them from the systemd unit (run one with: sudo systemctl start focus-checkin)"
     )
     response = create(
         cfg, client,
@@ -152,7 +290,24 @@ def ask(cfg: Config, payload: dict, client: anthropic.Anthropic | None = None) -
     )
     return CoachReply(
         text=reply_text(response),
-        model=response.model,
+        # The name from focus.env, so `focus status` can match it to its price.
+        model=cfg.model,
         input_tokens=response.usage.input_tokens,
         output_tokens=response.usage.output_tokens,
     )
+
+
+def offline_reply(s: State, slot: str) -> str:
+    """What a check-in says when the model can't be reached: fixed, but from the data."""
+    top = s.open_priorities[0].text if s.open_priorities else None
+    if slot == "morning":
+        if top:
+            return f"The coach is offline. Start with: {top}."
+        return "The coach is offline. Set up to three priorities for today."
+    if slot == "midday":
+        if top:
+            return f"The coach is offline. Still open at the top: {top}."
+        return "The coach is offline. Everything on today's list is done."
+    done = len(s.priorities) - len(s.open_priorities)
+    tomorrow = f"; first thing tomorrow: {top}." if top else "."
+    return f"The coach is offline. {done} done today{tomorrow} Put the phone away for the night."

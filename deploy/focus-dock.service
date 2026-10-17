@@ -5,9 +5,9 @@ Description=Focus assistant phone dock and display page
 Type=simple
 User=@USER@
 Group=@USER@
-# Shared settings file (FOCUS_DOCK_TOKEN, FOCUS_DISPLAY_TOKEN, FOCUS_BLOCKS); it never needs the API key.
+# Shared settings file (FOCUS_DOCK_TOKEN, FOCUS_DISPLAY_TOKEN, FOCUS_BLOCKS); it never needs the model provider's key.
 EnvironmentFile=/etc/focus-assistant/focus.env
-UnsetEnvironment=ANTHROPIC_API_KEY
+UnsetEnvironment=FOCUS_LLM_API_KEY
 Environment=FOCUS_STATE_DIR=@STATE_DIR@
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/focus-assistant/venv/bin/python -m focus.inputs.dock

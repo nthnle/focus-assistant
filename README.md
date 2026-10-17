@@ -2,7 +2,7 @@
 
 A focus coach that lives on your desk. A Raspberry Pi checks in three times
 each workday, looks at your priorities and what has happened since the last
-check-in, and asks Claude for a short, specific nudge: what to start with,
+check-in, and asks an open language model for a short, specific nudge: what to start with,
 how the morning went, what carries over to tomorrow. Everything else is
 optional and built around one idea: **help you focus without picking up
 your phone.**
@@ -18,7 +18,7 @@ your phone.**
 
 | | Needs |
 |---|---|
-| **Check-ins** at 09:00, 13:00 and 17:30 on weekdays, and a **weekly wrap-up** on Friday evening | a Pi and an Anthropic API key |
+| **Check-ins** at 09:00, 13:00 and 17:30 on weekdays, and a **weekly wrap-up** on Friday evening | a Pi and a key for a hosted open model |
 | **Priorities** from the command line: `focus add`, `focus done`, `focus move` ... unfinished ones carry over, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report, what's next?", plus buttons on a speakerphone | a USB speakerphone |
@@ -35,8 +35,10 @@ setup (see [docs/voice.md](docs/voice.md)).
 
 ## Quick start
 
-You need a Raspberry Pi 4 (2 GB or more), a microSD card, and an
-[Anthropic API key](https://console.anthropic.com/).
+You need a Raspberry Pi 4 (2 GB or more), a microSD card, and an account
+with a host for open models that offers an OpenAI-compatible API (Groq,
+Together, OpenRouter, Fireworks, DeepInfra and others), with its base URL,
+an API key and the name of the model to use.
 
 1. Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In its
    settings, set a hostname, user, Wi-Fi, SSH and **your time zone**: the
@@ -49,9 +51,9 @@ You need a Raspberry Pi 4 (2 GB or more), a microSD card, and an
    git clone https://github.com/nthnle/focus-assistant.git && cd focus-assistant
    sudo deploy/install.sh
    ```
-3. Add your API key, then run a check-in:
+3. Set the model, then run a check-in:
    ```bash
-   sudo nano /etc/focus-assistant/focus.env      # set ANTHROPIC_API_KEY
+   sudo nano /etc/focus-assistant/focus.env      # FOCUS_LLM_BASE_URL, FOCUS_LLM_API_KEY, FOCUS_MODEL
    focus add Write the project proposal
    sudo systemctl start focus-checkin
    focus last                                    # the coach's reply
@@ -91,17 +93,21 @@ Keep to about three: the coach pushes back when you have more.
 
 ## Cost
 
-Check-ins use Claude Sonnet 5.5; chat, voice and stretch reminders use the
-faster, cheaper Claude Haiku 5.5. With three check-ins a day and a handful of
-voice commands, expect roughly **$1 to $3 a month** in API usage.
-`focus status` shows the day's cost from the token counts it records, and
-phone chat has a daily cap (50 messages by default).
+The coach runs on whichever open model and host you set, so the cost is
+the host's price. Hosted open models are cheap for replies this short: with
+three check-ins a day and a handful of voice commands, usually **well under
+a dollar a month**. You can give chat, voice and stretch reminders a smaller,
+faster model (`FOCUS_CHAT_MODEL`). Set the prices in `focus.env` and
+`focus status` shows the day's cost from the token counts it records; phone
+chat has a daily cap (50 messages by default). If the host can't be reached,
+check-ins fall back to a fixed nudge built from your priorities.
 
 ## Privacy
 
 - **Your data stays on the Pi**, in one JSON file, except what is sent to
-  Anthropic's API to write each reply: your priorities, today's events and
-  check-ins, and recent daily summaries.
+  the model host you chose, to write each reply: your priorities, today's
+  events and check-ins, and recent daily summaries. Check that host's data
+  retention policy.
 - **Speech never leaves the Pi.** Speech recognition (faster-whisper or
   Moonshine), text-to-speech (Piper) and the wake word (openWakeWord) all run
   locally; only the transcribed text goes to the coach.
@@ -111,7 +117,7 @@ phone chat has a daily cap (50 messages by default).
   used for presence. A speakerphone's mute button, or the nightly quiet
   hours (voice off from 00:00 to 08:00), turn it off completely.
 - **The network services listen on your home network only**, each behind
-  its own token. Of the two, only chat holds the API key; the dock and status
+  its own token. Of the two, only chat holds the model key; the dock and status
   page can't spend money. Every service runs sandboxed with only the access
   it needs. Details in [docs/architecture.md](docs/architecture.md).
 

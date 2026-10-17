@@ -4,9 +4,9 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-import anthropic
-import httpx2
+import httpx
 import pytest
+from conftest import client_for, completion, scripted, sse, tool_call
 
 from focus import actions, chat, config, state as st
 from focus.coach import CoachError
@@ -21,45 +21,14 @@ def cfg(tmp_path, monkeypatch):
     return config.load()
 
 
-def _message(content, stop_reason="end_turn"):
-    return {
-        "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-sonnet-5-5",
-        "content": content, "stop_reason": stop_reason, "stop_sequence": None,
-        "usage": {"input_tokens": 100, "output_tokens": 20},
-    }
-
-
-def scripted(*responses):
-    """A client that returns the given messages in order and records each request body."""
-    sent = []
-    queue = list(responses)
-
-    def handler(request):
-        sent.append(json.loads(request.content))
-        return httpx2.Response(200, json=queue.pop(0))
-
-    client = anthropic.Anthropic(
-        api_key="test", max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(handler))
-    )
-    return client, sent
-
-
-def tool_use(name, args, id_="tu_1"):
-    return {"type": "tool_use", "id": id_, "name": name, "input": args}
-
-
-def text(t):
-    return {"type": "text", "text": t}
-
-
 def test_tool_call_changes_state_and_is_recorded(cfg):
     with st.locked_state(cfg) as s:
         actions.add_priority(s, "Write spec")
         actions.add_priority(s, "Email Sam")
 
     client, sent = scripted(
-        _message([tool_use("complete_priority", {"id": 1})], stop_reason="tool_use"),
-        _message([text("Marked the spec done. Email Sam next.")]),
+        completion(tool_calls=[tool_call("complete_priority", {"id": 1})]),
+        completion("Marked the spec done. Email Sam next."),
     )
     reply = chat.run(cfg, "finished the spec", client=client)
 
@@ -71,83 +40,116 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
         assert s.chat[-1]["tokens"] == {"in": 200, "out": 40}
 
     first = sent[0]
-    assert first["model"] == "claude-haiku-5-5"   # chat uses FOCUS_CHAT_MODEL, not FOCUS_MODEL
-    assert "thinking" not in first and "fallbacks" not in first
-    assert first["output_config"] == {"effort": "low"}
-    assert first["system"] == chat.SYSTEM_PROMPT
-    assert {t["name"] for t in first["tools"]} == set(chat._HANDLERS)
-    assert all(t["strict"] for t in first["tools"])
+    assert first["model"] == "test-chat-model"   # chat uses FOCUS_CHAT_MODEL, not FOCUS_MODEL
+    assert first["messages"][0] == {"role": "system", "content": chat.SYSTEM_PROMPT}
+    assert {t["function"]["name"] for t in first["tools"]} == set(chat._HANDLERS)
+    assert all(t["type"] == "function" for t in first["tools"])
     assert "<data>" in first["messages"][-1]["content"]
-    # Second call replays the assistant turn and sends the result
-    result = sent[1]["messages"][-1]["content"][0]
-    assert result["type"] == "tool_result" and result["tool_use_id"] == "tu_1"
+    # The second call replays the assistant turn, then the tool's result.
+    replayed, result = sent[1]["messages"][-2:]
+    assert replayed["role"] == "assistant"
+    assert replayed["tool_calls"][0]["function"]["name"] == "complete_priority"
+    assert result["role"] == "tool" and result["tool_call_id"] == "call_1"
     assert "[done] Write spec" in result["content"]
 
 
-def test_sonnet_chat_runs_without_thinking(cfg, monkeypatch):
-    monkeypatch.setenv("FOCUS_CHAT_MODEL", "claude-sonnet-5-5")
-    client, sent = scripted(_message([text("Sure.")]))
+def test_chat_model_defaults_to_the_check_in_model(cfg, monkeypatch):
+    monkeypatch.delenv("FOCUS_CHAT_MODEL")
+    client, sent = scripted(completion("Sure."))
     chat.run(config.load(), "hi", client=client)
-    assert sent[0]["thinking"] == {"type": "between_tools"}
-    assert sent[0]["fallbacks"] == "default"
-
-
-def sse(*texts):
-    """A streamed reply made of these text pieces, as server-sent events."""
-    msg = _message([], stop_reason=None) | {"usage": {"input_tokens": 100, "output_tokens": 1}}
-    events = [("message_start", {"type": "message_start", "message": msg}),
-              ("content_block_start", {"type": "content_block_start", "index": 0,
-                                       "content_block": {"type": "text", "text": ""}})]
-    events += [("content_block_delta", {"type": "content_block_delta", "index": 0,
-                                        "delta": {"type": "text_delta", "text": t}}) for t in texts]
-    events += [("content_block_stop", {"type": "content_block_stop", "index": 0}),
-               ("message_delta", {"type": "message_delta",
-                                  "delta": {"stop_reason": "end_turn", "stop_sequence": None},
-                                  "usage": {"output_tokens": 12}}),
-               ("message_stop", {"type": "message_stop"})]
-    return "".join(f"event: {name}\ndata: {json.dumps(data)}\n\n" for name, data in events)
+    assert sent[0]["model"] == "test-model"
 
 
 def test_streaming_hands_over_text_as_it_arrives(cfg):
     def handler(request):
-        assert json.loads(request.content)["stream"] is True
-        return httpx2.Response(200, text=sse("Start with ", "the parser."),
-                               headers={"content-type": "text/event-stream"})
+        body = json.loads(request.content)
+        assert body["stream"] is True and body["stream_options"] == {"include_usage": True}
+        return httpx.Response(200, text=sse("<think>plan</think>Start with ", "the parser."),
+                              headers={"content-type": "text/event-stream"})
 
-    client = anthropic.Anthropic(api_key="test", max_retries=0,
-                                 http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
     pieces = []
-    reply = chat.run(cfg, "what first?", client=client, on_text=pieces.append)
-    assert pieces == ["Start with ", "the parser."]
+    reply = chat.run(cfg, "what first?", client=client_for(handler), on_text=pieces.append)
+    assert "".join(pieces) == "Start with the parser."   # the thinking never reaches the speaker
     assert reply == "Start with the parser."
     with st.locked_state(cfg) as s:
         assert s.chat[-1]["tokens"] == {"in": 100, "out": 12}
 
 
+def test_streamed_tool_calls_are_put_back_together(cfg):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Write spec")
+    split = [  # one call, its arguments split across three chunks
+        {"index": 0, "id": "call_9", "type": "function", "function": {"name": "complete_priority", "arguments": ""}},
+        {"index": 0, "function": {"arguments": '{"i'}},
+        {"index": 0, "function": {"arguments": 'd": 1}'}},
+    ]
+    bodies = [sse(tool_calls=split), sse("Done.")]
+
+    def handler(request):
+        return httpx.Response(200, text=bodies.pop(0), headers={"content-type": "text/event-stream"})
+
+    assert chat.run(cfg, "done", client=client_for(handler), on_text=lambda _: None) == "Done."
+    with st.locked_state(cfg) as s:
+        assert s.priorities[0].done
+
+
 def test_bad_tool_input_is_reported_to_the_model(cfg):
     client, sent = scripted(
-        _message([tool_use("drop_priority", {"id": 99})], stop_reason="tool_use"),
-        _message([text("I couldn't find that one.")]),
+        completion(tool_calls=[tool_call("drop_priority", {"id": 99})]),
+        completion("I couldn't find that one."),
     )
     chat.run(cfg, "drop 99", client=client)
-    result = sent[1]["messages"][-1]["content"][0]
-    assert result["is_error"] is True
-    assert "99" in result["content"]
+    result = sent[1]["messages"][-1]
+    assert result["content"].startswith("Error:") and "99" in result["content"]
+
+
+@pytest.mark.parametrize("args, error", [
+    ("not json", "not valid JSON"),
+    ('{"id": "one"}', "whole number"),
+    ('{"id": true}', "whole number"),
+    ('["id", 1]', "JSON object"),
+])
+def test_malformed_tool_arguments_change_nothing(cfg, args, error):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Write spec")
+    client, sent = scripted(
+        completion(tool_calls=[tool_call("complete_priority", args)]),
+        completion("Sorry, let me try that again."),
+    )
+    chat.run(cfg, "done", client=client)
+    assert error in sent[1]["messages"][-1]["content"]
+    with st.locked_state(cfg) as s:
+        assert not s.priorities[0].done
+        assert s.chat[-1]["changed"] == []
+
+
+def test_numeric_strings_and_long_text_are_tidied(cfg):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Write spec")
+    client, _ = scripted(
+        completion(tool_calls=[tool_call("complete_priority", '{"id": "1"}', "call_1"),
+                               tool_call("add_priority", {"text": "  " + "x" * 500}, "call_2")]),
+        completion("Done."),
+    )
+    chat.run(cfg, "done, and add the long one", client=client)
+    with st.locked_state(cfg) as s:
+        assert s.priorities[0].done
+        assert s.priorities[1].text == "x" * chat.MAX_PRIORITY_CHARS
 
 
 def test_history_is_replayed_as_plain_text(cfg):
-    client, _ = scripted(_message([text("Sure.")]))
+    client, _ = scripted(completion("Sure."))
     chat.run(cfg, "first", client=client)
-    client, sent = scripted(_message([text("Again.")]))
+    client, sent = scripted(completion("Again."))
     chat.run(cfg, "second", client=client)
     msgs = sent[0]["messages"]
-    assert msgs[0] == {"role": "user", "content": "first"}
-    assert msgs[1] == {"role": "assistant", "content": "Sure."}
-    assert msgs[2]["content"].endswith("second")
+    assert msgs[1] == {"role": "user", "content": "first"}
+    assert msgs[2] == {"role": "assistant", "content": "Sure."}
+    assert msgs[3]["content"].endswith("second")
 
 
 def test_runaway_tool_loop_stops(cfg):
-    looping = [_message([tool_use("report", {"how": "on_track"}, f"tu_{i}")], stop_reason="tool_use")
+    looping = [completion(tool_calls=[tool_call("report", {"how": "on_track"}, f"call_{i}")])
                for i in range(chat.MAX_STEPS)]
     client, _ = scripted(*looping)
     with pytest.raises(CoachError, match="too many steps"):
@@ -157,19 +159,14 @@ def test_runaway_tool_loop_stops(cfg):
 
 
 def test_daily_limit(cfg):
-    client, _ = scripted(_message([text("ok")]))
+    client, _ = scripted(completion("ok"))
     chat.run(cfg, "one", client=client, daily_limit=1)
     with pytest.raises(CoachError, match="limit"):
         chat.run(cfg, "two", client=client, daily_limit=1)
 
 
 def test_failed_messages_count_toward_the_daily_limit(cfg):
-    def handler(request):
-        return httpx2.Response(500, json={"type": "error", "error": {"type": "api_error", "message": "boom"}})
-
-    client = anthropic.Anthropic(
-        api_key="test", max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(handler))
-    )
+    client = client_for(lambda r: httpx.Response(500, json={"error": {"message": "boom"}}))
     with pytest.raises(CoachError, match="500"):
         chat.run(cfg, "one", client=client, daily_limit=1)
     with pytest.raises(CoachError, match="limit"):
@@ -205,7 +202,7 @@ def server(cfg):
     def fake_run(_cfg, text, daily_limit, on_text=None):
         calls.append(text)
         if text == "fail":
-            raise CoachError("no network")
+            raise CoachError("The coach is offline: can't reach the model provider")
         return f"You said: {text}"
 
     handler = chat_service.make_handler(cfg, TOKEN, 50, run=fake_run)
@@ -229,7 +226,8 @@ def post(url, body, token=TOKEN):
 def test_http_chat(server):
     base, calls = server
     assert post(f"{base}/chat", b'{"text": "hello"}') == (200, "You said: hello")
-    assert post(f"{base}/chat", b'{"text": "fail"}') == (200, "Sorry, that didn't work: no network")
+    assert post(f"{base}/chat", b'{"text": "fail"}') == (
+        200, "Sorry, that didn't work: The coach is offline: can't reach the model provider")
     assert post(f"{base}/chat", b'{"text": "x"}', token="wrong")[0] == 403
     assert post(f"{base}/chat", b'not json')[0] == 400
     assert post(f"{base}/other", b'{"text": "x"}')[0] == 404
@@ -237,9 +235,9 @@ def test_http_chat(server):
 
 
 def test_voice_messages_ask_for_short_replies(cfg):
-    client, sent = scripted(_message([text("Done. Next is Email Sam.")]))
+    client, sent = scripted(completion("Done. Next is Email Sam."))
     chat.run(cfg, "done with the spec", client=client, voice=True)
-    assert sent[0]["system"] == chat.SYSTEM_PROMPT + chat.VOICE_RULES
+    assert sent[0]["messages"][0]["content"] == chat.SYSTEM_PROMPT + chat.VOICE_RULES
     with st.locked_state(cfg) as s:
         assert s.chat[-1]["voice"] is True
-        assert s.chat[-1]["model"] == "claude-haiku-5-5"
+        assert s.chat[-1]["model"] == "test-chat-model"

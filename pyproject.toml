@@ -1,12 +1,12 @@
 [project]
 name = "focus-assistant"
 version = "0.1.0"
-description = "A desk focus coach for a Raspberry Pi, powered by Claude"
+description = "A desk focus coach for a Raspberry Pi, powered by an open model"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
-    "anthropic>=1.11,<2",
+    "openai>=1.50,<3",
 ]
 
 [project.optional-dependencies]

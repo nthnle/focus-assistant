@@ -4,7 +4,7 @@
                                    Moonshine) on a sentence and a short command,
                                    the wake word and the loudness check
     python -m focus.bench --api    also the coach's reply time (one short
-                                   Haiku call, a small fraction of a cent)
+                                   call to FOCUS_CHAT_MODEL)
 
 Needs the voice setup (Piper voice, Whisper model). Run it the way the
 services run so it gets their settings:

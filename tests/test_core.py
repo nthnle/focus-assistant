@@ -111,7 +111,7 @@ def test_checkin_records_reply_and_prints(cfg, monkeypatch, capsys):
 
     def fake_ask(_cfg, payload, client=None):
         seen.update(payload)
-        return coach.CoachReply("Start with the parser.", "claude-opus-5-5", 100, 12)
+        return coach.CoachReply("Start with the parser.", "test-model", 100, 12)
 
     monkeypatch.setattr(coach, "ask", fake_ask)
     checkin.run(cfg, "morning")
@@ -125,15 +125,22 @@ def test_checkin_records_reply_and_prints(cfg, monkeypatch, capsys):
         assert s.checkins[0]["tokens"] == {"in": 100, "out": 12}
 
 
-def test_coach_failure_leaves_state_untouched(cfg, monkeypatch):
+def test_coach_failure_gives_the_offline_check_in(cfg, monkeypatch, capsys):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Ship the parser")
+
     def failing_ask(_cfg, payload, client=None):
-        raise coach.CoachError("network down")
+        raise coach.CoachError("The coach is offline: can't reach the model provider")
 
     monkeypatch.setattr(coach, "ask", failing_ask)
-    with pytest.raises(coach.CoachError):
-        checkin.run(cfg, "midday")
+    text = checkin.run(cfg, "midday")
+
+    assert text == "The coach is offline. Still open at the top: Ship the parser."
+    assert text in capsys.readouterr().out
     with st.locked_state(cfg) as s:
-        assert s.checkins == []
+        assert s.checkins[-1]["reply"] == text
+        assert s.checkins[-1]["model"] == "offline"
+        assert "tokens" not in s.checkins[-1]
 
 
 def test_last_prints_latest_reply(cfg, capsys):

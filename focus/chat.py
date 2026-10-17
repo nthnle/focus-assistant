@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from typing import Callable
 
-import anthropic
+import openai
 
 from . import actions, coach, state as st
 from .coach import CoachError
@@ -22,10 +22,7 @@ from .state import State
 MAX_STEPS = 6          # model calls per message, so a confused loop can't run up a bill
 HISTORY_TURNS = 10     # earlier exchanges replayed for context
 MAX_MESSAGE_CHARS = 1000
-
-# Short spoken replies don't need a thinking pass. Claude Haiku 5.5 skips it on
-# simple requests at low effort; Claude Sonnet 5.5 turns it off this way.
-THINKING = {"claude-sonnet-5-5": {"type": "between_tools"}}
+MAX_PRIORITY_CHARS = 200
 
 SYSTEM_PROMPT = """\
 You are the user's focus coach, the same one that checks in three times a \
@@ -54,14 +51,16 @@ this: Done. Next is the email to Sam."""
 
 def _tool(name: str, description: str, properties: dict) -> dict:
     return {
-        "name": name,
-        "description": description,
-        "strict": True,
-        "input_schema": {
-            "type": "object",
-            "properties": properties,
-            "required": list(properties),
-            "additionalProperties": False,
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": list(properties),
+                "additionalProperties": False,
+            },
         },
     }
 
@@ -99,20 +98,44 @@ def _priorities_text(s: State) -> str:
     )
 
 
-def _run_tool(cfg: Config, name: str, args: dict) -> tuple[str, bool]:
+def _arguments(raw: str) -> dict:
+    """The model's arguments, checked: open models don't always follow the schema."""
+    try:
+        args = json.loads(raw or "{}")
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"arguments are not valid JSON ({exc})") from exc
+    if not isinstance(args, dict):
+        raise ValueError("arguments must be a JSON object")
+    for key in ("id", "position"):
+        if key in args:
+            value = args[key]
+            if isinstance(value, bool) or not str(value).strip().lstrip("-").isdigit():
+                raise ValueError(f"{key} must be a whole number")
+            args[key] = int(value)
+    if "text" in args:
+        if not isinstance(args["text"], str) or not args["text"].strip():
+            raise ValueError("text must be a non-empty string")
+        args["text"] = args["text"].strip()[:MAX_PRIORITY_CHARS]
+    if "how" in args and args["how"] not in ("on_track", "drifted"):
+        raise ValueError("how must be on_track or drifted")
+    return args
+
+
+def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
     """Apply one tool call; returns (result text, is_error)."""
     handler = _HANDLERS.get(name)
     if handler is None:
         return f"Unknown tool {name}", True
     try:
+        args = _arguments(raw_args)
         with st.locked_state(cfg) as s:
             handler(s, args)
             return "Done. Priorities now:\n" + _priorities_text(s), False
-    except (st.StateError, KeyError, TypeError) as exc:
+    except (st.StateError, KeyError, TypeError, ValueError) as exc:
         return f"Error: {exc}", True
 
 
-def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
+def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         daily_limit: int = 50, on_text: Callable[[str], None] | None = None,
         voice: bool = False) -> str:
     """Answer one message. `on_text` receives the reply as it streams in;
@@ -148,26 +171,20 @@ def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
     tokens_in = tokens_out = 0
     changed: list[str] = []
     for _ in range(MAX_STEPS):
-        extra = {"thinking": THINKING[cfg.chat_model]} if cfg.chat_model in THINKING else {}
         response = coach.create(cfg, client, model=cfg.chat_model, on_text=on_text,
                                 system=SYSTEM_PROMPT + (VOICE_RULES if voice else ""),
-                                tools=TOOLS, messages=messages, **extra)
+                                tools=TOOLS, messages=messages)
         tokens_in += response.usage.input_tokens
         tokens_out += response.usage.output_tokens
         if response.stop_reason != "tool_use":
             break
-        # Append the whole turn unchanged (thinking blocks included), then all results at once.
-        messages.append({"role": "assistant", "content": response.content})
-        results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            text, is_error = _run_tool(cfg, block.name, block.input)
+        # Send the turn back as it was, then one tool message per call.
+        messages.append(response.as_message())
+        for call in response.tool_calls:
+            text, is_error = _run_tool(cfg, call.name, call.arguments)
             if not is_error:
-                changed.append(block.name)
-            results.append({"type": "tool_result", "tool_use_id": block.id,
-                            "content": text, "is_error": is_error})
-        messages.append({"role": "user", "content": results})
+                changed.append(call.name)
+            messages.append({"role": "tool", "tool_call_id": call.id, "content": text})
     else:
         raise CoachError("The coach took too many steps; try a simpler request")
 

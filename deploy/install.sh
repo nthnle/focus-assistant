@@ -58,7 +58,12 @@ systemctl try-restart focus-dock.service focus-chat.service focus-voice.service
 
 echo
 if [ "${NEED_KEY:-0}" = 1 ]; then
-    echo "Next: put your API key in $ETC/focus.env  (sudo nano $ETC/focus.env)"
+    echo "Next: set FOCUS_LLM_BASE_URL, FOCUS_LLM_API_KEY and FOCUS_MODEL in $ETC/focus.env  (sudo nano $ETC/focus.env)"
+elif ! grep -q "^FOCUS_LLM_API_KEY=" "$ETC/focus.env"; then
+    # An install from before the switch to open models still has the Anthropic key.
+    echo "Note: the coach now uses an open model. Add FOCUS_LLM_BASE_URL, FOCUS_LLM_API_KEY"
+    echo "and FOCUS_MODEL to $ETC/focus.env (see deploy/focus.env.example); until then"
+    echo "check-ins are the offline ones and chat says the coach is offline."
 fi
 echo "Try a check-in now:  sudo systemctl start focus-checkin && journalctl -u focus-checkin -n 20"
 systemctl list-timers 'focus-*' --no-pager

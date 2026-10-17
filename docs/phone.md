@@ -104,7 +104,7 @@ check-in sees it.
 Because this service holds the API key, a leaked chat token could spend
 money. `FOCUS_CHAT_DAILY_LIMIT` caps it at 50 messages a day, counting
 failed ones too, and each message is at most six model calls. Set a
-monthly spend limit in the Anthropic Console as the final backstop.
+spend limit at your model host, if it offers one, as the final backstop.
 
 **On the Pi:**
 

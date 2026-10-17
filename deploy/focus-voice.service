@@ -8,7 +8,7 @@ Type=simple
 User=@USER@
 Group=@USER@
 SupplementaryGroups=audio input
-# Root-only (0600) file; holds the API key and FOCUS_SPEECH_DEVICE.
+# Root-only (0600) file; holds the model provider's key and FOCUS_SPEECH_DEVICE.
 EnvironmentFile=/etc/focus-assistant/focus.env
 Environment=FOCUS_STATE_DIR=@STATE_DIR@
 Environment=PYTHONUNBUFFERED=1

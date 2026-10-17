@@ -7,7 +7,7 @@ After=network-online.target
 Type=simple
 User=@USER@
 Group=@USER@
-# Root-only (0600) file; holds the API key and FOCUS_CHAT_TOKEN.
+# Root-only (0600) file; holds the model provider's key and FOCUS_CHAT_TOKEN.
 EnvironmentFile=/etc/focus-assistant/focus.env
 Environment=FOCUS_STATE_DIR=@STATE_DIR@
 Environment=PYTHONUNBUFFERED=1

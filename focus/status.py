@@ -7,6 +7,7 @@ from the token counts recorded in state.json.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from datetime import datetime
 from typing import Callable
@@ -15,18 +16,31 @@ from . import blocks, presence, stretch
 from .config import Config
 from .state import State
 
-# US$ per million input / output tokens.
-PRICES = {
-    "claude-sonnet-5-5": (2.00, 10.00),
-    "claude-haiku-5-5": (0.10, 0.50),
-    "claude-opus-5-5": (4.00, 20.00),
-}
-
 UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-dock", "focus-chat", "focus-voice"]
 
 
+def prices() -> dict[str, tuple[float, float]]:
+    """US$ per million input / output tokens, from focus.env. Open-model prices
+    depend on the provider, so they are settings, not a table here:
+
+        FOCUS_MODEL_PRICE=0.59,0.79        for FOCUS_MODEL
+        FOCUS_CHAT_MODEL_PRICE=0.05,0.08   for FOCUS_CHAT_MODEL
+    """
+    table = {}
+    for model_var, price_var in (("FOCUS_MODEL", "FOCUS_MODEL_PRICE"),
+                                 ("FOCUS_CHAT_MODEL", "FOCUS_CHAT_MODEL_PRICE")):
+        model, raw = os.environ.get(model_var), os.environ.get(price_var, "")
+        try:
+            tin, tout = (float(x) for x in raw.split(","))
+        except ValueError:
+            continue
+        if model:
+            table[model] = (tin, tout)
+    return table
+
+
 def cost(model: str, tokens_in: int, tokens_out: int) -> float | None:
-    price = PRICES.get(model)
+    price = prices().get(model)
     if price is None:
         return None
     return (tokens_in * price[0] + tokens_out * price[1]) / 1_000_000
@@ -115,7 +129,7 @@ def report(cfg: Config, s: State, now: datetime,
     ]
     total, unknown = 0.0, False
     for name, calls, tin, tout, dollars in usage_today(cfg, s):
-        price = f"${dollars:.4f}" if dollars is not None else "$? (unknown model price)"
+        price = f"${dollars:.4f}" if dollars is not None else "$? (set FOCUS_MODEL_PRICE)"
         lines.append(f"  {name:<10} {calls:>3} calls  {tin:>7,} in / {tout:>6,} out  {price}")
         if dollars is None:
             unknown = True

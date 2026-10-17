@@ -1,7 +1,7 @@
 # Configuration
 
 All settings live in **`/etc/focus-assistant/focus.env`**, one `NAME=value`
-per line. The file is readable by root only, because it holds your API key;
+per line. The file is readable by root only, because it holds your model key;
 edit it with `sudo nano /etc/focus-assistant/focus.env`. After a change,
 restart whatever uses the setting (for example
 `sudo systemctl restart focus-voice`). Check-ins and stretch reminders pick
@@ -14,15 +14,26 @@ point that `install.sh` copies.
 
 | Setting | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | (required) | Your Anthropic API key. Use one just for this device. |
-| `FOCUS_MODEL` | `claude-sonnet-5-5` | Model for the scheduled check-ins. `claude-opus-5-5` coaches slightly better at about twice the price. |
-| `FOCUS_CHAT_MODEL` | `claude-haiku-5-5` | Model for chat, voice commands and stretch reminders: quicker and about twenty times cheaper than Sonnet. |
-| `FOCUS_EFFORT` | `low` | How much the model thinks before replying (`low`, `medium`, `high`). Replies are short, so `low` is plenty. |
+| `FOCUS_LLM_BASE_URL` | (required) | The host's OpenAI-compatible API address, ending in `/v1`, e.g. `https://api.groq.com/openai/v1`, `https://api.together.xyz/v1`, `https://openrouter.ai/api/v1`. |
+| `FOCUS_LLM_API_KEY` | (required) | The host's API key. Use one just for this device, and set a spend limit at the host if it offers one. |
+| `FOCUS_MODEL` | (required) | The host's name for the model used for check-ins. Pick an instruction-tuned model that supports tool calling (needed for chat and voice), roughly 8B parameters or larger. |
+| `FOCUS_CHAT_MODEL` | `FOCUS_MODEL` | Model for chat, voice commands and stretch reminders. A smaller, faster model makes voice feel quicker. |
+| `FOCUS_MODEL_PRICE`, `FOCUS_CHAT_MODEL_PRICE` | (unset) | US$ per million tokens in and out, e.g. `0.59,0.79`, from the host's price list. Only `focus status` uses them. |
+| `FOCUS_EFFORT` | (unset) | Sent as `reasoning_effort` (`low`, `medium`, `high`). Only reasoning models accept it; leave it unset for the rest, or requests fail. |
 | `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. |
 | `FOCUS_HISTORY_DAYS` | `14` | Days of daily summaries kept for the coach's context. |
 | `FOCUS_STATE_DIR` | `~/.local/state/focus-assistant` | Where `state.json` lives. The systemd units set this; you normally don't. |
 | `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. Used by the phone dock, stretch reminders, presence and the status page. |
 | `FOCUS_LOG_WORDS` | (off) | `1` writes what you say, type or mark done into the system journal. Off, the journal gets only the length (`<16 chars>`). Turn it on while tuning voice. |
+
+**When the host can't be reached** (or a setting is missing), check-ins
+use a fixed nudge from your priorities, stretch reminders use a fixed
+phrase, and chat and voice answer that the coach is offline. Nothing else
+calls out, so there is no other fallback.
+
+**Reasoning models** that write `<think>...</think>` before answering work:
+that text is removed before anything is shown or spoken. They are slower,
+though, and voice notices.
 
 The **check-in times** are set in the systemd timer, not here; see
 [install.md](install.md#schedule).

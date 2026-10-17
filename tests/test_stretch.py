@@ -1,10 +1,10 @@
 import json
 from datetime import datetime
 
-import anthropic
-import httpx2
+import httpx
 import pytest
 
+from conftest import client_for, completion, scripted
 from focus import actions, blocks, config, state as st, stretch
 
 BLOCKS = blocks.parse_blocks(blocks.DEFAULT_BLOCKS)
@@ -31,7 +31,7 @@ def test_speaks_and_logs_during_a_block(cfg):
 
 def test_uses_the_coach_line_when_there_is_one(cfg):
     said = []
-    usage = {"model": "claude-haiku-5-5", "in": 300, "out": 12}
+    usage = {"model": "test-chat-model", "in": 300, "out": 12}
     stretch.run(cfg, at(10), said.append, BLOCKS,
                 write=lambda c, n: {"text": "Up you get, the spec can wait.", "usage": usage})
     assert said == ["Up you get, the spec can wait."]
@@ -65,44 +65,32 @@ def test_force_speaks_anytime(cfg):
     assert len(said) == 1
 
 
-def _client(handler):
-    return anthropic.Anthropic(api_key="test", max_retries=0,
-                               http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
-
-
 def test_compose_asks_the_chat_model_with_the_days_data(cfg):
     with st.locked_state(cfg, today=at(10).date()) as s:
         actions.add_priority(s, "Write spec")
-    sent = {}
+    client, sent = scripted(completion("Stand up and stretch before more spec.",
+                                       model="test-chat-model", usage=(300, 12)))
 
-    def handler(request):
-        sent.update(json.loads(request.content))
-        return httpx2.Response(200, json={
-            "id": "m", "type": "message", "role": "assistant", "model": "claude-haiku-5-5",
-            "content": [{"type": "text", "text": "Stand up and stretch before more spec."}],
-            "stop_reason": "end_turn", "stop_sequence": None,
-            "usage": {"input_tokens": 300, "output_tokens": 12}})
-
-    assert stretch.compose(cfg, at(10), client=_client(handler)) == {
+    assert stretch.compose(cfg, at(10), client=client) == {
         "text": "Stand up and stretch before more spec.",
-        "usage": {"model": "claude-haiku-5-5", "in": 300, "out": 12},
+        "usage": {"model": "test-chat-model", "in": 300, "out": 12},
     }
-    assert sent["model"] == "claude-haiku-5-5"
-    assert sent["system"] == stretch.SYSTEM_PROMPT
-    payload = json.loads(sent["messages"][0]["content"])
+    assert sent[0]["model"] == "test-chat-model"
+    assert sent[0]["messages"][0] == {"role": "system", "content": stretch.SYSTEM_PROMPT}
+    payload = json.loads(sent[0]["messages"][1]["content"])
     assert payload["checkin"] == "stretch_break"
     assert payload["priorities"][0]["text"] == "Write spec"
 
 
 def test_compose_falls_back_when_the_coach_fails(cfg):
-    handler = lambda r: httpx2.Response(529, json={"type": "error", "error": {"type": "overloaded_error", "message": "busy"}})
-    assert stretch.compose(cfg, at(10), client=_client(handler)) is None
+    busy = client_for(lambda r: httpx.Response(503, json={"error": {"message": "busy"}}))
+    assert stretch.compose(cfg, at(10), client=busy) is None
     said = []
     stretch.run(cfg, at(10), said.append, BLOCKS,
-                write=lambda c, n: stretch.compose(c, n, client=_client(handler)))
+                write=lambda c, n: stretch.compose(c, n, client=busy))
     assert said == [stretch.phrase_for(at(10))]
 
 
 def test_compose_without_a_key_falls_back(cfg, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("FOCUS_LLM_API_KEY", raising=False)
     assert stretch.compose(cfg, at(10)) is None
