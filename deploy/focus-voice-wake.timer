@@ -1,0 +1,9 @@
+[Unit]
+Description=Focus assistant: start listening in the morning
+
+[Timer]
+# Change with: sudo systemctl edit focus-voice-wake.timer
+OnCalendar=*-*-* 08:00:00
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Focus assistant: stop listening for the night
+
+[Timer]
+# Change with: sudo systemctl edit focus-voice-sleep.timer
+OnCalendar=*-*-* 00:00:00
+
+[Install]
+WantedBy=timers.target

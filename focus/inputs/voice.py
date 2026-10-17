@@ -338,10 +338,32 @@ class Voice:
             if not out.spoke:
                 out.feed(f"Sorry, that didn't work. {exc}")
         out.close()
-        first = out.first_audio_at
-        log.info("Timing: %.1f s of speech, transcribed in %.1f s, first word %s after you stopped, done after %.1f s",
-                 len(audio) / 2 / RATE, heard - stopped,
-                 f"{first - stopped:.1f} s" if first else "never", time.monotonic() - stopped)
+        log.info("Timing: %s", timing(len(audio) / 2 / RATE, stopped, heard, out, time.monotonic()))
+
+
+def timing(spoke_s: float, stopped: float, heard: float, out, done: float) -> str:
+    """One line splitting a turn's wait into its parts, all counted from the end of recording.
+
+    transcribe: Whisper on the Pi; coach: until the reply's first words arrive;
+    sentence: until its first sentence is complete; voice: Piper turning that
+    sentence into audio. Where the seconds go says what to speed up.
+    """
+    def at(t: float | None) -> str:
+        return f"{t - stopped:.1f} s" if t is not None else "-"
+
+    first_text = getattr(out, "first_text_at", None)
+    sentence = getattr(out, "first_sentence_at", None)
+    audio = getattr(out, "first_audio_at", None)
+    parts = [
+        f"{spoke_s:.1f} s of speech",
+        f"transcribe {heard - stopped:.1f} s",
+        f"coach {first_text - heard:.1f} s" if first_text is not None else "coach -",
+        f"sentence {sentence - first_text:.1f} s" if sentence is not None and first_text is not None else "sentence -",
+        f"voice {audio - sentence:.1f} s" if audio is not None and sentence is not None else "voice -",
+        f"first word at {at(audio)}",
+        f"done at {done - stopped:.1f} s",
+    ]
+    return ", ".join(parts)
 
 
 _LOST = object()

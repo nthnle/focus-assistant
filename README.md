@@ -183,9 +183,33 @@ sudo systemctl enable --now focus-voice
 journalctl -u focus-voice -f       # "Ready", then "Heard: ..." for each question
 ```
 
-Each turn logs `Timing: ...`: how long you spoke, how long transcription
-took, and when the first word played, counted from the end of recording
-(0.8 s after you stop talking).
+Each turn logs where its wait went, counted from the end of recording (0.8 s
+after you stop talking):
+
+    Timing: 2.7 s of speech, transcribe 3.7 s, coach 1.2 s, sentence 0.5 s,
+            voice 0.6 s, first word at 6.0 s, done at 10.0 s
+
+`transcribe` is Whisper on the Pi, `coach` the wait for the reply's first
+words, `sentence` until its first sentence is complete, `voice` Piper
+turning it into audio. To time each part on its own, without speaking:
+
+```bash
+sudo systemd-run --pipe --wait -p User=<user> -p EnvironmentFile=/etc/focus-assistant/focus.env \
+     -E FOCUS_STATE_DIR=/home/<user>/.local/state/focus-assistant -E HF_HUB_OFFLINE=1 \
+     /opt/focus-assistant/venv/bin/python -m focus.bench --api
+```
+
+It reports Piper, each downloaded Whisper model, the wake word's and the
+loudness check's CPU per frame, and (with `--api`) the coach's reply time.
+
+**Quiet hours.** From 00:00 to 08:00 the voice service is stopped
+completely: no microphone stream, no wake word, no button. Two timers do
+it (`focus-voice-sleep` at 00:00, `focus-voice-wake` at 08:00, which starts
+voice only if it's enabled); `install.sh` turns them on. Change the times
+with `sudo systemctl edit focus-voice-sleep.timer` (and `-wake`); turn quiet
+hours off with `sudo systemctl disable --now focus-voice-sleep.timer
+focus-voice-wake.timer`. If the Pi boots during quiet hours, voice starts
+with it; it stops again at the next midnight.
 
 It needs the Piper voice and `FOCUS_SPEECH_DEVICE` from the Speech setup. If it cuts you off or
 waits too long after you finish, set `FOCUS_VOICE_LEVEL` (try 800, higher

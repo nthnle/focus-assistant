@@ -273,3 +273,20 @@ def test_real_short_commands_still_go_through(cfg):
     r = Recorder(cfg, heard="You there?")
     r.voice.turn(lambda: False)
     assert r.asked == ["You there?"]
+
+
+class Marks:
+    def __init__(self, first_text_at=None, first_sentence_at=None, first_audio_at=None):
+        self.first_text_at, self.first_sentence_at, self.first_audio_at = first_text_at, first_sentence_at, first_audio_at
+
+
+def test_timing_splits_the_wait():
+    # Recording ended at 100.0; text at 103.7; coach's first words 104.9; sentence 105.4; audio 106.0.
+    line = voice.timing(2.7, 100.0, 103.7, Marks(104.9, 105.4, 106.0), 110.0)
+    assert line == ("2.7 s of speech, transcribe 3.7 s, coach 1.2 s, sentence 0.5 s, voice 0.6 s, "
+                    "first word at 6.0 s, done at 10.0 s")
+
+
+def test_timing_when_nothing_was_spoken():
+    line = voice.timing(1.0, 100.0, 101.0, Marks(), 102.0)
+    assert "coach -" in line and "first word at -" in line

@@ -1,0 +1,8 @@
+[Unit]
+Description=Focus assistant: start the voice service in the morning, if it is enabled
+
+[Service]
+Type=oneshot
+# Only if voice is in use; a disabled voice service stays off.
+ExecCondition=/usr/bin/systemctl is-enabled --quiet focus-voice.service
+ExecStart=/usr/bin/systemctl start focus-voice.service

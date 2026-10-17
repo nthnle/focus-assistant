@@ -59,3 +59,12 @@ def test_aplay_command(monkeypatch):
     speech.aplay("plughw:CARD=PowerConf,DEV=0")(b"RIFF")
     assert seen["cmd"] == ["aplay", "-q", "-D", "plughw:CARD=PowerConf,DEV=0", "-"]
     assert seen["input"] == b"RIFF"
+
+
+def test_stream_records_when_text_sentence_and_audio_arrive():
+    out = speech.Speech(FakeVoice(), lambda wav: None).stream()
+    out.feed("Done")
+    assert out.first_text_at is not None and out.first_sentence_at is None
+    out.feed(". Next")
+    out.close()
+    assert out.first_text_at <= out.first_sentence_at <= out.first_audio_at

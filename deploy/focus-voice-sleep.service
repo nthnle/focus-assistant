@@ -1,0 +1,6 @@
+[Unit]
+Description=Focus assistant: stop the voice service (microphone off) for the night
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl stop focus-voice.service

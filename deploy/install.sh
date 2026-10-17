@@ -36,12 +36,16 @@ chmod 0600 "$ETC/focus.env"
 
 echo "==> systemd units"
 for unit in focus-checkin.service focus-checkin.timer focus-dock.service focus-chat.service \
-            focus-voice.service focus-stretch.service focus-stretch.timer; do
+            focus-voice.service focus-stretch.service focus-stretch.timer \
+            focus-voice-sleep.service focus-voice-sleep.timer \
+            focus-voice-wake.service focus-voice-wake.timer; do
     sed -e "s|@USER@|$USER_NAME|g" -e "s|@STATE_DIR@|$STATE_DIR|g" \
         "deploy/$unit" > "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
 systemctl enable --now focus-checkin.timer
+# Voice off overnight (00:00-08:00); harmless if voice isn't set up.
+systemctl enable --now focus-voice-sleep.timer focus-voice-wake.timer
 # These open ports or the microphone, or need the speaker set up first, so they
 # are enabled by hand (see README); restart them if they run. The stretch timer
 # picks up a changed unit on the daemon-reload above.
@@ -52,4 +56,4 @@ if [ "${NEED_KEY:-0}" = 1 ]; then
     echo "Next: put your API key in $ETC/focus.env  (sudo nano $ETC/focus.env)"
 fi
 echo "Try a check-in now:  sudo systemctl start focus-checkin && journalctl -u focus-checkin -n 20"
-systemctl list-timers focus-checkin.timer --no-pager
+systemctl list-timers 'focus-*' --no-pager

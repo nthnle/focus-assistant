@@ -72,7 +72,10 @@ class SentenceStream:
 
     def __init__(self, speech: Speech):
         self.speech = speech
-        self.first_audio_at: float | None = None
+        # For the voice service's timing log (time.monotonic() values, or None).
+        self.first_text_at: float | None = None      # first piece of the reply arrived
+        self.first_sentence_at: float | None = None  # first whole sentence ready to speak
+        self.first_audio_at: float | None = None     # Piper done, first sentence starts playing
         self.spoke = False
         self._buffer = ""
         self._queue: queue.Queue[str | None] = queue.Queue()
@@ -80,6 +83,8 @@ class SentenceStream:
         self._worker.start()
 
     def feed(self, text: str) -> None:
+        if self.first_text_at is None:
+            self.first_text_at = time.monotonic()
         self._buffer += text
         *done, self._buffer = _SENTENCE_END.split(self._buffer)
         for sentence in done:
@@ -95,6 +100,8 @@ class SentenceStream:
     def _put(self, sentence: str) -> None:
         if sentence.strip():
             self.spoke = True
+            if self.first_sentence_at is None:
+                self.first_sentence_at = time.monotonic()
             self._queue.put(sentence.strip())
 
     def _run(self) -> None:
