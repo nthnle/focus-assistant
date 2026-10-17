@@ -1,6 +1,7 @@
 """Time each part of a voice turn on this machine, to see where the seconds go.
 
-    python -m focus.bench          Piper, Whisper (each downloaded model),
+    python -m focus.bench          Piper, each downloaded speech model (Whisper,
+                                   Moonshine) on a sentence and a short command,
                                    the wake word and the loudness check
     python -m focus.bench --api    also the coach's reply time (one short
                                    Haiku call, a small fraction of a cent)
@@ -28,6 +29,7 @@ import time
 import wave
 
 SAID = "I finished the spec. Add email Sam the budget, and move the report to the top."
+COMMAND = "Done with the report, what's next?"  # a typical short voice command
 REPLY = "Done. Next is the email to Sam, then the report."
 
 
@@ -79,16 +81,22 @@ def main(argv: list[str] | None = None) -> int:
     audio = _pcm16k(speech.synthesize(piper, SAID)).tobytes()
     said_s = len(audio) / 2 / 16000
     models_dir = os.environ.get("FOCUS_VOICE_MODELS", voice.DEFAULT_MODELS)
-    print(f"Whisper on {said_s:.1f} s of speech")
-    for name in dict.fromkeys([os.environ.get("FOCUS_VOICE_MODEL", "base.en"), "tiny.en", "base.en", "small.en"]):
+    short = _pcm16k(speech.synthesize(piper, COMMAND)).tobytes()
+    hint = voice.vocabulary(config.load())  # Whisper gets your priorities, as in a real turn
+    print(f"Speech to text: {said_s:.1f} s sentence / {len(short) / 32000:.1f} s command"
+          + (" (Whisper with your priorities as a hint)" if hint else ""))
+    names = [os.environ.get("FOCUS_VOICE_MODEL", "base.en"),
+             "tiny.en", "base.en", "small.en", "moonshine/tiny", "moonshine/base"]
+    for name in dict.fromkeys(names):
         try:
-            transcribe = voice.Transcriber(name, models_dir)
+            transcribe = voice.make_transcriber(name, models_dir)
         except Exception:
-            print(f"  {name:9} not downloaded")
+            print(f"  {name:14} not installed or not downloaded")
             continue
-        heard = transcribe(audio)
-        t = _timed(lambda: transcribe(audio))
-        print(f"  {name:9} {t:.2f} s  heard: {heard}")
+        heard = transcribe(audio, hint=hint)
+        t_long = _timed(lambda: transcribe(audio, hint=hint))
+        t_short = _timed(lambda: transcribe(short, hint=hint))
+        print(f"  {name:14} {t_long:.2f} s / {t_short:.2f} s  heard: {heard}")
     print()
 
     # Wake word and loudness check, per 80 ms frame

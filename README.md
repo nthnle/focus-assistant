@@ -202,6 +202,33 @@ sudo systemd-run --pipe --wait -p User=<user> -p EnvironmentFile=/etc/focus-assi
 It reports Piper, each downloaded Whisper model, the wake word's and the
 loudness check's CPU per frame, and (with `--api`) the coach's reply time.
 
+**Choosing the speech model** (`FOCUS_VOICE_MODEL`). On a Pi 4, Whisper is
+the slow part of a turn: it pads every clip to 30 s, so a two-second command
+costs nearly as much as a long one (base.en about 6 s, tiny.en about 3 s).
+Whisper is given your open priorities as a hint, so it spells words like
+project names right more often. Moonshine is built for short clips and
+scales with their length; it takes no hint. Measure on your Pi with the
+benchmark above, then pick:
+
+| Model | Speed | Notes |
+|---|---|---|
+| `base.en` (default) | slowest | most accurate Whisper that's practical here |
+| `tiny.en` | about 2x faster | a few more slips; the hint helps |
+| `moonshine/tiny` | fastest on short commands | small slips, no hint |
+| `moonshine/base` | fast | about base.en's accuracy, no hint |
+
+```bash
+# tiny.en
+sudo /opt/focus-assistant/venv/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', download_root='/opt/focus-assistant/models')"
+# Moonshine: --no-deps skips librosa/numba, which this doesn't use
+sudo /opt/focus-assistant/venv/bin/pip install --no-deps "useful-moonshine-onnx==20251121"
+sudo /opt/focus-assistant/venv/bin/python -c "from huggingface_hub import hf_hub_download as d; [d('UsefulSensors/moonshine', f'onnx/merged/{n}/float/{f}.onnx', local_dir='/opt/focus-assistant/models/moonshine') for n in ('tiny', 'base') for f in ('encoder_model', 'decoder_model_merged')]"
+sudo chmod -R a+rX /opt/focus-assistant/models
+# then, e.g.:
+echo 'FOCUS_VOICE_MODEL=moonshine/tiny' | sudo tee -a /etc/focus-assistant/focus.env
+sudo systemctl restart focus-voice
+```
+
 **Quiet hours.** From 00:00 to 08:00 the voice service is stopped
 completely: no microphone stream, no wake word, no button. Two timers do
 it (`focus-voice-sleep` at 00:00, `focus-voice-wake` at 08:00, which starts

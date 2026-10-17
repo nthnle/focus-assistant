@@ -19,7 +19,9 @@ release right after the press, so it is press-to-talk, not hold-to-talk.
     FOCUS_SPEECH_DEVICE   ALSA device for the mic and the speaker (required)
     FOCUS_VOICE_BUTTON    input device name to look for (default "PowerConf Consumer Control")
     FOCUS_VOICE_KEY       key code to listen for (default 164, KEY_PLAYPAUSE; see evtest)
-    FOCUS_VOICE_MODEL     Whisper model (default base.en; tiny.en is faster, less accurate)
+    FOCUS_VOICE_MODEL     speech model: Whisper base.en (default), tiny.en (faster, less
+                          accurate), or moonshine/tiny, moonshine/base (fast on short clips;
+                          no vocabulary hint). Whisper is given your priorities as a hint.
     FOCUS_VOICE_LEVEL     fixed speech level if the automatic one misjudges your room
     FOCUS_VOICE_WAKE      openWakeWord model, e.g. hey_jarvis (unset: button only)
     FOCUS_VOICE_WAKE_THRESHOLD  0 to 1, default 0.5; higher means fewer false starts
@@ -258,14 +260,61 @@ class Transcriber:
         self.model = WhisperModel(model, device="cpu", compute_type="int8",
                                   download_root=models_dir, local_files_only=True)
 
-    def __call__(self, audio) -> str:
-        """`audio` is raw 16-bit mono bytes at 16 kHz, or anything faster-whisper accepts."""
+    def __call__(self, audio, hint: str | None = None) -> str:
+        """`audio` is raw 16-bit mono bytes at 16 kHz, or anything faster-whisper accepts.
+
+        `hint` is text Whisper treats as what came just before (your
+        priorities), which makes it likelier to spell those words right.
+        """
         if isinstance(audio, (bytes, bytearray)):
             import numpy as np
             audio = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
         segments, _ = self.model.transcribe(audio, language="en", beam_size=1,
-                                            condition_on_previous_text=False)
+                                            condition_on_previous_text=False, initial_prompt=hint)
         return " ".join(s.text.strip() for s in segments).strip()
+
+
+class MoonshineTranscriber:
+    """Moonshine (moonshine/tiny or moonshine/base): built for short clips on small devices.
+
+    Unlike Whisper it doesn't pad every clip to 30 s, so a two-second command
+    costs about two seconds' worth of work. It takes no vocabulary hint.
+    Weights are downloaded once at setup into <models>/moonshine (README, Voice).
+    """
+
+    def __init__(self, name: str, models_dir: str):
+        from moonshine_onnx import MoonshineOnnxModel, load_tokenizer
+
+        size = name.split("/")[-1]
+        path = Path(models_dir) / "moonshine" / "onnx" / "merged" / size / "float"
+        if not (path / "encoder_model.onnx").is_file():
+            raise FileNotFoundError(f"Moonshine {size} isn't downloaded to {path}; see the README's Voice section")
+        self.model = MoonshineOnnxModel(models_dir=str(path), model_name=size)
+        self.tokenizer = load_tokenizer()
+
+    def __call__(self, audio, hint: str | None = None) -> str:
+        import numpy as np
+
+        if isinstance(audio, (bytes, bytearray)):
+            audio = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
+        audio = np.asarray(audio, dtype=np.float32)[: 60 * RATE]  # it accepts 0.1-64 s
+        if len(audio) < RATE // 10:
+            return ""
+        return self.tokenizer.decode_batch(self.model.generate(audio[None, :]))[0].strip()
+
+
+def make_transcriber(name: str, models_dir: str):
+    """FOCUS_VOICE_MODEL: a Whisper model (base.en, tiny.en, ...) or moonshine/tiny, moonshine/base."""
+    if name.startswith("moonshine/"):
+        return MoonshineTranscriber(name, models_dir)
+    return Transcriber(name, models_dir)
+
+
+def vocabulary(cfg: Config) -> str | None:
+    """Your open priorities, as a hint for the speech recogniser."""
+    with st.locked_state(cfg) as s:
+        texts = [p.text for p in s.open_priorities]
+    return ("My priorities: " + "; ".join(texts) + ".") if texts else None
 
 
 # --- chimes -------------------------------------------------------------
@@ -301,14 +350,16 @@ PHANTOMS = {"you", "thank you", "thanks", "bye", "thank you for watching", "than
 class Voice:
     def __init__(self, cfg: Config, speak, stream, play: Callable[[bytes], None],
                  listen: Callable[[Callable[[], bool]], bytes | None],
-                 transcribe: Callable[[bytes], str], ask=chat.run):
+                 transcribe: Callable[..., str], ask=chat.run,
+                 hint: Callable[[], str | None] = lambda: None):
         self.cfg = cfg
         self.speak = speak          # text -> spoken (focus.outputs.speech.Speech.say)
         self.stream = stream        # () -> SentenceStream, for speaking as the reply arrives
         self.play = play            # wav bytes -> played
         self.listen = listen
-        self.transcribe = transcribe
+        self.transcribe = transcribe  # (audio, hint) -> text
         self.ask = ask
+        self.hint = hint            # () -> vocabulary for the recogniser, or None
 
     def turn(self, pressed_again: Callable[[], bool]) -> None:
         """One turn: listen, understand, answer out loud."""
@@ -319,13 +370,15 @@ class Voice:
             return
         self.play(GOT_IT)
         stopped = time.monotonic()
-        text = self.transcribe(audio)
+        hint = self.hint()
+        text = self.transcribe(audio, hint=hint)
         heard = time.monotonic()
         if not text:
             self.speak("Sorry, I didn't catch that.")
             return
-        if text.strip(" .,!?").lower() in PHANTOMS:
-            # Whisper's usual output for near-silence; nobody was talking to us.
+        if text.strip(" .,!?").lower() in PHANTOMS or (hint and text.strip() in hint):
+            # Whisper's usual output for near-silence, or the hint echoed back:
+            # nobody was talking to us.
             log.info("Ignored a likely mis-hearing: %r", text)
             self.play(NOTHING)
             return
@@ -471,8 +524,8 @@ def main() -> int:
         frames=int(os.environ.get("FOCUS_VOICE_WAKE_FRAMES", "3")),
         vad=float(os.environ.get("FOCUS_VOICE_WAKE_VAD", "0.5")),
     ) if wake_name else None
-    transcribe = Transcriber(os.environ.get("FOCUS_VOICE_MODEL", "base.en"),
-                             os.environ.get("FOCUS_VOICE_MODELS", DEFAULT_MODELS))
+    transcribe = make_transcriber(os.environ.get("FOCUS_VOICE_MODEL", "base.en"),
+                                  os.environ.get("FOCUS_VOICE_MODELS", DEFAULT_MODELS))
     spoken = speech.create()
     mic = Mic(device)
 
@@ -482,7 +535,7 @@ def main() -> int:
 
     cfg = config.load()
     voice = Voice(cfg, speak=spoken.say, stream=spoken.stream, play=spoken.play,
-                  listen=listen, transcribe=transcribe)
+                  listen=listen, transcribe=transcribe, hint=lambda: vocabulary(cfg))
     tracker = presence.SoundTracker(cfg)
     extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)),
                   idle=lambda: replay_missed(cfg, spoken.say, datetime.now().astimezone()))

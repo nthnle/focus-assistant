@@ -98,8 +98,12 @@ class FakeStream:
 
 class Recorder:
     def __init__(self, cfg, audio=b"\x00\x00" * 100, heard="add buy coffee filters",
-                 reply="Added buy coffee filters.", fail=None):
-        self.spoken, self.played, self.asked = [], [], []
+                 reply="Added buy coffee filters.", fail=None, hint=None):
+        self.spoken, self.played, self.asked, self.hints = [], [], [], []
+
+        def transcribe(a, hint):
+            self.hints.append(hint)
+            return heard
 
         def ask(_cfg, text, on_text, voice):
             assert voice is True  # spoken turns ask for short replies
@@ -112,7 +116,8 @@ class Recorder:
 
         self.voice = voice.Voice(
             cfg, speak=self.spoken.append, stream=lambda: FakeStream(self.spoken),
-            play=self.played.append, listen=lambda stop: audio, transcribe=lambda a: heard, ask=ask,
+            play=self.played.append, listen=lambda stop: audio, transcribe=transcribe, ask=ask,
+            hint=lambda: hint,
         )
 
 
@@ -290,3 +295,36 @@ def test_timing_splits_the_wait():
 def test_timing_when_nothing_was_spoken():
     line = voice.timing(1.0, 100.0, 101.0, Marks(), 102.0)
     assert "coach -" in line and "first word at -" in line
+
+
+def test_priorities_go_to_the_recogniser_as_a_hint(cfg):
+    from focus import actions, state as st
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Study for the GEIR exam")
+        done = actions.add_priority(s, "Old thing")
+        actions.complete_priority(s, done.id)
+    assert voice.vocabulary(cfg) == "My priorities: Study for the GEIR exam."
+    hint = voice.vocabulary(cfg)
+    r = Recorder(cfg, heard="add review GEIR notes", hint=hint)
+    r.voice.turn(lambda: False)
+    assert r.hints == [hint] and r.asked == ["add review GEIR notes"]
+
+
+def test_no_priorities_no_hint(cfg):
+    assert voice.vocabulary(cfg) is None
+
+
+def test_hint_echoed_back_is_ignored(cfg):
+    hint = "My priorities: Study for the GEIR exam."
+    r = Recorder(cfg, heard="Study for the GEIR exam", hint=hint)
+    r.voice.turn(lambda: False)
+    assert r.asked == [] and r.played[-1] == voice.NOTHING
+
+
+def test_model_setting_picks_the_recogniser(monkeypatch):
+    made = []
+    monkeypatch.setattr(voice, "Transcriber", lambda name, d: made.append(("whisper", name)))
+    monkeypatch.setattr(voice, "MoonshineTranscriber", lambda name, d: made.append(("moonshine", name)))
+    voice.make_transcriber("tiny.en", "/m")
+    voice.make_transcriber("moonshine/tiny", "/m")
+    assert made == [("whisper", "tiny.en"), ("moonshine", "moonshine/tiny")]
