@@ -1,0 +1,156 @@
+# Architecture
+
+How the pieces fit together, what each service is allowed to do, and how to
+add your own inputs and outputs.
+
+## Overview
+
+```
+                    ┌───────────────── state.json ─────────────────┐
+                    │ priorities · check-ins · events · chat ·     │
+                    │ 14-day history          (file lock, atomic)  │
+                    └───────▲──────────────▲───────────────▲───────┘
+                            │              │               │
+  timers                    │   inputs     │      outputs  │
+  ───────                   │   ──────     │      ───────  │
+  focus-checkin  ──► coach ─┤   dock  ─────┤      console ◄┤
+  focus-stretch  ──► coach ─┤   chat  ─────┤      speech  ◄┤
+                            │   voice ─────┤      inky    ◄┘
+  you ─► focus CLI ─────────┘   (all call focus.actions)
+```
+
+- **One state file** (`state.json`) holds everything. Every reader and
+  writer goes through `state.locked_state()`, which takes an exclusive file
+  lock for the whole read-modify-write and saves atomically (write, then
+  rename), so a power cut never leaves a half-written file.
+- **Day rollover** happens in code at the first use each day: unfinished
+  priorities carry over with `carried_days + 1`, a summary of the day goes
+  into `history`, and the day's check-ins, events and chat are cleared.
+- **`focus.actions`** is every state change (add, complete, reopen, drop,
+  move, log an event). The CLI, chat tools, voice and buttons all call it, so
+  behaviour is the same whichever input you use.
+- **The coach** (`coach.py`) is a single Anthropic API call per check-in. It
+  gets a JSON payload: priorities, today's check-ins, events and chat, and
+  the last five daily summaries. The lock is never held during an API call.
+- **Chat** (`chat.py`) adds a small tool loop: the model can change
+  priorities only through six tools that call `focus.actions`, at most six
+  model calls per message. Earlier turns are replayed as plain text.
+
+## Modules
+
+```
+focus/
+  state.py        state.json: locked read-modify-write, atomic save, rollover
+  actions.py      every state change; all inputs call these
+  config.py       settings from FOCUS_* environment variables
+  coach.py        check-in prompt, payload, and the shared API call
+  chat.py         chat: prompt, tools, tool loop, daily limit
+  checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs
+  stretch.py      the :50 stretch reminder (coach-written, fixed fallback)
+  presence.py     away or not, from dock events and desk sound
+  blocks.py       focus blocks (FOCUS_BLOCKS)
+  display.py      the status page (HTML)
+  status.py       `focus status`
+  bench.py        voice benchmark
+  cli.py          the `focus` command
+  outputs/        where a check-in goes: console, speech, inky
+  inputs/         long-running services: dock, chat, voice (+ _web helpers)
+deploy/           systemd units, udev rule, focus.env.example, install.sh
+tests/
+```
+
+The core (`state`, `actions`, `coach`, `checkin`) imports no hardware
+library. Hardware libraries (Piper, faster-whisper, openWakeWord, Inky) are
+imported only by the modules that use them, and only when used.
+
+## Services and what they may do
+
+Each service is a systemd unit running as your user (never root) in a
+sandbox: read-only system and home directory except the state directory,
+no capabilities, no new privileges, and only the devices and network it
+needs. The API key lives in `/etc/focus-assistant/focus.env`, readable by
+root only; systemd reads it and passes it to the services that need it.
+
+| Unit | Runs | API key | Network | Devices |
+|---|---|---|---|---|
+| `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
+| `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
+| `focus-dock` | always (phone dock + status page) | **no** | home network only, inbound | none |
+| `focus-chat` | always | yes, capped by a daily limit | home network inbound, API outbound | none |
+| `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
+
+Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
+root only to stop and start `focus-voice` at the quiet-hours times.
+
+The two services that listen on the network (`dock`, `chat`) answer only
+private addresses and require their own token (`Authorization: Bearer`, or
+`?k=` for the status page). Requests are plain HTTP on your LAN.
+
+## Adding an output
+
+An output is a module in `focus/outputs/` with a `create()` function
+returning an object that has:
+
+```python
+def checkin(self, state: State, slot: str, reply: str) -> None: ...
+```
+
+Enable it by name: `FOCUS_OUTPUTS=console,speech,yourmodule`. Outputs run in
+order after each check-in; a failing output is logged and skipped, and never
+stops the others. See `outputs/console.py` for the smallest example.
+
+## Adding an input
+
+An input is anything that calls `focus.actions` inside
+`focus.state.locked_state()`:
+
+```python
+from focus import actions, config, state as st
+
+with st.locked_state(config.load()) as s:
+    actions.add_priority(s, "Call the dentist")
+```
+
+Long-running inputs get their own systemd unit, so a crash in one never
+affects the check-ins. For a network input, `focus/inputs/_web.py` has the
+token check and server loop that the dock and chat use.
+
+## E-ink display
+
+`outputs/inky.py` draws the check-in for a Pimoroni **Inky Impression 4"**
+(640x400, 7 colours): the slot and date, the top three open priorities (a
+red tag shows days carried) and the reply, shrinking from 24 px to 16 px to
+fit. It redraws only when something changed, since a full refresh takes
+about 30 seconds. **It hasn't been tested on a real panel yet.**
+
+Preview it on any machine, without the panel or an API call:
+
+```bash
+.venv/bin/python -m focus.outputs.inky preview.png     # redraws the last check-in
+```
+
+To use the panel: `sudo raspi-config nonint do_spi 0`, install the
+`display` extra, set `FOCUS_OUTPUTS=console,inky`, and give the check-in
+unit access to SPI and GPIO (see the comment in
+[`deploy/focus-checkin.service`](../deploy/focus-checkin.service)).
+
+## Development
+
+```bash
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
+```
+
+The tests mock the API (with `httpx2.MockTransport`) and all hardware
+(microphone, buttons, `aplay`, systemd), so they need no key, no network and
+no Pi, and they run on Linux, macOS and Windows. The speech libraries aren't
+needed for the tests either.
+
+Conventions worth keeping:
+
+- every state change goes through `focus.actions`
+- never hold the state lock during a network call or a model call
+- services get only the access they need; new devices or network access
+  mean a matching change to the unit's sandbox settings
+- replies are plain text, short, and markdown-free, so the same text works
+  on e-ink and through a speaker

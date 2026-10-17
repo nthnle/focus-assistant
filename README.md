@@ -1,451 +1,126 @@
 # focus-assistant
 
-A desk focus coach for a Raspberry Pi 4. Three times each weekday it reads
-your priorities and the day's log, asks Claude for a short nudge, prints it
-and saves the result. Between check-ins you can chat with the coach from
-your phone. The check-in only makes outbound HTTPS calls; the optional
-phone services (dock, chat) are the only things that listen, on the home
-network only.
-
-## Layout
+A focus coach that lives on your desk. A Raspberry Pi checks in three times
+each workday, looks at your priorities and what has happened since the last
+check-in, and asks Claude for a short, specific nudge: what to start with,
+how the morning went, what carries over to tomorrow. Everything else is
+optional and built around one idea: **help you focus without picking up
+your phone.**
 
 ```
-focus/
-  config.py         settings from env vars (FOCUS_*); never touches the key
-  state.py          state.json: locked read-modify-write, atomic save, day rollover
-  actions.py        every state change (add/done/move/report/log_event); all inputs call these
-  coach.py          check-in system prompt + the shared Anthropic API call
-  chat.py           phone chat: the coach with tools that call actions
-  display.py        the Inky layout as an HTML page (served by the dock service)
-  checkin.py        snapshot -> coach -> record -> outputs
-  cli.py            `focus` command
-  outputs/          where a check-in goes   (console, inky, speech; led later)
-  inputs/           what feeds actions      (dock, chat, voice; buttons later)
-deploy/
-  focus-checkin.service / .timer, focus-dock.service, focus-chat.service,
-  focus.env.example, install.sh
-tests/
+09:00  MORNING CHECK-IN
+       Start with the quarterly report: it has carried over three days, so
+       give it the first block before email. Keep the phone docked until
+       the 10:50 break.
 ```
 
-The core (`state`, `actions`, `coach`, `checkin`) imports no hardware
-library. Hardware attaches at two points only:
+## What it can do
 
-- **Outputs** implement `checkin(state, slot, reply)` and are enabled by
-  name with `FOCUS_OUTPUTS=console,inky,...`. A failing output is logged and
-  skipped; it never stops the others.
-- **Inputs** are separate long-running services that call `focus.actions`
-  inside `focus.state.locked_state()`. The file lock lets them and the timer
-  write safely, and a check-in holds the lock only around its reads and
-  writes, never during the API call.
+| | Needs |
+|---|---|
+| **Check-ins** at 09:00, 13:00 and 17:30 on weekdays, and a **weekly wrap-up** on Friday evening | a Pi and an Anthropic API key |
+| **Priorities** from the command line: `focus add`, `focus done`, `focus move` ... unfinished ones carry over, and the coach notices when something keeps slipping | nothing extra |
+| **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
+| **Voice commands** at the desk: "Hey Jarvis, done with the report, what's next?", plus buttons on a speakerphone | a USB speakerphone |
+| A **status page** for any browser on your network: today's top three, the coach's last words, focus block, phone, breaks | nothing extra |
+| A **phone dock**: it notices when you pick your phone up during focus time | an iPhone on a charger, iOS Shortcuts |
+| **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
+| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the phone dock (and the speakerphone, for desk sound) |
+| An **e-ink display** (Pimoroni Inky Impression 4") | the panel. Code written and previewed, not yet tested on real hardware. |
 
-## Install on the Pi
+It runs on a Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), and should
+run on any Debian-based Linux machine. The voice features are tuned for an
+Anker PowerConf speakerphone; other USB speakerphones should work with some
+setup (see [docs/voice.md](docs/voice.md)).
 
-Flash Raspberry Pi OS Lite (64-bit) with Raspberry Pi Imager. In its
-settings, set the hostname, user, Wi-Fi, SSH and **your time zone**: the
-timer runs on the Pi's clock. After flashing, Windows shows only the 512 MB
-boot partition; the Linux one is hidden, so cancel any offer to format it.
+## Quick start
 
-```bash
-ssh <user>@<hostname>.local
-sudo apt update && sudo apt full-upgrade -y
-sudo apt install -y git python3-venv fonts-dejavu-core
-timedatectl                                   # check the time zone
-```
+You need a Raspberry Pi 4 (2 GB or more), a microSD card, and an
+[Anthropic API key](https://console.anthropic.com/).
 
-The repo is private, so give the Pi a read-only deploy key rather than your
-account (GitHub no longer accepts passwords for Git):
+1. Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In its
+   settings, set a hostname, user, Wi-Fi, SSH and **your time zone**: the
+   check-ins run on the Pi's clock.
+2. Log in and install:
+   ```bash
+   ssh <user>@<hostname>.local
+   sudo apt update && sudo apt full-upgrade -y
+   sudo apt install -y git python3-venv fonts-dejavu-core
+   git clone https://github.com/nthnle/focus-assistant.git && cd focus-assistant
+   sudo deploy/install.sh
+   ```
+3. Add your API key, then run a check-in:
+   ```bash
+   sudo nano /etc/focus-assistant/focus.env      # set ANTHROPIC_API_KEY
+   focus add Write the project proposal
+   sudo systemctl start focus-checkin
+   focus last                                    # the coach's reply
+   ```
 
-```bash
-ssh-keygen -t ed25519 -C "focus-pi" -f ~/.ssh/id_ed25519 -N ""
-cat ~/.ssh/id_ed25519.pub     # add under repo Settings > Deploy keys, no write access
-git clone git@github.com:nthnle/focus-assistant.git && cd focus-assistant
-sudo deploy/install.sh
-sudo nano /etc/focus-assistant/focus.env      # set ANTHROPIC_API_KEY
-sudo systemctl start focus-checkin            # one check-in now
-journalctl -u focus-checkin -n 20
-```
+From then on the check-ins run on their own. `focus status` shows what's
+running, what's next and what today has cost. The full walkthrough,
+including updating and troubleshooting, is in
+[docs/install.md](docs/install.md).
 
-Use a separate API key for the Pi so it can be revoked on its own. To update
-later: `git pull && sudo deploy/install.sh` (safe to re-run; it keeps the key
-file).
-
-The key file is `root:root 0600`. systemd reads it as root and starts the
-check-in as your user, in a sandbox: read-only system, home read-only except
-the state directory, no capabilities, IP and Unix sockets only.
-
-Schedule: Mon to Fri at 09:00, 13:00 and 17:30. Change the times with
-`sudo systemctl edit focus-checkin.timer`. The slot comes from the time of day
-(before 11:00 is morning, before 16:00 midday, otherwise evening).
-
-## Day-to-day
+## Using it
 
 ```bash
 focus add Finish the quarterly report
-focus show            # * marks the top 3, which is what the display will show
-focus last            # the latest check-in reply (or: journalctl -u focus-checkin)
-focus status          # services, next timers, today, presence and API cost
-focus move 4 1        # put #4 at the top
+focus show            # * marks the top 3, the ones the coach and display focus on
 focus done 1
-focus report drifted  # or on-track
+focus move 4 1        # put #4 at the top
 focus drop 3
+focus report drifted  # or on-track: tell the coach how the block is going
+focus last            # the latest check-in
+focus status          # services, next timers, today, presence and API cost
 ```
 
-At the first use each new day, unfinished priorities carry over with
-`carried_days` + 1, finished ones go into `history` (the last 14 days), and
-the day's check-ins and events are cleared. The coach is told to raise
-anything carried for 3+ days.
-
-On Fridays the evening check-in is the week's wrap-up: the coach gets this
-week's daily summaries from `history` and looks back at what got done, what
-kept carrying over and how the phone and breaks went, with one thing to try
-next week.
-
-Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-sonnet-5-5`; Opus 5.5 coached slightly better at about 3x the cost),
-`FOCUS_CHAT_MODEL` for phone chat and voice (default `claude-haiku-5-5`: quicker replies at about a twentieth of Sonnet's price),
-`FOCUS_EFFORT` (default `low`; it is a short reply), `FOCUS_OUTPUTS`,
-`FOCUS_HISTORY_DAYS`. Each check-in records its token use in `state.json`.
-
-## Later phases: where each piece plugs in
-
-| Piece | Module | Kind | Talks to core via |
-|---|---|---|---|
-| Inky Impression 4" | `outputs/inky.py` | output | renders top 3 open priorities + last reply on each check-in; also redraws after a button action |
-| Buttons A-D | `inputs/buttons.py` (service) | input | A `complete_priority(top)`, B `report_on_track`, C `report_drifted`, D `log_event(SNOOZE)` |
-| Phone dock (charger) | `inputs/dock.py` (service) | input | iPhone Shortcut -> `log_event(PHONE_OUT/PHONE_IN)` during `FOCUS_BLOCKS` |
-| Chat (Shortcut / Siri) | `inputs/chat.py` (service) + `chat.py` | both | coach with tools for add/done/undo/drop/move/report; reply shown or spoken by the phone |
-| LED + buzzer | `outputs/led.py` | output | pulse on check-in; a snooze event delays the next nudge |
-| Push-to-talk voice | `inputs/voice.py` (service) + `outputs/speech.py` | both | PowerConf play button -> faster-whisper base.en -> the chat coach -> Piper speaks the reply |
-
-The system prompt already keeps replies plain, short and markdown-free, so
-the same text works on e-ink and through Piper.
-
-Each later phase needs:
-
-- **GPIO and SPI:** the `inky` output runs inside the check-in service, so
-  that unit needs `DeviceAllow=` for `/dev/spidev0.0` and `/dev/gpiochip0`
-  (see the comment in the unit). The input services get their own units.
-- **Refreshes:** a full refresh on the Impression takes about 30 s, so
-  redraw only when the top 3 or the reply changes.
-- **Voice:** faster-whisper and Piper run fully on the Pi. Only the coach
-  call goes out.
-
-### Display (`outputs/inky.py`)
-
-Written and tested; waiting on the panel. It draws the slot and date, the
-top 3 open priorities (red tag = days carried) and the reply, which shrinks
-from 24 px to 16 px to fit and is cut with an ellipsis past that. A typical
-70-word reply fits at about 22 px.
-
-Preview the layout on any machine, without the panel or an API call:
-
-```bash
-.venv/bin/python -m focus.outputs.inky preview.png    # redraws the last check-in
-```
-
-`FOCUS_OUTPUTS=console,inky` with `FOCUS_INKY_PNG=preview.png` sends real
-check-ins to a PNG instead of the panel. When the panel arrives:
-
-```bash
-sudo raspi-config nonint do_spi 0                     # enable SPI
-sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[display]"
-```
-
-then set `FOCUS_OUTPUTS=console,inky` in `focus.env` and make the unit change
-described under GPIO and SPI above.
-
-### Voice (`inputs/voice.py`)
-
-Talk to the coach at the desk through the PowerConf: press its **play**
-button, wait for the rising chime, speak, then stop. A falling chime means
-it heard you; the coach starts answering through the speaker as soon as its
-first sentence is written, and the rest follows while it is being spoken.
-Pressing play again ends the recording early; a low tone means it heard
-nothing. It is the same coach as phone chat, with the same tools, the same
-conversation for the day and the same daily limit, but it answers spoken
-messages in one short sentence ("Done. Next is the email to Sam.") unless
-you ask something that needs more. It's meant for quick commands; for a
-longer conversation, the Claude app is better.
-
-While the service runs, the microphone stream is always open, but its audio
-is thrown away: it only passes through the wake-word model (if set) and a
-loudness check whose one result is the time the desk last made a sound (see
-Presence). A turn's audio is kept only from a press or the wake word until
-you stop talking. Speech is turned into text on the Pi by faster-whisper
-(base.en, a few seconds on a Pi 4); only that text goes to the coach. The play button arrives as
-`KEY_PLAYPAUSE`; the call button sends nothing Linux can read.
-
-```bash
-git pull && sudo deploy/install.sh
-sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[voice]"
-sudo /opt/focus-assistant/venv/bin/python -c   "from faster_whisper import WhisperModel; WhisperModel('base.en', download_root='/opt/focus-assistant/models')"
-sudo chmod -R a+rX /opt/focus-assistant/models    # the download leaves some files root-only
-sudo systemctl enable --now focus-voice
-journalctl -u focus-voice -f       # "Ready", then "Heard: ..." for each question
-```
-
-Each turn logs where its wait went, counted from the end of recording (0.8 s
-after you stop talking):
-
-    Timing: 2.7 s of speech, transcribe 3.7 s, coach 1.2 s, sentence 0.5 s,
-            voice 0.6 s, first word at 6.0 s, done at 10.0 s
-
-`transcribe` is Whisper on the Pi, `coach` the wait for the reply's first
-words, `sentence` until its first sentence is complete, `voice` Piper
-turning it into audio. To time each part on its own, without speaking:
-
-```bash
-sudo systemd-run --pipe --wait -p User=<user> -p EnvironmentFile=/etc/focus-assistant/focus.env \
-     -E FOCUS_STATE_DIR=/home/<user>/.local/state/focus-assistant -E HF_HUB_OFFLINE=1 \
-     /opt/focus-assistant/venv/bin/python -m focus.bench --api
-```
-
-It reports Piper, each downloaded Whisper model, the wake word's and the
-loudness check's CPU per frame, and (with `--api`) the coach's reply time.
-
-**Choosing the speech model** (`FOCUS_VOICE_MODEL`). On a Pi 4, Whisper is
-the slow part of a turn: it pads every clip to 30 s, so a two-second command
-costs nearly as much as a long one (base.en about 6 s, tiny.en about 3 s).
-Whisper is given your open priorities as a hint, so it spells words like
-project names right more often. Moonshine is built for short clips and
-scales with their length; it takes no hint. Measure on your Pi with the
-benchmark above, then pick:
-
-| Model | Speed | Notes |
-|---|---|---|
-| `base.en` (default) | slowest | most accurate Whisper that's practical here |
-| `tiny.en` | about 2x faster | a few more slips; the hint helps |
-| `moonshine/tiny` | fastest on short commands | small slips, no hint |
-| `moonshine/base` | fast | about base.en's accuracy, no hint |
-
-```bash
-# tiny.en
-sudo /opt/focus-assistant/venv/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', download_root='/opt/focus-assistant/models')"
-# Moonshine: --no-deps skips librosa/numba, which this doesn't use
-sudo /opt/focus-assistant/venv/bin/pip install --no-deps "useful-moonshine-onnx==20251121"
-sudo /opt/focus-assistant/venv/bin/python -c "from huggingface_hub import hf_hub_download as d; [d('UsefulSensors/moonshine', f'onnx/merged/{n}/float/{f}.onnx', local_dir='/opt/focus-assistant/models/moonshine') for n in ('tiny', 'base') for f in ('encoder_model', 'decoder_model_merged')]"
-sudo chmod -R a+rX /opt/focus-assistant/models
-# then, e.g.:
-echo 'FOCUS_VOICE_MODEL=moonshine/tiny' | sudo tee -a /etc/focus-assistant/focus.env
-sudo systemctl restart focus-voice
-```
-
-**Quiet hours.** From 00:00 to 08:00 the voice service is stopped
-completely: no microphone stream, no wake word, no button. Two timers do
-it (`focus-voice-sleep` at 00:00, `focus-voice-wake` at 08:00, which starts
-voice only if it's enabled); `install.sh` turns them on. Change the times
-with `sudo systemctl edit focus-voice-sleep.timer` (and `-wake`); turn quiet
-hours off with `sudo systemctl disable --now focus-voice-sleep.timer
-focus-voice-wake.timer`. If the Pi boots during quiet hours, voice starts
-with it; it stops again at the next midnight.
-
-It needs the Piper voice and `FOCUS_SPEECH_DEVICE` from the Speech setup. If it cuts you off or
-waits too long after you finish, set `FOCUS_VOICE_LEVEL` (try 800, higher
-for a noisy room). A spoken check-in and a voice answer at the same moment
-can't share the speaker; one of them fails and is logged.
-
-**Wake word ("Hey Jarvis").** Optional: instead of pressing play, say "Hey
-Jarvis", wait for the chime, then speak. The play button keeps working. With
-it on, the microphone is always open, but that audio only goes through
-openWakeWord on the Pi and is discarded; nothing is kept until it hears the
-phrase. Pause after "Hey Jarvis": what you say before the chime is not heard.
-
-```bash
-sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[wake]"
-sudo /opt/focus-assistant/venv/bin/pip install --no-deps "openwakeword==0.6.0"   # skips tflite-runtime
-sudo /opt/focus-assistant/venv/bin/python -c "from openwakeword.utils import download_models; download_models(['hey_jarvis'])"
-echo 'FOCUS_VOICE_WAKE=hey_jarvis' | sudo tee -a /etc/focus-assistant/focus.env
-sudo systemctl restart focus-voice
-journalctl -u focus-voice -f       # "Ready: say "hey jarvis" or press key 164", then "Listening (hey_jarvis)"
-```
-
-To keep conversation and noise from setting it off, it fires only when the
-score stays above `FOCUS_VOICE_WAKE_THRESHOLD` (0.5) for
-`FOCUS_VOICE_WAKE_FRAMES` (3) frames in a row, about a quarter second (a real
-"Hey Jarvis" holds for about half a second), and only while a speech
-detector hears a human voice (`FOCUS_VOICE_WAKE_VAD`, 0.5; 0 turns it off).
-Each trigger logs its score: `Listening (hey_jarvis, score 0.97)`. If it
-still starts on its own, raise the threshold toward 0.7 or the frames to 4;
-if it misses you, lower them. A turn that only "hears" Whisper's usual
-phantoms for silence ("You", "Thank you") just gets the low tone and never
-reaches the coach. Other built-in phrases:
-`hey_mycroft`, `hey_rhasspy`, `alexa`. Remove the `FOCUS_VOICE_WAKE` line to
-go back to the button only.
-
-### Stretch reminder (`stretch.py`)
-
-50 minutes of work, 10 minutes of break: at :50 each hour of a focus block
-(9:50, 10:50, 11:50, 13:50 to 16:50 with the default `FOCUS_BLOCKS`) the
-speaker tells you to stand up and move. The coach writes the line from
-today's data, so it can mention what you're on or a skipped break; if it
-hasn't answered in 5 seconds, or the network is down, a fixed phrase plays
-instead. Each reminder is logged, so the check-ins see them.
-
-```bash
-git pull && sudo deploy/install.sh
-# Try one now, with the service's settings (needs the speech setup):
-sudo systemd-run --pipe --wait -p User=<user> -p EnvironmentFile=/etc/focus-assistant/focus.env \
-     -E FOCUS_STATE_DIR=/home/<user>/.local/state/focus-assistant \
-     /opt/focus-assistant/venv/bin/python -m focus.stretch --now
-sudo systemctl enable --now focus-stretch.timer
-systemctl list-timers focus-stretch.timer --no-pager            # the next :50
-journalctl -u focus-stretch -n 5                                # what it said, or why it was quiet
-```
-
-`sudo systemctl disable --now focus-stretch.timer` turns it off.
-
-### Presence (`presence.py`)
-
-So the coach doesn't talk to an empty desk: you count as **away** when the
-phone has been off the dock for 10 minutes **and** the desk has been quiet
-for 15 (no typing, chair or voice heard by the voice service's microphone;
-only the time of the last sound is stored, in `presence.json`). While away,
-stretch reminders are skipped, and a spoken check-in is held; the voice
-service says it ("While you were away, the midday check-in said: ...") within
-30 s of the phone going back on the dock or the desk making a sound. The
-display page shows it meanwhile.
-
-Its blind spot: leave the phone on the dock and walk off, and it still
-thinks you're there. Without the voice service there is no sound reading
-and the dock decides alone. Tune with `FOCUS_AWAY_PHONE_MIN` and
-`FOCUS_AWAY_QUIET_MIN`; `journalctl -u focus-stretch -u focus-checkin -u
-focus-voice | grep -i away` shows its decisions.
-
-### Display page (`display.py`)
-
-Until the panel arrives, the same layout is served as a web page: the latest
-check-in slot and date, the top 3 open priorities (red tag = days carried)
-and the reply. Under it, a status strip the panel won't have: where you are
-in the day (focus until 12:00, break till 11:00, next block at 13:00), the
-next 50/10 break, the phone (docked, or off since when), whether you count
-as away or have a check-in waiting, and today's done/open, phone pickups
-and breaks. It is built from `state.json` on every request and refreshes
-itself every 30 s, so changes from chat, the CLI or the dock show up within
-the half minute. The dock service serves it (it holds no API key), read-only,
-to the home network only.
-
-```bash
-git pull && sudo deploy/install.sh        # adds FOCUS_DISPLAY_TOKEN, restarts focus-dock
-sudo grep FOCUS_DISPLAY_TOKEN /etc/focus-assistant/focus.env
-```
-
-Open `http://<hostname>.local:8765/display?k=<token>` in a browser and
-bookmark it. On an iPhone, Share > Add to Home Screen makes it an app-like
-icon. Anyone with that link on your Wi-Fi can read your priorities, so treat
-it like the other tokens.
-
-### Speech (`outputs/speech.py`)
-
-Says each check-in reply out loud. Piper runs on the Pi (a 70-word reply
-takes a second or two on a Pi 4), so only the coach call goes out. Set up for
-an Anker PowerConf on USB; any ALSA speaker works. Connect the PowerConf's
-USB-C port to a black USB 2.0 port on the Pi: on the blue USB 3.0 ports it
-is not detected at all.
-
-```bash
-sudo apt install -y alsa-utils
-sudo /opt/focus-assistant/venv/bin/pip install "/home/<user>/focus-assistant[speech]"
-sudo /opt/focus-assistant/venv/bin/python -m piper.download_voices      --download-dir /opt/focus-assistant/voices en_US-lessac-medium
-aplay -L | grep -i plughw          # find the PowerConf, e.g. plughw:CARD=PowerConf,DEV=0
-```
-
-In `focus.env` set `FOCUS_OUTPUTS=console,speech` and
-`FOCUS_SPEECH_DEVICE=<that plughw name>`, then try it:
-
-```bash
-sudo -u <user> FOCUS_SPEECH_DEVICE=<plughw name>      /opt/focus-assistant/venv/bin/python -m focus.outputs.speech "Hello from the coach."
-sudo systemctl start focus-checkin       # a real check-in, spoken
-```
-
-`python -m focus.outputs.speech` with no text repeats the last check-in.
-Other voices: https://huggingface.co/rhasspy/piper-voices (set
-`FOCUS_SPEECH_VOICE` to the .onnx path). Volume is the PowerConf's own
-buttons.
-
-### Phone dock (`inputs/dock.py`)
-
-The phone sits on a wireless charger, so the iPhone itself reports when it
-goes on or off: an iOS Shortcuts automation sends one request to the Pi.
-The Apple Watch on the same charger is ignored.
-
-During a focus block (`FOCUS_BLOCKS`, default `09:00-12:00,13:00-17:30`,
-weekdays), taking the phone off for more than 30 s logs `phone_out` at the
-time it came off, and putting it back logs `phone_in` with the minutes it was
-gone. Outside the blocks nothing is logged. The coach sees these events at
-the next check-in.
-
-`focus-dock` listens on port 8765, answers only private (home network)
-addresses, and needs the token that `install.sh` put in `focus.env`. It does
-not get the API key. Requests are plain HTTP, so the token is only as private
-as your Wi-Fi.
-
-On the Pi:
-
-```bash
-git pull && sudo deploy/install.sh
-sudo systemctl enable --now focus-dock
-sudo grep FOCUS_DOCK_TOKEN /etc/focus-assistant/focus.env    # for the Shortcut
-curl -i -X POST -H "Authorization: Bearer <token>" http://localhost:8765/dock/out   # expect 204
-curl -i -X POST -H "Authorization: Bearer <token>" http://localhost:8765/dock/in
-```
-
-On the iPhone, in Shortcuts > Automation > New Automation > **Charger**:
-
-1. Choose **Is Disconnected**, **Run Immediately**, and turn off **Notify
-   When Run**. Then pick **New Blank Automation**.
-2. Add **Get Contents of URL** with the URL
-   `http://<hostname>.local:8765/dock/out`. Expand it, then set **Method** to
-   `POST` and add a header `Authorization` with the value `Bearer <token>`.
-3. Make a second automation for **Is Connected** that posts to `/dock/in`.
-
-Away from home the request just fails. To avoid error banners there, wrap
-the action in **If** with **Get Network Details** (Wi-Fi, Network Name) equal
-to your home network.
-
-Watch it work with `journalctl -u focus-dock -f`. Every accepted report
-logs a `Charger: in/out (...)` line saying whether it counts; a bad token
-logs `Rejected ...`, and no line at all means the request never arrived.
-During a block it then logs `Phone out since ...` after 30 s off the charger
-and `Phone back after N min` on return. `FOCUS_DOCK_SETTLE` changes the 30 s.
-
-### Chat (`chat.py`, `inputs/chat.py`)
-
-Message the coach from the phone, typed or by voice through Siri: "I
-finished the spec, what next?", "add email Sam", "move the report to the
-top", "I'm drifting". It sees the same data as a check-in and can change
-priorities through six tools (add, done, undo, drop, move, report) that
-call `focus.actions`. It has no other tools and cannot run commands.
-Today's chat is kept in state, so follow-ups work and the next check-in
-sees it; it is cleared at rollover.
-
-`focus-chat` listens on port 8766 with its own token (`FOCUS_CHAT_TOKEN`,
-added by `install.sh`). Unlike the dock it holds the API key, so a leaked
-token could spend money: `FOCUS_CHAT_DAILY_LIMIT` (default 50 messages a
-day) caps that, and each message is at most 6 model calls. Each exchange
-records its token use in `state.json`.
-
-On the Pi:
-
-```bash
-git pull && sudo deploy/install.sh
-sudo systemctl enable --now focus-chat
-sudo grep FOCUS_CHAT_TOKEN /etc/focus-assistant/focus.env    # for the Shortcut
-TOKEN=$(sudo sed -n 's/^FOCUS_CHAT_TOKEN=//p' /etc/focus-assistant/focus.env)
-curl -s -X POST -H "Authorization: Bearer $TOKEN" -d '{"text": "what should I do first?"}'      http://localhost:8766/chat
-```
-
-On the iPhone, make a shortcut named **Coach** (tap **Edit** to build it by
-hand):
-
-1. **Ask for Input**, type Text, prompt `What's up?`
-2. **Get Contents of URL**: `http://<hostname>.local:8766/chat`, Method
-   `POST`, header `Authorization` = `Bearer <token>`, Request Body **JSON**
-   with one Text field `text` set to **Provided Input**.
-3. **Show Result** with **Contents of URL**.
-
-"Hey Siri, Coach" then asks what's up, takes your dictation and reads the
-reply aloud. Errors (no network, daily limit) come back as a sentence
-rather than a Shortcut error. `journalctl -u focus-chat -f` shows each
-message.
+Each morning, unfinished priorities carry over with a "days carried" count,
+and finished ones go into a 14-day history the coach uses for context.
+Keep to about three: the coach pushes back when you have more.
+
+## Guides
+
+| Guide | Covers |
+|---|---|
+| [docs/install.md](docs/install.md) | Full setup, updating, the check-in schedule, troubleshooting |
+| [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
+| [docs/phone.md](docs/phone.md) | Phone dock, chat from your phone, the status page, presence |
+| [docs/configuration.md](docs/configuration.md) | Every setting in `focus.env` |
+| [docs/architecture.md](docs/architecture.md) | How it fits together, security model, adding your own inputs and outputs, development |
+
+## Cost
+
+Check-ins use Claude Sonnet 5.5; chat, voice and stretch reminders use the
+faster, cheaper Claude Haiku 5.5. With three check-ins a day and a handful of
+voice commands, expect roughly **$1 to $3 a month** in API usage.
+`focus status` shows the day's cost from the token counts it records, and
+phone chat has a daily cap (50 messages by default).
+
+## Privacy
+
+- **Your data stays on the Pi**, in one JSON file, except what is sent to
+  Anthropic's API to write each reply: your priorities, today's events and
+  check-ins, and recent daily summaries.
+- **Speech never leaves the Pi.** Speech recognition (faster-whisper or
+  Moonshine), text-to-speech (Piper) and the wake word (openWakeWord) all run
+  locally; only the transcribed text goes to the coach.
+- **With voice enabled, the microphone stream is always open**, but its
+  audio is discarded unless you've pressed the button or said the wake
+  word. The only thing kept from it is the time the desk last made a sound,
+  used for presence. A speakerphone's mute button, or the nightly quiet
+  hours (voice off from 00:00 to 08:00), turn it off completely.
+- **The network services listen on your home network only**, each behind
+  its own token. Of the two, only chat holds the API key; the dock and status
+  page can't spend money. Every service runs sandboxed with only the access
+  it needs. Details in [docs/architecture.md](docs/architecture.md).
+
+## Status
+
+A personal project, shared as is. It's used daily on a Raspberry Pi 4 with
+an Anker PowerConf speakerphone and an iPhone. Other hardware is untested,
+and the e-ink display code hasn't met a real panel yet. Issues and pull
+requests are welcome.
 
 ## Development
 
@@ -454,4 +129,13 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
 ```
 
-The tests mock the API, so they need no key and no network.
+The tests mock the API and all hardware, so they need no key, no network and
+no Pi. They also run on Windows and macOS.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The optional components it installs have their
+own licenses: notably `piper-tts` is GPL-3.0, and openWakeWord's pre-trained
+wake-word models are licensed for non-commercial use only. Piper voices and
+speech models each come with their own model cards; check them before any
+commercial use.
