@@ -170,6 +170,7 @@ class FakeMic:
 
 class FakeWake:
     name = "hey_jarvis"
+    last_score = 0.93
 
     def __init__(self, fire_on):
         self.calls, self.resets, self.fire_on = 0, 0, fire_on
@@ -238,3 +239,37 @@ def test_mic_keeps_only_the_newest_audio():
     mic.clear()
     with pytest.raises(RuntimeError):  # clear() keeps the end marker
         mic.read()
+
+
+def bare_wake(threshold=0.5, frames=3):
+    """A WakeWord without loading openWakeWord, to test its frame counting."""
+    w = object.__new__(voice.WakeWord)
+    w.name, w.threshold, w.frames, w.last_score, w._run = "hey_jarvis", threshold, frames, 0.0, []
+    return w
+
+
+def test_wake_needs_enough_high_frames_in_a_row():
+    w = bare_wake()
+    assert [w.score(s) for s in [0.9, 0.9, 0.2, 0.9, 0.8]] == [False] * 5   # broken by a low frame
+    assert w.score(0.95) is True                                            # third high in a row
+    assert w.last_score == 0.95
+    assert w.score(0.9) is False                                            # starts counting again
+
+
+def test_one_loud_frame_is_not_enough():
+    w = bare_wake()
+    assert not any(w.score(s) for s in [0.0, 1.0, 0.0, 1.0, 0.0])
+
+
+@pytest.mark.parametrize("phantom", ["You", "you.", "Thank you.", "Thanks for watching!"])
+def test_whisper_phantoms_are_ignored(cfg, phantom):
+    r = Recorder(cfg, heard=phantom)
+    r.voice.turn(lambda: False)
+    assert r.asked == [] and r.spoken == []
+    assert r.played == [voice.LISTENING, voice.GOT_IT, voice.NOTHING]
+
+
+def test_real_short_commands_still_go_through(cfg):
+    r = Recorder(cfg, heard="You there?")
+    r.voice.turn(lambda: False)
+    assert r.asked == ["You there?"]

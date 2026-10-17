@@ -207,8 +207,16 @@ sudo systemctl restart focus-voice
 journalctl -u focus-voice -f       # "Ready: say "hey jarvis" or press key 164", then "Listening (hey_jarvis)"
 ```
 
-If it starts on its own (TV, calls), raise `FOCUS_VOICE_WAKE_THRESHOLD` from
-0.5 toward 0.7; if it misses you, lower it. Other built-in phrases:
+To keep conversation and noise from setting it off, it fires only when the
+score stays above `FOCUS_VOICE_WAKE_THRESHOLD` (0.5) for
+`FOCUS_VOICE_WAKE_FRAMES` (3) frames in a row, about a quarter second (a real
+"Hey Jarvis" holds for about half a second), and only while a speech
+detector hears a human voice (`FOCUS_VOICE_WAKE_VAD`, 0.5; 0 turns it off).
+Each trigger logs its score: `Listening (hey_jarvis, score 0.97)`. If it
+still starts on its own, raise the threshold toward 0.7 or the frames to 4;
+if it misses you, lower them. A turn that only "hears" Whisper's usual
+phantoms for silence ("You", "Thank you") just gets the low tone and never
+reaches the coach. Other built-in phrases:
 `hey_mycroft`, `hey_rhasspy`, `alexa`. Remove the `FOCUS_VOICE_WAKE` line to
 go back to the button only.
 

@@ -23,6 +23,8 @@ release right after the press, so it is press-to-talk, not hold-to-talk.
     FOCUS_VOICE_LEVEL     fixed speech level if the automatic one misjudges your room
     FOCUS_VOICE_WAKE      openWakeWord model, e.g. hey_jarvis (unset: button only)
     FOCUS_VOICE_WAKE_THRESHOLD  0 to 1, default 0.5; higher means fewer false starts
+    FOCUS_VOICE_WAKE_FRAMES     80 ms frames in a row above it to fire, default 3
+    FOCUS_VOICE_WAKE_VAD        speech-detector threshold, default 0.5; 0 turns it off
 
     python -m focus.inputs.voice    the service (what focus-voice runs)
 """
@@ -198,7 +200,15 @@ def record(read: Callable[[], bytes], endpointer: Endpointer, stop: Callable[[],
 # --- the wake word ------------------------------------------------------
 
 class WakeWord:
-    def __init__(self, name: str, threshold: float = 0.5):
+    """openWakeWord, made harder to set off by conversation and noise.
+
+    It fires only when the score stays at or above `threshold` for `frames`
+    80 ms frames in a row (a real "Hey Jarvis" holds for 6-8; a stray burst
+    doesn't), and only while Silero's speech detector hears a human voice
+    (`vad`, 0 turns it off). `last_score` is the peak of the run that fired.
+    """
+
+    def __init__(self, name: str, threshold: float = 0.5, frames: int = 3, vad: float = 0.5):
         import openwakeword
         from openwakeword.model import Model
 
@@ -209,18 +219,33 @@ class WakeWord:
         if not path.is_file():
             raise FileNotFoundError(f"Wake word model {path} is missing; see the README's Voice section")
         # ONNX, not tflite: tflite-runtime has no build for the Pi's Python.
-        self.model = Model(wakeword_models=[name], inference_framework="onnx")
+        self.model = Model(wakeword_models=[name], inference_framework="onnx", vad_threshold=vad)
         self.name = name
         self.threshold = threshold
+        self.frames = frames
+        self.last_score = 0.0
+        self._run: list[float] = []
 
     def heard(self, chunk: bytes) -> bool:
         import numpy as np
 
-        scores = self.model.predict(np.frombuffer(chunk, dtype=np.int16))
-        return max(scores.values(), default=0.0) >= self.threshold
+        return self.score(max(self.model.predict(np.frombuffer(chunk, dtype=np.int16)).values(), default=0.0))
+
+    def score(self, value: float) -> bool:
+        """Count one frame's score; True once enough frames in a row are high."""
+        if value < self.threshold:
+            self._run.clear()
+            return False
+        self._run.append(value)
+        if len(self._run) < self.frames:
+            return False
+        self.last_score = max(self._run)
+        self._run.clear()
+        return True
 
     def reset(self) -> None:
         self.model.reset()
+        self._run.clear()
 
 
 # --- speech to text -----------------------------------------------------
@@ -267,6 +292,9 @@ LISTENING = tone([(660, 0.08), (880, 0.12)])
 GOT_IT = tone([(880, 0.08), (660, 0.10)])
 NOTHING = tone([(330, 0.25)])
 
+# What Whisper tends to "hear" in near-silence (it was trained on subtitles).
+PHANTOMS = {"you", "thank you", "thanks", "bye", "thank you for watching", "thanks for watching"}
+
 
 # --- the loop -----------------------------------------------------------
 
@@ -295,6 +323,11 @@ class Voice:
         heard = time.monotonic()
         if not text:
             self.speak("Sorry, I didn't catch that.")
+            return
+        if text.strip(" .,!?").lower() in PHANTOMS:
+            # Whisper's usual output for near-silence; nobody was talking to us.
+            log.info("Ignored a likely mis-hearing: %r", text)
+            self.play(NOTHING)
             return
         log.info("Heard: %s", text)
         out = self.stream()
@@ -370,7 +403,7 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
         if pressed_again():
             trigger = "button"
         elif wake is not None and wake.heard(chunk):
-            trigger = wake.name
+            trigger = f"{wake.name}, score {wake.last_score:.2f}"
         else:
             continue
         log.info("Listening (%s)", trigger)
@@ -410,7 +443,12 @@ def main() -> int:
         log.warning("No button found; only the wake word starts a turn")
 
     log.info("Loading Whisper, Piper%s", " and the wake word" if wake_name else "")
-    wake = WakeWord(wake_name, float(os.environ.get("FOCUS_VOICE_WAKE_THRESHOLD", "0.5"))) if wake_name else None
+    wake = WakeWord(
+        wake_name,
+        threshold=float(os.environ.get("FOCUS_VOICE_WAKE_THRESHOLD", "0.5")),
+        frames=int(os.environ.get("FOCUS_VOICE_WAKE_FRAMES", "3")),
+        vad=float(os.environ.get("FOCUS_VOICE_WAKE_VAD", "0.5")),
+    ) if wake_name else None
     transcribe = Transcriber(os.environ.get("FOCUS_VOICE_MODEL", "base.en"),
                              os.environ.get("FOCUS_VOICE_MODELS", DEFAULT_MODELS))
     spoken = speech.create()
