@@ -51,6 +51,7 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     assert replayed["tool_calls"][0]["function"]["name"] == "complete_priority"
     assert result["role"] == "tool" and result["tool_call_id"] == "call_1"
     assert "[done] Write spec" in result["content"]
+    assert "Next open: Email Sam" in result["content"]
 
 
 def test_chat_model_defaults_to_the_check_in_model(cfg, monkeypatch):

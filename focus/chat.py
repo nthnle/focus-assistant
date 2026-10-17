@@ -33,7 +33,9 @@ today's check-ins and device events.
 Help them decide and keep going: answer questions about their day, and \
 change their priorities when they ask, using the tools. Use the priority ids \
 from the data. If a request is ambiguous, ask one short question instead of \
-guessing. Never invent tasks, progress or events.
+guessing. Never invent tasks, progress or events. Take counts and totals \
+from `facts` as given, and after a change take what is next from the tool \
+result's "Next open" line, not from the data sent before the change.
 
 Your reply may be read aloud, so write plain sentences: no markdown, no \
 lists, no emoji, at most 60 words. After changing something, say what you \
@@ -130,7 +132,9 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
         args = _arguments(raw_args)
         with st.locked_state(cfg) as s:
             handler(s, args)
-            return "Done. Priorities now:\n" + _priorities_text(s), False
+            open_ = s.open_priorities
+            next_open = f"Next open: {open_[0].text}" if open_ else "Next open: nothing, the list is done"
+            return f"Done. {next_open}\nPriorities now:\n" + _priorities_text(s), False
     except (st.StateError, KeyError, TypeError, ValueError) as exc:
         return f"Error: {exc}", True
 

@@ -18,11 +18,12 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Callable
 
 import openai
 
+from . import state as st
 from .config import Config
 from .state import State
 
@@ -33,6 +34,11 @@ You are a focus coach on a small device on the user's desk. Three times a \
 day you get their priorities, what they have done, and what the device has \
 logged (self-reports, snoozes, phone taken off the dock during focus time). \
 Reply with what helps them do the right next thing.
+
+`facts` already has the counts and totals: the next priority, phone pickups \
+and minutes off the dock, what has carried over three days or more. Use those \
+numbers as given; never work them out again from the events. The phone \
+belongs on its dock during focus time, so phone_out means it was picked up.
 
 The reply may be shown on a small e-ink screen or spoken aloud, so write \
 plain sentences: no markdown, no lists, no emoji, at most 70 words.
@@ -104,10 +110,41 @@ class Response:
         return message
 
 
+def facts(s: State, now: str) -> dict:
+    """Counts and totals worked out in code, so the model never has to do
+    arithmetic on timestamps (open models get it wrong surprisingly often)."""
+    open_ = s.open_priorities
+    pickups, minutes, out_at = 0, 0.0, None
+    try:
+        for e in s.events:
+            if e["kind"] == st.PHONE_OUT:
+                pickups += 1
+                out_at = datetime.fromisoformat(e["at"])
+            elif e["kind"] == st.PHONE_IN and out_at is not None:
+                minutes += (datetime.fromisoformat(e["at"]) - out_at).total_seconds() / 60
+                out_at = None
+        if out_at is not None:
+            minutes += max(0.0, (datetime.fromisoformat(now) - out_at).total_seconds() / 60)
+    except (KeyError, ValueError, TypeError):
+        pass  # a malformed or mixed-timezone event: leave the totals as far as they got
+    reports = [e.get("detail") for e in s.events if e["kind"] == st.SELF_REPORT]
+    return {
+        "next_up": open_[0].text if open_ else None,
+        "open_count": len(open_),
+        "done_count": len(s.priorities) - len(open_),
+        "carried_3_days_or_more": [p.text for p in open_ if p.carried_days >= 3],
+        "phone_pickups_today": pickups,
+        "phone_minutes_off_dock_today": round(minutes),
+        "phone_off_dock_now_since": out_at.strftime("%H:%M") if out_at else None,
+        "last_self_report": reports[-1] if reports else None,
+    }
+
+
 def build_payload(s: State, slot: str, now: str) -> dict:
     payload = {
         "checkin": slot,
         "now": now,
+        "facts": facts(s, now),
         "priorities": [
             {
                 "id": p.id,

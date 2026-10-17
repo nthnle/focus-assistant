@@ -104,3 +104,31 @@ def test_friday_evening_is_the_weekly_wrap_up():
 def test_other_check_ins_are_not_weekly(today, slot):
     payload = coach.build_payload(_week_state(today), slot, f"{today}T17:30:00-05:00")
     assert "weekly_review" not in payload and "this_week" not in payload
+
+
+def test_facts_do_the_arithmetic():
+    d = "2026-10-12"
+    s = State(date=d, priorities=[Priority(1, "Report", carried_days=4),
+                                  Priority(2, "Sam", done_at=f"{d}T10:05:00-05:00"),
+                                  Priority(3, "PR", carried_days=1)], events=[
+        {"at": f"{d}T09:40:00-05:00", "kind": "phone_out"},
+        {"at": f"{d}T09:58:00-05:00", "kind": "phone_in", "detail": "18 min"},
+        {"at": f"{d}T10:30:00-05:00", "kind": "phone_out"},
+        {"at": f"{d}T11:15:00-05:00", "kind": "phone_in", "detail": "45 min"},
+        {"at": f"{d}T12:10:00-05:00", "kind": "self_report", "detail": "drifted"},
+        {"at": f"{d}T12:50:00-05:00", "kind": "phone_out"},   # still out at 13:00
+    ])
+    f = coach.build_payload(s, "midday", f"{d}T13:00:00-05:00")["facts"]
+    assert f == {
+        "next_up": "Report", "open_count": 2, "done_count": 1,
+        "carried_3_days_or_more": ["Report"],
+        "phone_pickups_today": 3, "phone_minutes_off_dock_today": 18 + 45 + 10,
+        "phone_off_dock_now_since": "12:50", "last_self_report": "drifted",
+    }
+
+
+def test_facts_survive_an_empty_day_and_odd_events():
+    f = coach.facts(State(date="2026-10-12", events=[{"at": "not a time", "kind": "phone_out"}]),
+                    "2026-10-12T09:00:00-05:00")
+    assert f["next_up"] is None and f["open_count"] == 0
+    assert f["phone_minutes_off_dock_today"] == 0
