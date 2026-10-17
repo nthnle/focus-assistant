@@ -24,7 +24,7 @@ from typing import Callable
 
 import anthropic
 
-from . import actions, blocks, chat, coach, config, state as st
+from . import actions, blocks, chat, coach, config, presence, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -84,6 +84,12 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None],
     if not force and not blocks.in_block(now, focus_blocks):
         log.info("Not in a focus block; no reminder")
         return False
+    if not force:
+        with st.locked_state(cfg, today=now.date()) as s:
+            gone = presence.away(cfg, s, now.astimezone())
+        if gone:
+            log.info("Away from the desk; no reminder (you're already up)")
+            return False
     text = write(cfg, now) or phrase_for(now)
     say(text)
     with st.locked_state(cfg, today=now.date()) as s:

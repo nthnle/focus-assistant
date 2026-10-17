@@ -4,11 +4,14 @@
     (or press again) -> faster-whisper on the Pi -> the same coach as phone
     chat -> Piper speaks the reply through the speaker
 
-With a wake word set, the microphone is always on, but that audio only goes
-through the wake-word model on the Pi and is thrown away; a turn's audio is
-kept only after the wake word or a press, until you stop talking. Speech
-never leaves the Pi (only the transcribed text goes to the coach). Without a
-wake word, only the button starts a turn. The Anker PowerConf's play button
+The microphone stream is always open while the service runs, but its audio
+is thrown away: it only goes through the wake-word model (if one is set)
+and a loudness check whose one result is the time the desk last made a
+sound (focus.presence). A turn's audio is kept only after the wake word or
+a press, until you stop talking. Speech never leaves the Pi (only the
+transcribed text goes to the coach). Without a wake word, only the button
+starts a turn. Between turns it also says a check-in that was held while
+you were away, once you're back. The Anker PowerConf's play button
 arrives as KEY_PLAYPAUSE on its "Consumer Control" input device, with the
 release right after the press, so it is press-to-talk, not hold-to-talk.
 (Its call button sends nothing Linux turns into a key.)
@@ -38,10 +41,11 @@ import sys
 import threading
 import time
 import wave
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import chat, config
+from .. import chat, config, presence, state as st
 from ..coach import CoachError
 from ..config import Config
 
@@ -310,9 +314,30 @@ class Voice:
 _LOST = object()
 
 
-def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None) -> None:
-    """Start a turn on each button press or wake word, until the hardware goes away."""
+def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> bool:
+    """Say the latest check-in that was held while you were away, once you're back."""
+    with st.locked_state(cfg, today=now.date()) as s:
+        unheard = [c for c in s.checkins if c.get("unheard")]
+        if not unheard or presence.away(cfg, s, now):
+            return False
+        for c in unheard:
+            c["unheard"] = False
+        last = unheard[-1]
+    log.info("Back at the desk; saying the held %s check-in", last["slot"])
+    speak(f"While you were away, the {last['slot']} check-in said: {last.get('reply') or ''}")
+    return True
+
+
+def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
+        on_chunk: Callable[[bytes], None] | None = None,
+        idle: Callable[[], None] | None = None, idle_every_s: float = 30.0) -> None:
+    """Start a turn on each button press or wake word, until the hardware goes away.
+
+    `on_chunk` sees every chunk (presence keeps only a loudness reading);
+    `idle` runs between turns every `idle_every_s` (held check-ins).
+    """
     events: queue.Queue = queue.Queue()
+    next_idle = time.monotonic() + idle_every_s
 
     if presses is not None:
         def pump() -> None:
@@ -333,6 +358,15 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None) -> None:
 
     while True:
         chunk = mic.read()
+        if on_chunk is not None:
+            on_chunk(chunk)
+        if idle is not None and time.monotonic() >= next_idle:
+            next_idle = time.monotonic() + idle_every_s
+            try:
+                idle()
+            except Exception:
+                log.exception("Idle task failed")
+            mic.clear()  # what it just said isn't anyone at the desk
         if pressed_again():
             trigger = "button"
         elif wake is not None and wake.heard(chunk):
@@ -386,16 +420,20 @@ def main() -> int:
         mic.clear()  # start after the chime, not with it
         return record(mic.read, Endpointer(float(fixed) if fixed else None), stop)
 
-    voice = Voice(config.load(), speak=spoken.say, stream=spoken.stream, play=spoken.play,
+    cfg = config.load()
+    voice = Voice(cfg, speak=spoken.say, stream=spoken.stream, play=spoken.play,
                   listen=listen, transcribe=transcribe)
+    tracker = presence.SoundTracker(cfg)
+    extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)),
+                  idle=lambda: replay_missed(cfg, spoken.say, datetime.now().astimezone()))
     key = int(os.environ.get("FOCUS_VOICE_KEY", KEY_PLAYPAUSE))
     ways = ([f'say "{wake_name.replace("_", " ")}"'] if wake else []) + ([f"press key {key}"] if button else [])
     log.info("Ready: %s, then speak", " or ".join(ways))
     if button is None:
-        run(voice, mic, None, wake)
+        run(voice, mic, None, wake, **extras)
         return 0
     with open(button, "rb", buffering=0) as stream:
-        run(voice, mic, key_presses(stream, key), wake)
+        run(voice, mic, key_presses(stream, key), wake, **extras)
     return 0
 
 

@@ -157,9 +157,12 @@ Pressing play again ends the recording early; a low tone means it heard
 nothing. It is the same coach as phone chat, with the same tools, the same
 conversation for the day and the same daily limit.
 
-The microphone is open only from a press until you stop talking. Speech is
-turned into text on the Pi by faster-whisper (base.en, a few seconds on a
-Pi 4); only that text goes to the coach. The play button arrives as
+While the service runs, the microphone stream is always open, but its audio
+is thrown away: it only passes through the wake-word model (if set) and a
+loudness check whose one result is the time the desk last made a sound (see
+Presence). A turn's audio is kept only from a press or the wake word until
+you stop talking. Speech is turned into text on the Pi by faster-whisper
+(base.en, a few seconds on a Pi 4); only that text goes to the coach. The play button arrives as
 `KEY_PLAYPAUSE`; the call button sends nothing Linux can read.
 
 ```bash
@@ -221,6 +224,23 @@ journalctl -u focus-stretch -n 5                                # what it said, 
 ```
 
 `sudo systemctl disable --now focus-stretch.timer` turns it off.
+
+### Presence (`presence.py`)
+
+So the coach doesn't talk to an empty desk: you count as **away** when the
+phone has been off the dock for 10 minutes **and** the desk has been quiet
+for 15 (no typing, chair or voice heard by the voice service's microphone;
+only the time of the last sound is stored, in `presence.json`). While away,
+stretch reminders are skipped, and a spoken check-in is held; the voice
+service says it ("While you were away, the midday check-in said: ...") within
+30 s of the phone going back on the dock or the desk making a sound. The
+display page shows it meanwhile.
+
+Its blind spot: leave the phone on the dock and walk off, and it still
+thinks you're there. Without the voice service there is no sound reading
+and the dock decides alone. Tune with `FOCUS_AWAY_PHONE_MIN` and
+`FOCUS_AWAY_QUIET_MIN`; `journalctl -u focus-stretch -u focus-checkin -u
+focus-voice | grep -i away` shows its decisions.
 
 ### Display page (`display.py`)
 

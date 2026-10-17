@@ -26,11 +26,11 @@ import sys
 import threading
 import time
 import wave
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Callable
 
-from .. import config, state as st
+from .. import config, presence, state as st
 from ..state import State
 
 log = logging.getLogger(__name__)
@@ -109,9 +109,10 @@ class SentenceStream:
 
 
 class Speech:
-    def __init__(self, voice, play: Callable[[bytes], None]):
+    def __init__(self, voice, play: Callable[[bytes], None], cfg: config.Config | None = None):
         self.voice = voice
         self.play = play
+        self.cfg = cfg  # set: hold check-ins while you are away (focus.presence)
 
     def say(self, text: str) -> None:
         text = text.strip()
@@ -122,6 +123,11 @@ class Speech:
         return SentenceStream(self)
 
     def checkin(self, state: State, slot: str, reply: str) -> None:
+        if self.cfg and presence.away(self.cfg, state, datetime.now().astimezone()):
+            # Nobody to hear it: the voice service says it when you're back.
+            state.checkins[-1]["unheard"] = True
+            log.info("Away from the desk; holding the %s check-in until you're back", slot)
+            return
         self.say(reply)
 
 
@@ -133,7 +139,7 @@ def create() -> Speech:
         raise FileNotFoundError(f"No Piper voice at {voice_path}; see the README's Speech section")
     wav_path = os.environ.get("FOCUS_SPEECH_WAV")
     play = save_to(wav_path) if wav_path else aplay(os.environ.get("FOCUS_SPEECH_DEVICE", "default"))
-    return Speech(PiperVoice.load(voice_path), play)
+    return Speech(PiperVoice.load(voice_path), play, config.load())
 
 
 def main(argv: list[str] | None = None) -> int:
