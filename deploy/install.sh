@@ -35,14 +35,16 @@ chown root:root "$ETC/focus.env"
 chmod 0600 "$ETC/focus.env"
 
 echo "==> systemd units"
-for unit in focus-checkin.service focus-checkin.timer focus-dock.service focus-chat.service focus-voice.service; do
+for unit in focus-checkin.service focus-checkin.timer focus-dock.service focus-chat.service \
+            focus-voice.service focus-stretch.service focus-stretch.timer; do
     sed -e "s|@USER@|$USER_NAME|g" -e "s|@STATE_DIR@|$STATE_DIR|g" \
         "deploy/$unit" > "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
 systemctl enable --now focus-checkin.timer
-# These open ports or the microphone, so they are enabled by hand (see README);
-# restart them if they run.
+# These open ports or the microphone, or need the speaker set up first, so they
+# are enabled by hand (see README); restart them if they run. The stretch timer
+# picks up a changed unit on the daemon-reload above.
 systemctl try-restart focus-dock.service focus-chat.service focus-voice.service
 
 echo

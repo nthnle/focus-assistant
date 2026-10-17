@@ -200,6 +200,28 @@ If it starts on its own (TV, calls), raise `FOCUS_VOICE_WAKE_THRESHOLD` from
 `hey_mycroft`, `hey_rhasspy`, `alexa`. Remove the `FOCUS_VOICE_WAKE` line to
 go back to the button only.
 
+### Stretch reminder (`stretch.py`)
+
+50 minutes of work, 10 minutes of break: at :50 each hour of a focus block
+(9:50, 10:50, 11:50, 13:50 to 16:50 with the default `FOCUS_BLOCKS`) the
+speaker tells you to stand up and move. The coach writes the line from
+today's data, so it can mention what you're on or a skipped break; if it
+hasn't answered in 5 seconds, or the network is down, a fixed phrase plays
+instead. Each reminder is logged, so the check-ins see them.
+
+```bash
+git pull && sudo deploy/install.sh
+# Try one now, with the service's settings (needs the speech setup):
+sudo systemd-run --pipe --wait -p User=<user> -p EnvironmentFile=/etc/focus-assistant/focus.env \
+     -E FOCUS_STATE_DIR=/home/<user>/.local/state/focus-assistant \
+     /opt/focus-assistant/venv/bin/python -m focus.stretch --now
+sudo systemctl enable --now focus-stretch.timer
+systemctl list-timers focus-stretch.timer --no-pager            # the next :50
+journalctl -u focus-stretch -n 5                                # what it said, or why it was quiet
+```
+
+`sudo systemctl disable --now focus-stretch.timer` turns it off.
+
 ### Display page (`display.py`)
 
 Until the panel arrives, the same layout is served as a web page: the latest

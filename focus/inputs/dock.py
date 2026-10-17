@@ -27,45 +27,21 @@ import logging
 import os
 import sys
 import threading
-from datetime import datetime, time as dtime
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from typing import Callable
 
-from .. import actions, config, display, state as st
+from .. import actions, blocks as focus_blocks, config, display, state as st
+from ..blocks import DEFAULT_BLOCKS, Block, in_block, parse_blocks  # noqa: F401  (tests use these here)
 from ..config import Config
 from . import _web
 
 log = logging.getLogger(__name__)
 
-DEFAULT_BLOCKS = "09:00-12:00,13:00-17:30"
 DEFAULT_PORT = 8765
 
-Block = tuple[dtime, dtime]
 # (delay seconds, callback) -> something with .cancel(); threading.Timer in production.
 Scheduler = Callable[[float, Callable[[], None]], object]
-
-
-def parse_blocks(text: str) -> list[Block]:
-    blocks = []
-    for part in text.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        try:
-            start, end = (dtime.fromisoformat(t.strip()) for t in part.split("-"))
-        except ValueError as exc:
-            raise ValueError(f"FOCUS_BLOCKS: bad block {part!r}, expected HH:MM-HH:MM") from exc
-        if start >= end:
-            raise ValueError(f"FOCUS_BLOCKS: block {part!r} ends before it starts")
-        blocks.append((start, end))
-    return blocks
-
-
-def in_block(now: datetime, blocks: list[Block]) -> bool:
-    if now.weekday() >= 5:
-        return False
-    t = now.time()
-    return any(start <= t < end for start, end in blocks)
 
 
 def _start_timer(delay: float, fn: Callable[[], None]) -> threading.Timer:
@@ -174,7 +150,7 @@ def main() -> int:
         return 1
     dock = Dock(
         config.load(),
-        parse_blocks(os.environ.get("FOCUS_BLOCKS", DEFAULT_BLOCKS)),
+        focus_blocks.from_env(),
         float(os.environ.get("FOCUS_DOCK_SETTLE", "30")),
     )
     # Optional: without a display token the page is simply not served.
