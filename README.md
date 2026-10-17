@@ -83,6 +83,7 @@ Schedule: Mon to Fri at 09:00, 13:00 and 17:30. Change the times with
 focus add Finish the quarterly report
 focus show            # * marks the top 3, which is what the display will show
 focus last            # the latest check-in reply (or: journalctl -u focus-checkin)
+focus status          # services, next timers, today, presence and API cost
 focus move 4 1        # put #4 at the top
 focus done 1
 focus report drifted  # or on-track
@@ -155,7 +156,10 @@ it heard you; the coach starts answering through the speaker as soon as its
 first sentence is written, and the rest follows while it is being spoken.
 Pressing play again ends the recording early; a low tone means it heard
 nothing. It is the same coach as phone chat, with the same tools, the same
-conversation for the day and the same daily limit.
+conversation for the day and the same daily limit, but it answers spoken
+messages in one short sentence ("Done. Next is the email to Sam.") unless
+you ask something that needs more. It's meant for quick commands; for a
+longer conversation, the Claude app is better.
 
 While the service runs, the microphone stream is always open, but its audio
 is thrown away: it only passes through the wake-word model (if set) and a

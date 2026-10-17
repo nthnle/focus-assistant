@@ -42,6 +42,15 @@ Your reply may be read aloud, so write plain sentences: no markdown, no \
 lists, no emoji, at most 60 words. After changing something, say what you \
 changed in a few words."""
 
+# Added for messages spoken at the desk: there the reply is heard, and every
+# extra sentence is another second or two of waiting.
+VOICE_RULES = """
+
+This message was spoken at the desk and your reply will be read aloud. \
+Answer in one short sentence, at most 15 words, unless they asked a question \
+that needs more. After a change, confirm it and name what is next, like \
+this: Done. Next is the email to Sam."""
+
 
 def _tool(name: str, description: str, properties: dict) -> dict:
     return {
@@ -104,8 +113,10 @@ def _run_tool(cfg: Config, name: str, args: dict) -> tuple[str, bool]:
 
 
 def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
-        daily_limit: int = 50, on_text: Callable[[str], None] | None = None) -> str:
-    """Answer one message. `on_text` receives the reply as it streams in."""
+        daily_limit: int = 50, on_text: Callable[[str], None] | None = None,
+        voice: bool = False) -> str:
+    """Answer one message. `on_text` receives the reply as it streams in;
+    `voice` asks for the short replies that suit being read aloud."""
     message = message.strip()
     if not message:
         raise CoachError("Empty message")
@@ -136,7 +147,8 @@ def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
     for _ in range(MAX_STEPS):
         extra = {"thinking": THINKING[cfg.chat_model]} if cfg.chat_model in THINKING else {}
         response = coach.create(cfg, client, model=cfg.chat_model, on_text=on_text,
-                                system=SYSTEM_PROMPT, tools=TOOLS, messages=messages, **extra)
+                                system=SYSTEM_PROMPT + (VOICE_RULES if voice else ""),
+                                tools=TOOLS, messages=messages, **extra)
         tokens_in += response.usage.input_tokens
         tokens_out += response.usage.output_tokens
         if response.stop_reason != "tool_use":
@@ -163,6 +175,8 @@ def run(cfg: Config, message: str, client: anthropic.Anthropic | None = None,
             "user": message,
             "reply": reply,
             "changed": changed,
+            "voice": voice,
+            "model": cfg.chat_model,
             "tokens": {"in": tokens_in, "out": tokens_out},
         })
     return reply

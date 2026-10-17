@@ -31,8 +31,13 @@ def test_speaks_and_logs_during_a_block(cfg):
 
 def test_uses_the_coach_line_when_there_is_one(cfg):
     said = []
-    stretch.run(cfg, at(10), said.append, BLOCKS, write=lambda c, n: "Up you get, the spec can wait.")
+    usage = {"model": "claude-haiku-5-5", "in": 300, "out": 12}
+    stretch.run(cfg, at(10), said.append, BLOCKS,
+                write=lambda c, n: {"text": "Up you get, the spec can wait.", "usage": usage})
     assert said == ["Up you get, the spec can wait."]
+    with st.locked_state(cfg, today=at(10).date()) as s:
+        event = s.events[-1]
+    assert event["detail"] == "coach" and event["usage"] == usage
 
 
 @pytest.mark.parametrize("when", [at(12), at(17), at(8), at(10, day=17)],
@@ -78,7 +83,10 @@ def test_compose_asks_the_chat_model_with_the_days_data(cfg):
             "stop_reason": "end_turn", "stop_sequence": None,
             "usage": {"input_tokens": 300, "output_tokens": 12}})
 
-    assert stretch.compose(cfg, at(10), client=_client(handler)) == "Stand up and stretch before more spec."
+    assert stretch.compose(cfg, at(10), client=_client(handler)) == {
+        "text": "Stand up and stretch before more spec.",
+        "usage": {"model": "claude-haiku-5-5", "in": 300, "out": 12},
+    }
     assert sent["model"] == "claude-haiku-5-5"
     assert sent["system"] == stretch.SYSTEM_PROMPT
     payload = json.loads(sent["messages"][0]["content"])

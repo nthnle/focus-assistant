@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from datetime import datetime
 
-from . import actions, checkin, config, state as st
+from . import actions, checkin, config, state as st, status
 from .coach import CoachError
 
 
@@ -39,6 +40,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("show", help="list today's priorities")
     sub.add_parser("last", help="print the latest check-in reply")
+    sub.add_parser("status", help="services, today, presence and API cost at a glance")
     p = sub.add_parser("add", help="add a priority")
     p.add_argument("text", nargs="+")
     for name, help_ in [("done", "mark done"), ("undo", "mark not done"), ("drop", "remove")]:
@@ -62,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
         with st.locked_state(cfg) as s:
             if args.cmd == "last":
                 _last(s)
+                return 0
+            if args.cmd == "status":
+                print(status.report(cfg, s, datetime.now().astimezone()))
                 return 0
             if args.cmd == "add":
                 pr = actions.add_priority(s, " ".join(args.text))

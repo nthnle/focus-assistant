@@ -299,7 +299,7 @@ class Voice:
         log.info("Heard: %s", text)
         out = self.stream()
         try:
-            self.ask(self.cfg, text, on_text=out.feed)
+            self.ask(self.cfg, text, on_text=out.feed, voice=True)
         except CoachError as exc:
             log.warning("Voice chat failed: %s", exc)
             if not out.spoke:

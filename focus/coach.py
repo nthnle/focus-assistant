@@ -72,7 +72,8 @@ def build_payload(s: State, slot: str, now: str) -> dict:
         "earlier_checkins_today": [
             {"slot": c["slot"], "at": c["at"], "reply": c.get("reply")} for c in s.checkins
         ],
-        "events_today": s.events,
+        # "usage" is bookkeeping for `focus status`, not something the coach needs.
+        "events_today": [{k: v for k, v in e.items() if k != "usage"} for e in s.events],
         "chat_today": [{"at": c["at"], "user": c["user"], "reply": c["reply"]} for c in s.chat[-6:]],
         "recent_days": s.history[-5:],
     }

@@ -58,8 +58,8 @@ def phrase_for(now: datetime) -> str:
     return PHRASES[now.hour % len(PHRASES)]
 
 
-def compose(cfg: Config, now: datetime, client: anthropic.Anthropic | None = None) -> str | None:
-    """The coach's reminder, or None if it can't produce one quickly."""
+def compose(cfg: Config, now: datetime, client: anthropic.Anthropic | None = None) -> dict | None:
+    """The coach's reminder as {"text", "usage"}, or None if it can't produce one quickly."""
     with st.locked_state(cfg, today=now.date()) as s:
         payload = coach.build_payload(s, "stretch_break", now.astimezone().isoformat(timespec="seconds"))
     extra = {"thinking": chat.THINKING[cfg.chat_model]} if cfg.chat_model in chat.THINKING else {}
@@ -71,7 +71,9 @@ def compose(cfg: Config, now: datetime, client: anthropic.Anthropic | None = Non
             cfg, client, model=cfg.chat_model, system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}], **extra,
         )
-        return coach.reply_text(response)
+        return {"text": coach.reply_text(response),
+                "usage": {"model": cfg.chat_model, "in": response.usage.input_tokens,
+                          "out": response.usage.output_tokens}}
     except coach.CoachError as exc:
         log.warning("Coach unavailable (%s); using a fixed phrase", exc)
         return None
@@ -79,7 +81,7 @@ def compose(cfg: Config, now: datetime, client: anthropic.Anthropic | None = Non
 
 def run(cfg: Config, now: datetime, say: Callable[[str], None],
         focus_blocks: list[blocks.Block], force: bool = False,
-        write: Callable[[Config, datetime], str | None] = compose) -> bool:
+        write: Callable[[Config, datetime], dict | None] = compose) -> bool:
     """Say the reminder if it is focus time (or forced). Returns whether it did."""
     if not force and not blocks.in_block(now, focus_blocks):
         log.info("Not in a focus block; no reminder")
@@ -90,10 +92,13 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None],
         if gone:
             log.info("Away from the desk; no reminder (you're already up)")
             return False
-    text = write(cfg, now) or phrase_for(now)
+    written = write(cfg, now)
+    text = written["text"] if written else phrase_for(now)
     say(text)
     with st.locked_state(cfg, today=now.date()) as s:
-        actions.log_event(s, STRETCH)
+        event = actions.log_event(s, STRETCH, "coach" if written else "fixed")
+        if written:
+            event["usage"] = written["usage"]
     log.info("Reminded: %s", text)
     return True
 

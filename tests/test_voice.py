@@ -101,7 +101,8 @@ class Recorder:
                  reply="Added buy coffee filters.", fail=None):
         self.spoken, self.played, self.asked = [], [], []
 
-        def ask(_cfg, text, on_text):
+        def ask(_cfg, text, on_text, voice):
+            assert voice is True  # spoken turns ask for short replies
             self.asked.append(text)
             if fail:
                 raise CoachError(fail)

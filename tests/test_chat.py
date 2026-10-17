@@ -208,3 +208,12 @@ def test_http_chat(server):
     assert post(f"{base}/chat", b'not json')[0] == 400
     assert post(f"{base}/other", b'{"text": "x"}')[0] == 404
     assert calls == ["hello", "fail"]
+
+
+def test_voice_messages_ask_for_short_replies(cfg):
+    client, sent = scripted(_message([text("Done. Next is Email Sam.")]))
+    chat.run(cfg, "done with the spec", client=client, voice=True)
+    assert sent[0]["system"] == chat.SYSTEM_PROMPT + chat.VOICE_RULES
+    with st.locked_state(cfg) as s:
+        assert s.chat[-1]["voice"] is True
+        assert s.chat[-1]["model"] == "claude-haiku-5-5"
