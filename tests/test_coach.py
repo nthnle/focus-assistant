@@ -75,3 +75,24 @@ def test_missing_key_is_explained(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(coach.CoachError, match="systemctl start focus-checkin"):
         coach.ask(config.load(), {})
+
+
+def _week_state(today):
+    from focus.state import State
+    days = ["2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]  # last Fri, Mon-Thu
+    return State(date=today, history=[{"date": d, "done": [d], "open": [], "checkins": 3,
+                                       "chats": 0, "events": {}} for d in days])
+
+
+def test_friday_evening_is_the_weekly_wrap_up():
+    payload = coach.build_payload(_week_state("2026-10-16"), "evening", "2026-10-16T17:30:00-05:00")
+    assert payload["weekly_review"] is True
+    assert [h["date"] for h in payload["this_week"]] == ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]
+    assert "Friday evening (weekly_review is true)" in coach.SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize("today, slot", [("2026-10-16", "midday"), ("2026-10-15", "evening")],
+                         ids=["friday midday", "thursday evening"])
+def test_other_check_ins_are_not_weekly(today, slot):
+    payload = coach.build_payload(_week_state(today), slot, f"{today}T17:30:00-05:00")
+    assert "weekly_review" not in payload and "this_week" not in payload

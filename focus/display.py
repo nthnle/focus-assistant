@@ -1,19 +1,28 @@
 """The Inky layout as an HTML page, for any browser on the home network.
 
-Same content as `outputs/inky.py`: the latest check-in's slot and the date,
-the top 3 open priorities (red tag = days carried) and the reply. It is
-rendered from state on every request, so a chat, CLI or button change shows
-up on the next refresh. The dock service serves it at /display.
+The panel has the same content as `outputs/inky.py`: the latest check-in's
+slot and the date, the top 3 open priorities (red tag = days carried) and
+the reply. Under it, a status strip the e-ink panel doesn't have: where you
+are in the day (focus block, break, between blocks), the next 50/10 break,
+the phone, presence, and today's counts.
+
+It is rendered from state on every request, so a chat, CLI or dock change
+shows up on the next refresh. The dock service serves it at /display.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from html import escape
 
-from .state import State
+from . import blocks, presence
+from .config import Config
+from .state import PHONE_OUT, STRETCH_REMINDER, State
 
 REFRESH_SECONDS = 30
+
+# Tones for status chips: plain, good (green dot), alert (red dot).
+PLAIN, GOOD, ALERT = "plain", "good", "alert"
 
 _PAGE = """<!doctype html>
 <html lang="en">
@@ -23,8 +32,12 @@ _PAGE = """<!doctype html>
 <meta http-equiv="refresh" content="{refresh}">
 <title>Focus</title>
 <style>
-  :root {{ --paper: #fff; --ink: #111; --red: #d0021b; --muted: #666; --page: #e9e7e2; }}
-  @media (prefers-color-scheme: dark) {{ :root {{ --page: #1b1b1b; }} }}
+  :root {{ --paper: #fff; --ink: #111; --red: #d0021b; --green: #1a7f37; --page: #e9e7e2;
+           --chip: #f7f6f3; --chip-ink: #222; --muted: #666; --line: rgba(0,0,0,.08); }}
+  @media (prefers-color-scheme: dark) {{
+    :root {{ --page: #1b1b1b; --chip: #2a2a2a; --chip-ink: #e8e8e8; --muted: #999;
+             --line: rgba(255,255,255,.08); --green: #3fb950; }}
+  }}
   * {{ box-sizing: border-box; margin: 0; }}
   body {{ background: var(--page); min-height: 100vh; display: grid; place-content: center;
          grid-template-columns: minmax(0, 640px);
@@ -46,8 +59,17 @@ _PAGE = """<!doctype html>
   hr {{ border: 0; border-top: 2px solid var(--ink); margin: 1.3cqi 0 2.5cqi; }}
   .reply {{ flex: 1; overflow: hidden; font-size: clamp(13px, 3.4cqi, 22px); line-height: 1.3;
             display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }}
+  .strip {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;
+           margin-top: 12px; }}
+  .chip {{ background: var(--chip); color: var(--chip-ink); border: 1px solid var(--line);
+          border-radius: 8px; padding: 8px 10px; min-width: 0; }}
+  .chip .k {{ font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }}
+  .chip .v {{ font-size: 14px; font-weight: 600; margin-top: 2px; overflow-wrap: anywhere; }}
+  .chip.good .v::before, .chip.alert .v::before {{ content: ""; display: inline-block; width: 8px;
+      height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }}
+  .chip.good .v::before {{ background: var(--green); }}
+  .chip.alert .v::before {{ background: var(--red); }}
   footer {{ margin-top: 12px; font-size: 12px; color: var(--muted); text-align: center; }}
-  @media (prefers-color-scheme: dark) {{ footer {{ color: #999; }} }}
 </style>
 </head>
 <body>
@@ -58,6 +80,7 @@ _PAGE = """<!doctype html>
   <hr>
   <p class="reply">{reply}</p>
 </div>
+<section class="strip">{chips}</section>
 <footer>Updated {updated} · refreshes every {refresh} s</footer>
 </main>
 </body>
@@ -65,7 +88,61 @@ _PAGE = """<!doctype html>
 """
 
 
-def render_html(state: State, now: str) -> str:
+def _hm(t) -> str:
+    return t.strftime("%H:%M")
+
+
+def where_in_day(now: datetime, focus_blocks: list[blocks.Block]) -> list[tuple[str, str, str]]:
+    """The "Now" chip and, inside a block, the next 50/10 break."""
+    if now.weekday() >= 5:
+        return [("Now", "Weekend", PLAIN)]
+    t = now.time()
+    for start, end in focus_blocks:
+        if start <= t < end:
+            if now.minute >= 50:
+                back = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)).time()
+                return [("Now", f"Break till {_hm(min(back, end))}", GOOD)]
+            chips = [("Now", f"Focus until {_hm(end)}", ALERT)]
+            brk = now.replace(minute=50, second=0, microsecond=0).time()
+            chips.append(("Next break", _hm(brk) if brk < end else f"Block ends {_hm(end)}", PLAIN))
+            return chips
+    upcoming = [start for start, _ in focus_blocks if start > t]
+    if upcoming:
+        label = "Starts" if all(t < s for s, _ in focus_blocks) else "Next block"
+        return [("Now", f"{label} at {_hm(min(upcoming))}", PLAIN)]
+    return [("Now", "Done for the day", GOOD)]
+
+
+def day_status(state: State, now: datetime, cfg: Config | None = None,
+               focus_blocks: list[blocks.Block] | None = None) -> list[tuple[str, str, str]]:
+    """(label, value, tone) chips for the strip. `now` must be timezone-aware."""
+    focus_blocks = blocks.from_env() if focus_blocks is None else focus_blocks
+    chips = where_in_day(now, focus_blocks)
+
+    out = presence.phone_out_since(state)
+    if out:
+        chips.append(("Phone", f"Off since {_hm(out)}", ALERT))
+    elif blocks.in_block(now, focus_blocks):
+        chips.append(("Phone", "Docked", GOOD))
+
+    if cfg is not None:
+        if presence.away(cfg, state, now):
+            chips.append(("You", "Away", ALERT))
+        if any(c.get("unheard") for c in state.checkins):
+            chips.append(("Check-in", "Waiting for you", ALERT))
+
+    done = len(state.priorities) - len(state.open_priorities)
+    pickups = sum(1 for e in state.events if e["kind"] == PHONE_OUT)
+    breaks = sum(1 for e in state.events if e["kind"] == STRETCH_REMINDER)
+    chips.append(("Today", f"{done} done, {len(state.open_priorities)} open", PLAIN))
+    chips.append(("Phone pickups", str(pickups), ALERT if pickups >= 5 else PLAIN))
+    chips.append(("Breaks", str(breaks), PLAIN))
+    return chips
+
+
+def render_html(state: State, now: str, cfg: Config | None = None,
+                focus_blocks: list[blocks.Block] | None = None) -> str:
+    """`now` is an ISO timestamp with its offset, as state uses."""
     last = state.checkins[-1] if state.checkins else None
     slot = f"{last['slot'].upper()} CHECK-IN" if last else "NO CHECK-IN YET"
     reply = (last.get("reply") or "") if last else "The first check-in of the day will appear here."
@@ -77,11 +154,16 @@ def render_html(state: State, now: str) -> str:
     if not rows:
         rows.append('<li class="none">No open priorities</li>')
 
+    chips = "".join(
+        f'<div class="chip {tone}"><div class="k">{escape(k)}</div><div class="v">{escape(v)}</div></div>'
+        for k, v, tone in day_status(state, datetime.fromisoformat(now), cfg, focus_blocks)
+    )
     return _PAGE.format(
         refresh=REFRESH_SECONDS,
         slot=slot,
         day=date.fromisoformat(state.date).strftime("%a %d %b"),
         priorities="".join(rows),
         reply=escape(reply),
+        chips=chips,
         updated=escape(now[11:16]),
     )

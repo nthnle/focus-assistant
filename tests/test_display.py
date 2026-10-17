@@ -18,3 +18,61 @@ def test_top_three_open_with_carried_tag():
 def test_empty_state():
     page = display.render_html(State(date="2026-10-16"), "2026-10-16T09:05:00-05:00")
     assert "No open priorities" in page
+
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+import pytest  # noqa: E402
+
+from focus import blocks, config, state as st  # noqa: E402
+
+TZ = timezone(timedelta(hours=-5))
+BLOCKS = blocks.parse_blocks(blocks.DEFAULT_BLOCKS)
+
+
+def mon(h, m):
+    return datetime(2026, 10, 12, h, m, tzinfo=TZ)
+
+
+@pytest.mark.parametrize("when, expected", [
+    (mon(10, 20), [("Now", "Focus until 12:00", "alert"), ("Next break", "10:50", "plain")]),
+    (mon(10, 55), [("Now", "Break till 11:00", "good")]),
+    (mon(11, 55), [("Now", "Break till 12:00", "good")]),
+    (mon(17, 10), [("Now", "Focus until 17:30", "alert"), ("Next break", "Block ends 17:30", "plain")]),
+    (mon(12, 30), [("Now", "Next block at 13:00", "plain")]),
+    (mon(8, 15), [("Now", "Starts at 09:00", "plain")]),
+    (mon(18, 0), [("Now", "Done for the day", "good")]),
+    (datetime(2026, 10, 17, 10, 0, tzinfo=TZ), [("Now", "Weekend", "plain")]),
+], ids=["in block", "break", "last break before lunch", "late in block", "lunch", "morning", "evening", "saturday"])
+def test_where_in_day(when, expected):
+    assert display.where_in_day(when, BLOCKS) == expected
+
+
+def test_status_chips_for_phone_presence_and_counts(tmp_path, monkeypatch):
+    monkeypatch.setenv("FOCUS_STATE_DIR", str(tmp_path))
+    cfg = config.load()
+    s = State(date="2026-10-12", priorities=[Priority(1, "Spec", done_at="x"), Priority(2, "Email")])
+    s.events = [{"at": mon(9, 50).isoformat(), "kind": st.STRETCH_REMINDER},
+                {"at": mon(10, 0).isoformat(), "kind": st.PHONE_OUT}]
+    s.checkins = [{"slot": "morning", "at": "x", "reply": "y", "unheard": True}]
+    chips = dict((k, (v, tone)) for k, v, tone in display.day_status(s, mon(10, 20), cfg, BLOCKS))
+    assert chips["Phone"] == ("Off since 10:00", "alert")
+    assert chips["You"] == ("Away", "alert")            # phone out 20 min, no desk sound
+    assert chips["Check-in"] == ("Waiting for you", "alert")
+    assert chips["Today"] == ("1 done, 1 open", "plain")
+    assert chips["Phone pickups"] == ("1", "plain")
+    assert chips["Breaks"] == ("1", "plain")
+
+
+def test_docked_phone_shows_only_in_a_block():
+    s = State(date="2026-10-12")
+    in_block = dict((k, v) for k, v, _ in display.day_status(s, mon(10, 20), None, BLOCKS))
+    lunch = dict((k, v) for k, v, _ in display.day_status(s, mon(12, 30), None, BLOCKS))
+    assert in_block["Phone"] == "Docked" and "Phone" not in lunch
+    assert "You" not in in_block  # no config: no presence guess
+
+
+def test_page_includes_the_strip():
+    page = display.render_html(State(date="2026-10-12"), mon(10, 20).isoformat(timespec="seconds"),
+                               focus_blocks=BLOCKS)
+    assert 'class="strip"' in page and "Focus until 12:00" in page

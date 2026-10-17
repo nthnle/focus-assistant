@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Callable
 
 import anthropic
@@ -32,6 +33,10 @@ phone came out often, name it plainly once, without guilt, and give one \
 concrete reset.
 - evening: acknowledge what got done, name what carries over, and suggest \
 the first thing for tomorrow. Encourage putting the phone away for the night.
+- Friday evening (weekly_review is true): look back at the whole week \
+instead, using this_week and today: what got done, what kept carrying over, \
+how the phone and breaks went, and one thing to try next week. End the \
+week on something they did well.
 
 If there are no priorities, ask them to set up to three, in one sentence.
 Be warm and direct. Do not invent tasks, progress or events that are not in \
@@ -56,7 +61,7 @@ class CoachError(Exception):
 
 
 def build_payload(s: State, slot: str, now: str) -> dict:
-    return {
+    payload = {
         "checkin": slot,
         "now": now,
         "priorities": [
@@ -77,6 +82,13 @@ def build_payload(s: State, slot: str, now: str) -> dict:
         "chat_today": [{"at": c["at"], "user": c["user"], "reply": c["reply"]} for c in s.chat[-6:]],
         "recent_days": s.history[-5:],
     }
+    today = date.fromisoformat(s.date)
+    if slot == "evening" and today.weekday() == 4:
+        # Friday: the evening check-in becomes the week's wrap-up.
+        monday = (today - timedelta(days=4)).isoformat()
+        payload["weekly_review"] = True
+        payload["this_week"] = [h for h in s.history if h["date"] >= monday]
+    return payload
 
 
 def make_client(hint: str, timeout: float = 60.0, max_retries: int = 3) -> anthropic.Anthropic:

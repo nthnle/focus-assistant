@@ -118,7 +118,7 @@ def make_handler(dock: Dock, token: str, display_token: str | None = None) -> ty
             if not _web.authorized(self, display_token, in_query=True):
                 return
             with st.locked_state(dock.cfg) as s:
-                page = display.render_html(s, st.now_iso()).encode("utf-8")
+                page = display.render_html(s, st.now_iso(), dock.cfg).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(page)))

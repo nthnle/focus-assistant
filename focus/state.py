@@ -34,6 +34,7 @@ SELF_REPORT = "self_report"  # detail: "on_track" | "drifted"
 SNOOZE = "snooze"
 PHONE_OUT = "phone_out"
 PHONE_IN = "phone_in"
+STRETCH_REMINDER = "stretch_reminder"
 
 
 class StateError(Exception):

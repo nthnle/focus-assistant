@@ -29,7 +29,7 @@ from .config import Config
 
 log = logging.getLogger(__name__)
 
-STRETCH = "stretch_reminder"
+STRETCH = st.STRETCH_REMINDER
 COACH_TIMEOUT = 5.0
 
 SYSTEM_PROMPT = """\

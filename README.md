@@ -95,6 +95,11 @@ At the first use each new day, unfinished priorities carry over with
 the day's check-ins and events are cleared. The coach is told to raise
 anything carried for 3+ days.
 
+On Fridays the evening check-in is the week's wrap-up: the coach gets this
+week's daily summaries from `history` and looks back at what got done, what
+kept carrying over and how the phone and breaks went, with one thing to try
+next week.
+
 Settings (in `focus.env`): `FOCUS_MODEL` (default `claude-sonnet-5-5`; Opus 5.5 coached slightly better at about 3x the cost),
 `FOCUS_CHAT_MODEL` for phone chat and voice (default `claude-haiku-5-5`: quicker replies at about a twentieth of Sonnet's price),
 `FOCUS_EFFORT` (default `low`; it is a short reply), `FOCUS_OUTPUTS`,
@@ -250,7 +255,11 @@ focus-voice | grep -i away` shows its decisions.
 
 Until the panel arrives, the same layout is served as a web page: the latest
 check-in slot and date, the top 3 open priorities (red tag = days carried)
-and the reply. It is built from `state.json` on every request and refreshes
+and the reply. Under it, a status strip the panel won't have: where you are
+in the day (focus until 12:00, break till 11:00, next block at 13:00), the
+next 50/10 break, the phone (docked, or off since when), whether you count
+as away or have a check-in waiting, and today's done/open, phone pickups
+and breaks. It is built from `state.json` on every request and refreshes
 itself every 30 s, so changes from chat, the CLI or the dock show up within
 the half minute. The dock service serves it (it holds no API key), read-only,
 to the home network only.
