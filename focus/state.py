@@ -151,6 +151,17 @@ def _write(path: Path, state: State) -> None:
         raise
 
 
+def peek(cfg: Config, today: date | None = None) -> State:
+    """The current (rolled-over) state for a read-only view: no lock, never saved.
+
+    Writes are atomic renames, so a read always sees a whole file.
+    """
+    today = today or date.today()
+    state = _read(cfg.state_path, today)
+    roll_over(state, today, cfg.history_days)
+    return state
+
+
 @contextmanager
 def locked_state(cfg: Config, today: date | None = None) -> Iterator[State]:
     """Yield the current (rolled-over) state; save it if the block succeeds."""

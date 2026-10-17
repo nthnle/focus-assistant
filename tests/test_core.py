@@ -70,6 +70,14 @@ def test_failed_block_does_not_save(cfg):
         assert [p.text for p in s.priorities] == ["Keep me"]
 
 
+def test_peek_reads_without_saving(cfg):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Write the spec")
+    before = cfg.state_path.stat().st_mtime_ns
+    assert [p.text for p in st.peek(cfg).open_priorities] == ["Write the spec"]
+    assert cfg.state_path.stat().st_mtime_ns == before
+
+
 def test_move_and_drop(cfg):
     with st.locked_state(cfg) as s:
         for t in ("a", "b", "c"):

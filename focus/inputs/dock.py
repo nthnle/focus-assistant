@@ -6,7 +6,8 @@ An iOS Shortcuts automation ("Charger is connected / disconnected") sends
     Authorization: Bearer <FOCUS_DOCK_TOKEN>
 
 It also serves the display page (focus.display) for a browser at
-GET /display?k=<FOCUS_DISPLAY_TOKEN>, read-only.
+GET /display?k=<FOCUS_DISPLAY_TOKEN>, read-only. The page polls it with
+If-None-Match and gets a bodyless 304 until something changes.
 
 It answers private (home network) addresses with the right token and
 nothing else; it can only append dock events to the state file and read it
@@ -106,9 +107,12 @@ class Dock:
 
 def make_handler(dock: Dock, token: str, display_token: str | None = None) -> type[BaseHTTPRequestHandler]:
     routes = {"/dock/in": dock.phone_in, "/dock/out": dock.phone_out}
+    page = display.Page(dock.cfg, dock.blocks) if display_token is not None else None
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 10
+        # Keep-alive: the page polls every 2 s over one connection, not a new one each time.
+        protocol_version = "HTTP/1.1"
 
         def do_GET(self) -> None:
             # The display page lives here because this service is local-only and keyless.
@@ -117,18 +121,31 @@ def make_handler(dock: Dock, token: str, display_token: str | None = None) -> ty
                 return
             if not _web.authorized(self, display_token, in_query=True):
                 return
-            with st.locked_state(dock.cfg) as s:
-                page = display.render_html(s, st.now_iso(), dock.cfg).encode("utf-8")
+            version, html = page.get(st.now_iso())
+            etag = f'"{version}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return
+            body = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(page)))
+            self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("ETag", etag)
             self.end_headers()
-            self.wfile.write(page)
+            self.wfile.write(body)
 
         def do_POST(self) -> None:
             if not _web.authorized(self, token):
                 return
+            # Dock reports carry no body, but read any so keep-alive stays in step.
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > 65536:
+                self.send_error(413)
+                return
+            self.rfile.read(length)
             route = routes.get(self.path)
             if route is None:
                 self.send_error(404)

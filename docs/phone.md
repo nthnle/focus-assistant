@@ -124,8 +124,9 @@ A live page for any browser on your network: the latest check-in, your top
 three open priorities, and a status strip: where you are in the day (focus
 until 12:00, break till 11:00, next block), the next break, the phone,
 whether you're away or have a check-in waiting, and today's done count,
-phone pickups and breaks. It's rebuilt from your state on every request and
-refreshes itself every 30 seconds. It's read-only.
+phone pickups and breaks. It's read-only, and live: it updates within two
+seconds of any change, whether from voice, chat, the CLI, the dock or a
+check-in.
 
 The dock service serves it, so enable that first. Then open:
 

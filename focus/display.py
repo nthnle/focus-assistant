@@ -6,20 +6,29 @@ the reply. Under it, a status strip the e-ink panel doesn't have: where you
 are in the day (focus block, break, between blocks), the next 50/10 break,
 the phone, presence, and today's counts.
 
-It is rendered from state on every request, so a chat, CLI or dock change
-shows up on the next refresh. The dock service serves it at /display.
+The dock service serves it at /display, through `Page`. Every POLL_SECONDS
+the page asks for itself again with its version as an ETag; the answer is a
+bodyless 304 until the content changes, and then the new content is swapped
+in place, so a chat, voice, CLI or dock change shows up within a couple of
+seconds. `Page` re-renders only when a file the page reads, or the minute,
+has changed, so an unchanged poll costs two stat() calls.
 """
 
 from __future__ import annotations
 
+import hashlib
+import threading
 from datetime import date, datetime, timedelta
 from html import escape
 
 from . import blocks, presence
 from .config import Config
+from . import state as st
 from .state import PHONE_OUT, STRETCH_REMINDER, State
 
-REFRESH_SECONDS = 30
+POLL_SECONDS = 2
+# A fallback in case the script can't run: a plain reload this often.
+REFRESH_SECONDS = 300
 
 # Tones for status chips: plain, good (green dot), alert (red dot).
 PLAIN, GOOD, ALERT = "plain", "good", "alert"
@@ -29,7 +38,7 @@ _PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="{refresh}">
+<noscript><meta http-equiv="refresh" content="{refresh}"></noscript>
 <title>Focus</title>
 <style>
   :root {{ --paper: #fff; --ink: #111; --red: #d0021b; --green: #1a7f37; --page: #e9e7e2;
@@ -81,8 +90,23 @@ _PAGE = """<!doctype html>
   <p class="reply">{reply}</p>
 </div>
 <section class="strip">{chips}</section>
-<footer>Updated {updated} · refreshes every {refresh} s</footer>
+<footer>Updated {updated} · live</footer>
 </main>
+<script>
+let version = "{version}";
+async function check() {{
+  if (document.hidden) return;
+  try {{
+    const r = await fetch(location.href, {{ cache: "no-store", headers: {{ "If-None-Match": '"' + version + '"' }} }});
+    if (r.status !== 200) return;  // 304: nothing changed
+    const fresh = new DOMParser().parseFromString(await r.text(), "text/html").querySelector("main");
+    document.querySelector("main").replaceWith(fresh);
+    version = (r.headers.get("ETag") || "").replaceAll('"', "");
+  }} catch (e) {{}}
+}}
+setInterval(check, {poll_ms});
+document.addEventListener("visibilitychange", check);
+</script>
 </body>
 </html>
 """
@@ -140,9 +164,9 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     return chips
 
 
-def render_html(state: State, now: str, cfg: Config | None = None,
-                focus_blocks: list[blocks.Block] | None = None) -> str:
-    """`now` is an ISO timestamp with its offset, as state uses."""
+def _content(state: State, now: str, cfg: Config | None,
+             focus_blocks: list[blocks.Block] | None) -> dict[str, str]:
+    """What the page shows, without the clock in its footer."""
     last = state.checkins[-1] if state.checkins else None
     slot = f"{last['slot'].upper()} CHECK-IN" if last else "NO CHECK-IN YET"
     reply = (last.get("reply") or "") if last else "The first check-in of the day will appear here."
@@ -158,12 +182,60 @@ def render_html(state: State, now: str, cfg: Config | None = None,
         f'<div class="chip {tone}"><div class="k">{escape(k)}</div><div class="v">{escape(v)}</div></div>'
         for k, v, tone in day_status(state, datetime.fromisoformat(now), cfg, focus_blocks)
     )
-    return _PAGE.format(
+    return {
+        "slot": slot,
+        "day": date.fromisoformat(state.date).strftime("%a %d %b"),
+        "priorities": "".join(rows),
+        "reply": escape(reply),
+        "chips": chips,
+    }
+
+
+def render(state: State, now: str, cfg: Config | None = None,
+           focus_blocks: list[blocks.Block] | None = None) -> tuple[str, str]:
+    """(version, html). The version changes exactly when the content does, not
+    with the footer's clock. `now` is an ISO timestamp with its offset."""
+    content = _content(state, now, cfg, focus_blocks)
+    version = hashlib.sha256("\0".join(content.values()).encode()).hexdigest()[:16]
+    return version, _PAGE.format(
         refresh=REFRESH_SECONDS,
-        slot=slot,
-        day=date.fromisoformat(state.date).strftime("%a %d %b"),
-        priorities="".join(rows),
-        reply=escape(reply),
-        chips=chips,
+        poll_ms=POLL_SECONDS * 1000,
+        version=version,
         updated=escape(now[11:16]),
+        **content,
     )
+
+
+def render_html(state: State, now: str, cfg: Config | None = None,
+                focus_blocks: list[blocks.Block] | None = None) -> str:
+    return render(state, now, cfg, focus_blocks)[1]
+
+
+class Page:
+    """The rendered page, cached until something it shows could have changed:
+    state.json, presence.json, or the minute (the day chips move with time,
+    and the date in it also covers the midnight rollover)."""
+
+    def __init__(self, cfg: Config, focus_blocks: list[blocks.Block]):
+        self.cfg = cfg
+        self.focus_blocks = focus_blocks
+        self._lock = threading.Lock()
+        self._key: tuple | None = None
+        self._page: tuple[str, str] = ("", "")
+
+    @staticmethod
+    def _stamp(path) -> tuple[int, int] | None:
+        try:
+            info = path.stat()
+        except FileNotFoundError:
+            return None
+        return info.st_mtime_ns, info.st_size
+
+    def get(self, now: str) -> tuple[str, str]:
+        """(version, html) at `now`, an ISO timestamp with its offset."""
+        key = (self._stamp(self.cfg.state_path), self._stamp(presence.sound_path(self.cfg)), now[:16])
+        with self._lock:
+            if key != self._key:
+                self._page = render(st.peek(self.cfg), now, self.cfg, self.focus_blocks)
+                self._key = key
+            return self._page

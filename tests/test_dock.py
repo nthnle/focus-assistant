@@ -203,3 +203,47 @@ def test_display_page_needs_its_token(display_server):
     assert get(f"{display_server}/display?k={TOKEN}")[0] == 403
     assert get(f"{display_server}/display")[0] == 403
     assert get(f"{display_server}/other?k={DISPLAY_TOKEN}")[0] == 404
+
+
+def get_if(url, etag):
+    req = urllib.request.Request(url, headers={"If-None-Match": etag})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status, resp.headers.get("ETag"), resp.read().decode()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.headers.get("ETag"), ""
+
+
+def test_display_answers_304_until_the_content_changes(display_server, cfg):
+    url = f"{display_server}/display?k={DISPLAY_TOKEN}"
+    status, etag, page = get_if(url, '"stale"')
+    assert status == 200
+    assert f"let version = {etag}" in page  # the page knows its own version
+    assert get_if(url, etag)[:2] == (304, etag)
+    assert get_if(f"{display_server}/display", etag)[0] == 403
+
+    with st.locked_state(cfg) as s:
+        from focus import actions
+        actions.add_priority(s, "Email Sam")
+    status, etag2, page = get_if(url, etag)
+    assert status == 200 and etag2 != etag
+    assert "Email Sam" in page
+
+
+def test_page_renders_only_when_its_inputs_change(cfg, monkeypatch):
+    from focus import actions, display, presence
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Write the spec")
+    renders = []
+    real = display.render
+    monkeypatch.setattr(display, "render", lambda *a: renders.append(a) or real(*a))
+    page = display.Page(cfg, BLOCKS)
+    first = page.get("2026-10-16T10:20:05-05:00")
+    assert page.get("2026-10-16T10:20:40-05:00") == first  # same minute, same files
+    assert len(renders) == 1
+    page.get("2026-10-16T10:21:00-05:00")                  # the minute moved
+    assert len(renders) == 2
+    presence.sound_path(cfg).write_text('{"sound_at": "2026-10-16T10:21:00-05:00"}')
+    page.get("2026-10-16T10:21:30-05:00")                  # presence.json changed
+    assert len(renders) == 3
+    assert renders[-1][3] is BLOCKS                        # the dock's own blocks
