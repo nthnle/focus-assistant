@@ -80,7 +80,7 @@ def test_report_shows_the_day(cfg):
     assert "1 open, 1 done" in text
     assert "midday 13:00 (held, away)" in text
     assert "Focus block  yes, 13:00-17:30" in text
-    assert "off the dock since 13:42" in text
+    assert "off the charger since 13:42" in text
     assert "Presence     away" in text           # phone out 23 min, no sound reading
     assert "2 reminders (1 by the coach, 1 fixed)" in text
     assert "1 messages (1 by voice)" in text

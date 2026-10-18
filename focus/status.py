@@ -11,7 +11,7 @@ import subprocess
 from datetime import datetime
 from typing import Callable
 
-from . import blocks, presence, stretch
+from . import blocks, pause, presence, stretch
 from .pricing import cost, prices  # noqa: F401  (tests use these here)
 from .config import Config
 from .state import State
@@ -95,9 +95,10 @@ def report(cfg: Config, s: State, now: datetime,
         f"  Priorities   {open_} open, {done} done",
         f"  Check-ins    {checkins}",
         f"  Focus block  {'yes, ' + current if current else 'no'}",
-        f"  Phone        {'off the dock since ' + out.strftime('%H:%M') if out else 'on the dock (or no dock events today)'}",
+        f"  Phone        {'off the charger since ' + out.strftime('%H:%M') if out else 'on the charger (or no charger reports today)'}",
         f"  Desk sound   {'last heard ' + heard.strftime('%H:%M') if heard else 'no reading (voice service off?)'}",
         f"  Presence     {'away' if presence.away(cfg, s, now) else 'at the desk'}",
+        f"  Paused       {pause.describe(s, now) or 'no'}",
         f"  Stretch      {len(reminders)} reminders ({by_coach} by the coach, {len(reminders) - by_coach} fixed)",
         f"  Chat         {len(s.chat)} messages ({voice_chats} by voice)",
         "",

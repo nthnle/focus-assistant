@@ -10,11 +10,12 @@ stay inside that turn.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Callable
 
 import openai
 
-from . import actions, coach, pricing, state as st
+from . import actions, coach, pause, pricing, state as st
 from .coach import CoachError
 from .config import Config
 from .state import State
@@ -33,9 +34,11 @@ today's check-ins and device events.
 Help them decide and keep going: answer questions about their day, and \
 change their priorities when they ask, using the tools. Use the priority ids \
 from the data. If a request is ambiguous, ask one short question instead of \
-guessing. Never invent tasks, progress or events. Take counts and totals \
-from `facts` as given, and after a change take what is next from the tool \
-result's "Next open" line, not from the data sent before the change.
+guessing. If they want quiet for a while (a meeting, a call, a day off), \
+use pause; resume ends a pause early. Never invent tasks, progress or \
+events. Take counts and totals from `facts` as given, and after a change \
+take what is next from the tool result's "Next open" line, not from the \
+data sent before the change.
 
 Your reply may be read aloud, so write plain sentences: no markdown, no \
 lists, no emoji, at most 60 words. After changing something, say what you \
@@ -72,6 +75,8 @@ _ID = {"type": "integer", "description": "Priority id from the data"}
 TOOLS = [
     _tool("add_priority", "Add a priority to the end of today's list.",
           {"text": {"type": "string", "description": "Short imperative, e.g. 'Email Sam the budget'"}}),
+    _tool("rename_priority", "Change a priority's wording, e.g. to fix a typo.",
+          {"id": _ID, "text": {"type": "string", "description": "The new wording"}}),
     _tool("complete_priority", "Mark a priority done.", {"id": _ID}),
     _tool("reopen_priority", "Mark a done priority as not done.", {"id": _ID}),
     _tool("drop_priority", "Remove a priority entirely.", {"id": _ID}),
@@ -79,15 +84,22 @@ TOOLS = [
           {"id": _ID, "position": {"type": "integer", "description": "1 = top"}}),
     _tool("report", "Log how the current focus block is going, when the user says so.",
           {"how": {"type": "string", "enum": ["on_track", "drifted"]}}),
+    _tool("pause", "Hold spoken check-ins and stretch reminders until a time, or skip whole days off.",
+          {"until": {"type": "string", "description": "When to start again: 11:00, 2pm, 45m, 2h, "
+                                                      "tomorrow, monday, or a date like 2026-10-24"}}),
+    _tool("resume", "End a pause now.", {}),
 ]
 
 _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "add_priority": lambda s, a: actions.add_priority(s, a["text"]),
+    "rename_priority": lambda s, a: actions.rename_priority(s, a["id"], a["text"]),
     "complete_priority": lambda s, a: actions.complete_priority(s, a["id"]),
     "reopen_priority": lambda s, a: actions.reopen_priority(s, a["id"]),
     "drop_priority": lambda s, a: actions.drop_priority(s, a["id"]),
     "move_priority": lambda s, a: actions.move_priority(s, a["id"], a["position"]),
     "report": lambda s, a: actions.log_event(s, st.SELF_REPORT, a["how"]),
+    "pause": lambda s, a: actions.pause(s, pause.parse_until(a["until"], datetime.now().astimezone())),
+    "resume": lambda s, a: actions.resume(s),
 }
 
 
@@ -118,6 +130,10 @@ def _arguments(raw: str) -> dict:
         if not isinstance(args["text"], str) or not args["text"].strip():
             raise ValueError("text must be a non-empty string")
         args["text"] = args["text"].strip()[:MAX_PRIORITY_CHARS]
+    if "until" in args:
+        if not isinstance(args["until"], str) or not args["until"].strip():
+            raise ValueError("until must be a non-empty string")
+        args["until"] = args["until"].strip()[:40]
     if "how" in args and args["how"] not in ("on_track", "drifted"):
         raise ValueError("how must be on_track or drifted")
     return args
@@ -134,7 +150,9 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
             handler(s, args)
             open_ = s.open_priorities
             next_open = f"Next open: {open_[0].text}" if open_ else "Next open: nothing, the list is done"
-            return f"Done. {next_open}\nPriorities now:\n" + _priorities_text(s), False
+            quiet = pause.describe(s, datetime.now().astimezone())
+            paused = f"\nPaused {quiet}" if quiet else ""
+            return f"Done. {next_open}{paused}\nPriorities now:\n" + _priorities_text(s), False
     except (st.StateError, KeyError, TypeError, ValueError) as exc:
         return f"Error: {exc}", True
 

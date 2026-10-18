@@ -103,7 +103,8 @@ a wrong token; no line at all means the request never arrived.
 Message the coach from your phone: "I finished the spec, what's next?", "add
 email Sam", "move the report to the top", "I'm drifting". It sees the same
 data as a check-in, and it can change your priorities through a fixed set of
-tools (add, complete, reopen, drop, move, report). It can't do anything
+tools (add, rename, complete, reopen, drop, move, report, pause, resume).
+It can't do anything
 else. Today's conversation is kept, so follow-ups work, and the next
 check-in sees it.
 
@@ -171,11 +172,20 @@ While you're away:
 
 - **stretch reminders are skipped** (you're already up)
 - **a spoken check-in is held**, and the voice service says it within 30
-  seconds of your return ("While you were away, the midday check-in said:
-  ..."). The status page shows it meanwhile.
+  seconds of your return ("You missed the midday check-in. It said: ...").
+  The status page shows it meanwhile.
 
-**Its blind spot:** leave your phone on the charger and walk off, and it still
-thinks you're there. Tune it with `FOCUS_AWAY_PHONE_MIN` and
+The same happens while you're paused (`focus pause 11:00`, or "quiet until
+11" to the coach): reminders are skipped, and a check-in is held until the
+pause ends. See [Pausing](../README.md#using-it).
+
+**Its blind spots:** leave your phone on the charger and walk off, and it
+still thinks you're there. And it only knows when charging starts or stops:
+on a cable you can use the phone without unplugging it, and that isn't
+counted as a pickup. A wireless pad, where using the phone means lifting it,
+gives the truest count.
+
+Tune it with `FOCUS_AWAY_PHONE_MIN` and
 `FOCUS_AWAY_QUIET_MIN`;
 `journalctl -u focus-stretch -u focus-checkin -u focus-voice | grep -i away`
 shows its decisions.

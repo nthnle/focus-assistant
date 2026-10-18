@@ -5,7 +5,10 @@ exclusive lock for the whole read-modify-write. That matters once a button
 daemon and the check-in timer both write the same file.
 
 Day rollover happens here, in code, not in the model: unfinished priorities
-carry over with a counter, finished ones are archived into `history`.
+carry over with a counter, finished ones are archived into `history`. A day
+counts toward that counter only if a check-in ran on it, so weekends, days
+off and planning the next day in the evening don't make a priority look
+like it is slipping.
 """
 
 from __future__ import annotations
@@ -31,7 +34,8 @@ SCHEMA_VERSION = 1
 # Event kinds the core understands. Hardware adapters may add their own;
 # unknown kinds are still stored and shown to the coach.
 SELF_REPORT = "self_report"  # detail: "on_track" | "drifted"
-SNOOZE = "snooze"
+PAUSE = "pause"    # detail: when it ends, "HH:MM" or a date
+RESUME = "resume"
 PHONE_OUT = "phone_out"
 PHONE_IN = "phone_in"
 STRETCH_REMINDER = "stretch_reminder"
@@ -47,6 +51,7 @@ class Priority:
     text: str
     done_at: str | None = None
     carried_days: int = 0
+    added_at: str | None = None
 
     @property
     def done(self) -> bool:
@@ -64,6 +69,9 @@ class State:
     # Every chat or voice message today, answered or not: the daily cost cap.
     chat_attempts: int = 0
     history: list[dict] = field(default_factory=list)
+    # Check-ins and stretch reminders wait until then (focus.pause). Unlike
+    # the rest of the day, it survives rollover: a pause can last for days.
+    paused_until: str | None = None
     version: int = SCHEMA_VERSION
 
     @property
@@ -92,6 +100,7 @@ class State:
             chat=data.get("chat", []),
             chat_attempts=data.get("chat_attempts", len(data.get("chat", []))),
             history=data.get("history", []),
+            paused_until=data.get("paused_until"),
         )
 
 
@@ -119,9 +128,14 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     })
     state.history = state.history[-history_days:]
 
+    # The day counts only if a check-in ran on it, and only for priorities
+    # that were already there at its last check-in: one added in the evening
+    # is tomorrow's plan, not something that slipped.
+    last_checkin = state.checkins[-1].get("at") if state.checkins else None
     carried = state.open_priorities
     for p in carried:
-        p.carried_days += 1
+        if last_checkin and (p.added_at is None or _before(p.added_at, last_checkin)):
+            p.carried_days += 1
     state.priorities = carried
     state.checkins = []
     state.events = []
@@ -129,6 +143,14 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     state.chat_attempts = 0
     state.date = today.isoformat()
     return True
+
+
+def _before(a: str, b: str) -> bool:
+    """Whether timestamp a is before b; True if either is unreadable, as before."""
+    try:
+        return datetime.fromisoformat(a) < datetime.fromisoformat(b)
+    except (TypeError, ValueError):
+        return True
 
 
 def _read(path: Path, today: date) -> State:

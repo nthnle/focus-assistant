@@ -33,6 +33,7 @@ More diagrams, including a weekday timeline, are in
 | A **status page** that previews the e-ink display in a browser while the panel is on its way, for development: today's top three, the coach's last words, focus block, phone, breaks | nothing extra |
 | **Phone pickups**: it notices when you take your phone off its charger during focus time | your usual charger (pad or cable), iOS Shortcuts |
 | **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
+| **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
 | **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | phone pickups (and the speakerphone, for desk sound) |
 | An **e-ink display** (Pimoroni Inky Impression 4") | the panel. Code written and previewed, not yet tested on real hardware. |
 
@@ -76,18 +77,31 @@ including updating and troubleshooting, is in
 
 ```bash
 focus add Finish the quarterly report
-focus show            # * marks the top 3, the ones the coach and display focus on
-focus done 1
+focus show            # numbered list; * marks the top 3 open, the ones the coach and display focus on
+focus done 1          # numbers are positions in `focus show`
 focus move 4 1        # put #4 at the top
+focus edit 2 Email Sam the budget
 focus drop 3
 focus report drifted  # or on-track: tell the coach how the block is going
+focus pause 11:00     # quiet for a meeting; also 45m, 2pm, tomorrow, monday, 2026-10-24
+focus resume
 focus last            # the latest check-in
 focus status          # services, next timers, today, presence and API cost
 ```
 
 Each morning, unfinished priorities carry over with a "days carried" count,
-and finished ones go into a 14-day history the coach uses for context.
-Keep to about three: the coach pushes back when you have more.
+and finished ones go into a 14-day history the coach uses for context. A
+day counts only if a check-in ran on it, and only for priorities that were
+on the list by its last check-in: weekends, days off and tomorrow's plan
+added in the evening don't make anything look like it slipped. Keep to
+about three: the coach pushes back when you have more.
+
+**Pausing.** `focus pause` (or telling the coach "quiet until 11" or "I'm
+off until Monday", by chat or voice) holds stretch reminders and spoken
+check-ins. A check-in during a short pause still runs and shows on the
+screen; it's spoken once the pause ends. On days you're paused through,
+check-ins are skipped entirely, so a holiday costs nothing and doesn't count
+toward carried days.
 
 ## Guides
 

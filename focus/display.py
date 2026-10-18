@@ -21,7 +21,7 @@ import threading
 from datetime import date, datetime, timedelta
 from html import escape
 
-from . import blocks, presence
+from . import blocks, pause, presence
 from .config import Config
 from . import state as st
 from .state import PHONE_OUT, STRETCH_REMINDER, State
@@ -147,7 +147,11 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     if out:
         chips.append(("Phone", f"Off since {_hm(out)}", ALERT))
     elif blocks.in_block(now, focus_blocks):
-        chips.append(("Phone", "Docked", GOOD))
+        chips.append(("Phone", "On charger", GOOD))
+
+    quiet = pause.describe(state, now)
+    if quiet:
+        chips.append(("Paused", quiet, ALERT))
 
     if cfg is not None:
         if presence.away(cfg, state, now):

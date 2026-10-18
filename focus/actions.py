@@ -1,8 +1,7 @@
 """Everything a person can do to the state, independent of how they did it.
 
-The CLI calls these today. Later, the Inky buttons, the voice intent parser
-and the phone dock call the same functions, so behaviour stays
-identical whichever input was used.
+The CLI, chat, voice and the charger reports all call these, so behaviour
+stays identical whichever input was used.
 """
 
 from __future__ import annotations
@@ -17,9 +16,18 @@ def add_priority(s: State, text: str) -> st.Priority:
     text = text.strip()
     if not text:
         raise st.StateError("Priority text is empty")
-    p = st.Priority(id=s.next_id, text=text)
+    p = st.Priority(id=s.next_id, text=text, added_at=st.now_iso())
     s.next_id += 1
     s.priorities.append(p)
+    return p
+
+
+def rename_priority(s: State, priority_id: int, text: str) -> st.Priority:
+    text = text.strip()
+    if not text:
+        raise st.StateError("Priority text is empty")
+    p = s.find(priority_id)
+    p.text = text
     return p
 
 
@@ -66,3 +74,15 @@ def report_on_track(s: State) -> dict:
 
 def report_drifted(s: State) -> dict:
     return log_event(s, st.SELF_REPORT, "drifted")
+
+
+def pause(s: State, until: datetime) -> dict:
+    """Hold check-ins and stretch reminders until `until` (timezone-aware)."""
+    s.paused_until = until.isoformat(timespec="seconds")
+    same_day = until.date() == datetime.now().astimezone().date()
+    return log_event(s, st.PAUSE, until.strftime("%H:%M") if same_day else until.date().isoformat())
+
+
+def resume(s: State) -> dict:
+    s.paused_until = None
+    return log_event(s, st.RESUME)

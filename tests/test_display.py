@@ -68,7 +68,7 @@ def test_docked_phone_shows_only_in_a_block():
     s = State(date="2026-10-12")
     in_block = dict((k, v) for k, v, _ in display.day_status(s, mon(10, 20), None, BLOCKS))
     lunch = dict((k, v) for k, v, _ in display.day_status(s, mon(12, 30), None, BLOCKS))
-    assert in_block["Phone"] == "Docked" and "Phone" not in lunch
+    assert in_block["Phone"] == "On charger" and "Phone" not in lunch
     assert "You" not in in_block  # no config: no presence guess
 
 

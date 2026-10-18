@@ -52,7 +52,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import actions, chat, config, presence, state as st
+from .. import actions, chat, config, pause, presence, state as st
 from ..coach import CoachError
 from ..config import Config
 
@@ -536,16 +536,17 @@ def second_call_follows(events: queue.Queue, window_s: float = DOUBLE_PRESS_S) -
 
 
 def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> bool:
-    """Say the latest check-in that was held while you were away, once you're back."""
+    """Say the latest check-in that was held while you were away or paused,
+    once you're back and the pause is over."""
     with st.locked_state(cfg, today=now.date()) as s:
         unheard = [c for c in s.checkins if c.get("unheard")]
-        if not unheard or presence.away(cfg, s, now):
+        if not unheard or presence.away(cfg, s, now) or pause.paused(s, now):
             return False
         for c in unheard:
             c["unheard"] = False
         last = unheard[-1]
     log.info("Back at the desk; saying the held %s check-in", last["slot"])
-    speak(f"While you were away, the {last['slot']} check-in said: {last.get('reply') or ''}")
+    speak(f"You missed the {last['slot']} check-in. It said: {last.get('reply') or ''}")
     return True
 
 

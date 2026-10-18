@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from . import coach, outputs, pricing, state as st
+from . import coach, outputs, pause, pricing, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -21,7 +21,8 @@ def slot_for(now: datetime) -> str:
     return "evening"
 
 
-def run(cfg: Config, slot: str | None = None) -> str:
+def run(cfg: Config, slot: str | None = None) -> str | None:
+    """Returns the reply, or None when skipped because you are paused for the day."""
     slot = slot or slot_for(datetime.now())
     if slot not in SLOTS:
         raise ValueError(f"slot must be one of {SLOTS}")
@@ -29,6 +30,9 @@ def run(cfg: Config, slot: str | None = None) -> str:
     # Hold the lock only for the snapshot, not during the network call,
     # so a button press is never stuck waiting on the API.
     with st.locked_state(cfg) as s:
+        if pause.day_off(s, datetime.now().astimezone()):
+            log.info("Paused %s; skipping the %s check-in", pause.describe(s, datetime.now().astimezone()), slot)
+            return None
         payload = coach.build_payload(s, slot, st.now_iso())
 
     try:

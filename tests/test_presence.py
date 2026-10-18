@@ -115,7 +115,7 @@ def test_held_checkin_is_said_once_when_back(cfg):
     with st.locked_state(cfg, today=NOW.date()) as s:
         s.events.append({"at": ago(0), "kind": st.PHONE_IN})  # phone back on the dock
     assert voice.replay_missed(cfg, said.append, NOW)
-    assert said == ["While you were away, the midday check-in said: Back to the report."]
+    assert said == ["You missed the midday check-in. It said: Back to the report."]
     assert not voice.replay_missed(cfg, said.append, NOW)    # only once
 
 

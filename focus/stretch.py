@@ -24,7 +24,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, blocks, coach, config, presence, pricing, state as st
+from . import actions, blocks, coach, config, pause, presence, pricing, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -90,6 +90,10 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None],
     if not force:
         with st.locked_state(cfg, today=now.date()) as s:
             gone = presence.away(cfg, s, now.astimezone())
+            quiet = pause.describe(s, now.astimezone())
+        if quiet:
+            log.info("Paused %s; no reminder", quiet)
+            return False
         if gone:
             log.info("Away from the desk; no reminder (you're already up)")
             return False
@@ -115,8 +119,9 @@ def main(argv: list[str] | None = None) -> int:
     if not force and not blocks.in_block(now, focus_blocks):
         log.info("Not in a focus block; no reminder")
         return 0
-    # Load Piper only when there is something to say.
-    run(config.load(), now, speech.create().say, focus_blocks, force=True)
+    # Load Piper only when there is something to say, after the away and
+    # pause checks in run(); --now skips those checks too.
+    run(config.load(), now, lambda text: speech.create().say(text), focus_blocks, force=force)
     return 0
 
 

@@ -30,7 +30,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Callable
 
-from .. import config, presence, state as st
+from .. import config, pause, presence, state as st
 from ..state import State
 
 log = logging.getLogger(__name__)
@@ -184,7 +184,13 @@ class Speech:
             stop()
 
     def checkin(self, state: State, slot: str, reply: str) -> None:
-        if self.cfg and presence.away(self.cfg, state, datetime.now().astimezone()):
+        now = datetime.now().astimezone()
+        if pause.paused(state, now):
+            # Quiet for a meeting: the voice service says it once the pause is over.
+            state.checkins[-1]["unheard"] = True
+            log.info("Paused %s; holding the %s check-in", pause.describe(state, now), slot)
+            return
+        if self.cfg and presence.away(self.cfg, state, now):
             # Nobody to hear it: the voice service says it when you're back.
             state.checkins[-1]["unheard"] = True
             log.info("Away from the desk; holding the %s check-in until you're back", slot)

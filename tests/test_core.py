@@ -24,9 +24,11 @@ def test_rollover_carries_open_and_archives_done(cfg):
     with st.locked_state(cfg, today=date(2026, 10, 6)) as s:
         a = actions.add_priority(s, "Write spec")
         actions.add_priority(s, "Email Sam")
+        for p in s.priorities:
+            p.added_at = "2026-10-06T08:00:00+00:00"
         actions.complete_priority(s, a.id)
         actions.report_drifted(s)
-        s.checkins.append({"slot": "morning", "at": "x", "reply": "hi"})
+        s.checkins.append({"slot": "morning", "at": "2026-10-06T09:00:00+00:00", "reply": "hi"})
 
     with st.locked_state(cfg, today=date(2026, 10, 7)) as s:
         assert [p.text for p in s.priorities] == ["Email Sam"]
@@ -46,7 +48,7 @@ def test_rollover_is_idempotent_and_ids_keep_increasing(cfg):
         p = actions.add_priority(s, "Two")
     with st.locked_state(cfg, today=date(2026, 10, 7)) as s:
         assert p.id == 2
-        assert s.priorities[0].carried_days == 1
+        assert s.priorities[0].carried_days == 0  # no check-in ran on the 6th
         assert len(s.history) == 1
 
 

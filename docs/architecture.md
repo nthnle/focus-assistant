@@ -58,8 +58,8 @@ a desktop PC that copies `state.json` at 18:00.
 - **Day rollover** happens in code at the first use each day: unfinished
   priorities carry over with `carried_days + 1`, a summary of the day goes
   into `history`, and the day's check-ins, events and chat are cleared.
-- **`focus.actions`** is every state change (add, complete, reopen, drop,
-  move, log an event). The CLI, chat tools, voice and buttons all call it, so
+- **`focus.actions`** is every state change (add, rename, complete, reopen,
+  drop, move, pause, resume, log an event). The CLI, chat tools, voice and buttons all call it, so
   behaviour is the same whichever input you use.
 - **The coach** (`coach.py`) is a single chat-completions call per check-in,
   to an open model on any OpenAI-compatible host. It gets a JSON payload:
@@ -69,7 +69,7 @@ a desktop PC that copies `state.json` at 18:00.
   reached, the check-in is a fixed nudge built from the same data
   (`offline_reply`), recorded with model `offline`.
 - **Chat** (`chat.py`) adds a small tool loop: the model can change
-  priorities only through six tools that call `focus.actions`, at most six
+  priorities only through nine tools that call `focus.actions`, at most six
   model calls per message. Open models don't always follow a tool schema,
   so every argument is checked (JSON, whole-number ids, known values,
   length) before anything changes. Earlier turns are replayed as plain text.
@@ -86,6 +86,7 @@ focus/
   checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback)
   presence.py     away or not, from charger events and desk sound
+  pause.py        "quiet until 11" and days off: when check-ins and reminders wait
   blocks.py       focus blocks (FOCUS_BLOCKS)
   display.py      the status page (HTML)
   status.py       `focus status`

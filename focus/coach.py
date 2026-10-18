@@ -23,7 +23,7 @@ from typing import Callable
 
 import openai
 
-from . import state as st
+from . import pause, state as st
 from .config import Config
 from .state import State
 
@@ -32,13 +32,14 @@ from .state import State
 SYSTEM_PROMPT = """\
 You are a focus coach on a small device on the user's desk. Three times a \
 day you get their priorities, what they have done, and what the device has \
-logged (self-reports, snoozes, phone taken off the dock during focus time). \
+logged (self-reports, pauses, phone taken off its charger during focus time). \
 Reply with what helps them do the right next thing.
 
 `facts` already has the counts and totals: the next priority, phone pickups \
-and minutes off the dock, what has carried over three days or more. Use those \
-numbers as given; never work them out again from the events. The phone \
-belongs on its dock during focus time, so phone_out means it was picked up.
+and minutes off the charger, what has carried over three days or more, and \
+whether they have paused. Use those numbers as given; never work them out \
+again from the events. The phone belongs on its charger during focus time, \
+so phone_out means it was picked up.
 
 The reply may be shown on a small e-ink screen or spoken aloud, so write \
 plain sentences: no markdown, no lists, no emoji, at most 70 words.
@@ -134,8 +135,9 @@ def facts(s: State, now: str) -> dict:
         "done_count": len(s.priorities) - len(open_),
         "carried_3_days_or_more": [p.text for p in open_ if p.carried_days >= 3],
         "phone_pickups_today": pickups,
-        "phone_minutes_off_dock_today": round(minutes),
-        "phone_off_dock_now_since": out_at.strftime("%H:%M") if out_at else None,
+        "phone_minutes_off_charger_today": round(minutes),
+        "phone_off_charger_now_since": out_at.strftime("%H:%M") if out_at else None,
+        "paused": pause.describe(s, datetime.fromisoformat(now)),
         "last_self_report": reports[-1] if reports else None,
     }
 
