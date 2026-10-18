@@ -62,6 +62,9 @@ RATE = 16000                 # what Whisper and openWakeWord want
 CHUNK_SAMPLES = 1280         # 80 ms, the frame openWakeWord expects
 CHUNK_SECONDS = CHUNK_SAMPLES / RATE
 CHUNK_BYTES = CHUNK_SAMPLES * 2   # 16-bit mono
+# arecord sends a chunk every 80 ms; this long with none means the device is gone
+# (a speakerphone pulled off USB can leave arecord hanging instead of exiting).
+MIC_STALL_S = 5.0
 EV_KEY = 1
 KEY_PLAYPAUSE = 164
 _EVENT = struct.Struct("llHHi")  # struct input_event on 64-bit Linux
@@ -145,8 +148,10 @@ class Mic:
     was heard before a turn starts (the chime, the wake word, the reply).
     """
 
-    def __init__(self, device: str, keep_s: float = 3.0, command: list[str] | None = None):
+    def __init__(self, device: str, keep_s: float = 3.0, command: list[str] | None = None,
+                 stall_s: float = MIC_STALL_S):
         self.device = device
+        self.stall_s = stall_s
         self.proc = subprocess.Popen(
             command or ["arecord", "-q", "-D", device, "-f", "S16_LE", "-r", str(RATE),
                         "-c", "1", "-t", "raw"],
@@ -172,7 +177,15 @@ class Mic:
         self._put(None)
 
     def read(self) -> bytes:
-        chunk = self._chunks.get()
+        try:
+            chunk = self._chunks.get(timeout=self.stall_s)
+        except queue.Empty:
+            # Exit rather than wait forever, so systemd restarts the service
+            # and it finds the device again once it is back.
+            self.proc.kill()
+            self._chunks.put(None)
+            raise RuntimeError(f"No audio from {self.device} for {self.stall_s:g} s; "
+                               "is the speakerphone connected?") from None
         if chunk is None:
             self._chunks.put(None)  # keep failing for later reads
             self.proc.wait(timeout=5)
@@ -552,9 +565,13 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
     next_idle = time.monotonic() + idle_every_s
 
     def pump(source: Iterator[None], kind: str) -> None:
-        for _ in source:
-            events.put(kind)
-        events.put(_LOST)
+        try:
+            for _ in source:
+                events.put(kind)
+        except Exception as exc:  # e.g. EIO when the speakerphone drops off USB
+            log.warning("The %s button stopped: %s", kind, exc)
+        finally:
+            events.put(_LOST)  # always: the main loop exits and systemd restarts us
 
     for source, kind in ((presses, "play"), (calls, "call")):
         if source is not None:

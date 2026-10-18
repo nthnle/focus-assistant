@@ -518,3 +518,20 @@ def test_call_during_a_turn_is_ignored():
     forever.set()
     assert seen == [False]   # ignored during the turn...
     assert called == []      # ...and dropped afterwards, not run late
+
+
+def test_mic_gives_up_when_arecord_goes_quiet():
+    # arecord left hanging on a vanished device: no output, no exit.
+    mic = _mic("import time; time.sleep(30)", stall_s=0.3)
+    with pytest.raises(RuntimeError, match="No audio"):
+        mic.read()
+    assert mic.proc.wait(timeout=5) is not None  # the hung arecord is killed
+
+
+def test_run_stops_when_a_button_reader_crashes():
+    def calls():
+        yield None
+        raise OSError(5, "Input/output error")  # the PowerConf left USB
+
+    with pytest.raises(RuntimeError, match="Lost"):
+        voice.run(CountingVoice(), FakeMic(chunks=400), None, calls=calls(), on_call=lambda: None)
