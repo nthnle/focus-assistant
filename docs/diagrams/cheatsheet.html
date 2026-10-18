@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Using Focus Assistant</title>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f7f8fa}
+@media (prefers-color-scheme: dark){body{background:#111418}}
+a{color:#1c5bc9}a:hover{color:#123f8f}
+.t-light,.t-auto{--bg:#f7f8fa;--panel:#eef0f3;--card:#ffffff;--ink:#1a1e24;--muted:#4f5864;--line:#7b8491;--border:#c5cbd3;--host:#a8400c;--host-bg:#fdf1e7;--host-line:#c95a1e;--phone:#1c5bc9;--phone-bg:#ebf2fe;--chip:#1a1e24;--chip-ink:#ffffff}
+.t-dark{--bg:#111418;--panel:#191d23;--card:#222830;--ink:#e7eaee;--muted:#a4acb7;--line:#8c96a3;--border:#3b434e;--host:#f39a63;--host-bg:#2c1f17;--host-line:#e07b40;--phone:#82abff;--phone-bg:#172338;--chip:#e7eaee;--chip-ink:#111418}
+@media (prefers-color-scheme: dark){.t-auto{--bg:#111418;--panel:#191d23;--card:#222830;--ink:#e7eaee;--muted:#a4acb7;--line:#8c96a3;--border:#3b434e;--host:#f39a63;--host-bg:#2c1f17;--host-line:#e07b40;--phone:#82abff;--phone-bg:#172338;--chip:#e7eaee;--chip-ink:#111418}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.col h2{margin:0 0 4px;font-size:26px;line-height:32px;font-weight:600;display:flex;align-items:center;gap:10px}
+.row{display:flex;gap:16px;align-items:flex-start;padding:16px 18px;background:var(--card);border:1.5px solid var(--border);border-radius:14px;font-size:19px;line-height:27px}
+.when{flex:none;width:118px;font:600 14px/27px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.03em;color:var(--muted)}
+.c{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16.5px;background:var(--panel);padding:1px 5px;border-radius:4px;white-space:nowrap}
+.say{color:var(--phone)}
+.s{color:var(--muted)}
+</style>
+<div class="t-auto" style="position: relative; width: 1600px; height: 1000px; box-sizing: border-box; padding: 36px 40px; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+<div style="font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.01em">Using Focus Assistant</div>
+<div style="font-size: 16px; line-height: 22px; color: var(--muted)">Commands go in a terminal on the Pi (<span class="c">ssh</span> in). <span class="say">Blue</span> is what you can say to the coach instead, by Siri or “Hey Jarvis”.</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; flex: 1; min-height: 0">
+
+<div class="col">
+<h2><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Every workday</h2>
+<div class="row"><span class="when">BEFORE 9</span><span>Up to three priorities: <span class="c">focus add …</span> <span class="say">“add email Sam”</span>. Phone on its charger.</span></div>
+<div class="row"><span class="when">09:00</span><span>Morning check-in. Start with what it names.</span></div>
+<div class="row"><span class="when">FOCUS TIME</span><span>Phone stays on the charger. Stand up at :50. Done? Press the <b>Call</b> button, or <span class="say">“done with the report”</span>.</span></div>
+<div class="row"><span class="when">A MEETING</span><span><span class="say">“Quiet until 11”</span>, or <span class="c">focus pause 11:00</span>. Check-ins wait; reminders skip.</span></div>
+<div class="row"><span class="when">13:00</span><span>Midday check-in. Drifted? Take the one reset it gives you.</span></div>
+<div class="row"><span class="when">17:30</span><span>Evening check-in. Add tomorrow’s first thing now. Phone away for the night.</span></div>
+</div>
+
+<div class="col">
+<h2><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Every week</h2>
+<div class="row"><span class="when">MONDAY</span><span>Set one to three goals: <span class="c">focus goal add …</span> <span class="say">“this week I want to ship the beta”</span>. Set on the weekend, they count for the week ahead.</span></div>
+<div class="row"><span class="when">NOT TODAY</span><span><span class="c">focus add --on wed …</span> or <span class="c">focus later 3</span>. <span class="c">focus now 3</span> brings it back.</span></div>
+<div class="row"><span class="when">DAY OFF</span><span><span class="say">“Off until Monday”</span>, or <span class="c">focus pause monday</span>. Nothing counts as slipping.</span></div>
+<div class="row" style="background: var(--host-bg); border-color: var(--host-line)"><span class="when" style="color: var(--host)">FRIDAY 17:30</span><span>Wrap-up: goals, what slipped, and <b>one routine tip</b>. Try it next week. Ask any time: <span class="say">“how could I improve my routine?”</span></span></div>
+</div>
+
+<div class="col">
+<h2><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Now and then</h2>
+<div class="row"><span class="when">A REPLY MISSES</span><span><span class="c">focus rate bad "why"</span> <span class="say">“that was wrong, it’s Sunday”</span>. A good one: <span class="c">focus rate good</span>.</span></div>
+<div class="row"><span class="when">EVERY 2 WEEKS</span><span><span class="c">focus feedback</span>, then bring it to a Claude Code session to improve the coach.</span></div>
+<div class="row"><span class="when">MONTHLY</span><span>Update the Pi (Updating in <span class="c">docs/install.md</span>). Check the copies in <span class="c">~/focus-backups</span> on the PC.</span></div>
+<div class="row"><span class="when">SOMETHING’S OFF</span><span><span class="c">focus status</span>, then Troubleshooting in <span class="c">docs/install.md</span>.</span></div>
+</div>
+
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 16px 20px; border-radius: 14px; background: var(--panel); font-size: 17px; line-height: 24px">
+<b style="margin-right: 4px">Quick</b>
+<span><span class="c">focus show</span> <span class="s">the list</span></span>
+<span><span class="c">focus last</span> <span class="s">last check-in</span></span>
+<span><span class="c">focus done 2</span> <span class="s">by number</span></span>
+<span><span class="c">focus move 4 1</span> <span class="s">to the top</span></span>
+<span><span class="c">focus edit 2 …</span> <span class="s">fix wording</span></span>
+<span><span class="c">focus resume</span> <span class="s">end a pause</span></span>
+<span><span class="c">focus status</span> <span class="s">everything</span></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -75,6 +75,8 @@ including updating and troubleshooting, is in
 
 ## Using it
 
+What to do and when, on one page: [docs/routine.md](docs/routine.md).
+
 ```bash
 focus add Finish the quarterly report
 focus show            # numbered list; * marks the top 3 open, the ones the coach and display focus on
@@ -134,6 +136,7 @@ of changes to the prompts or code. The loop is drawn in
 
 | Guide | Covers |
 |---|---|
+| [docs/routine.md](docs/routine.md) | Day to day: what to do every workday, every week and now and then, with a one-page desk card |
 | [docs/install.md](docs/install.md) | Full setup, updating, the check-in schedule, troubleshooting |
 | [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
 | [docs/phone.md](docs/phone.md) | Phone pickups, chat from your phone, the status page, presence |
