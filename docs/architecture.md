@@ -5,6 +5,22 @@ add your own inputs and outputs.
 
 ## Overview
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-dark.png">
+  <img alt="Architecture: the phone, the Pi's five sandboxed services, the shared core, the speakerphone and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-dark.png">
+  <img alt="One weekday: check-ins, stretch reminders, phone dock events, voice and chat across You, Pi and model host lanes, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
+</picture>
+
+The sources are [`diagrams/architecture.html`](diagrams/architecture.html)
+and [`diagrams/workflow.html`](diagrams/workflow.html) (1600x1000, light or
+dark from the browser's setting). The drawings describe one setup: Groq
+running `openai/gpt-oss-120b`, an Anker PowerConf on a powered USB hub, and
+a desktop PC that copies `state.json` at 18:00.
+
 ```
                     ┌───────────────── state.json ─────────────────┐
                     │ priorities · check-ins · events · chat ·     │
