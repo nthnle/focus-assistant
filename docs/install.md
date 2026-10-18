@@ -109,6 +109,7 @@ git pull && sudo deploy/install.sh
 ```
 
 Your settings in `/etc/focus-assistant/focus.env` and your state are kept.
+To keep a copy of the state off the Pi as well, see [backup.md](backup.md).
 
 ## Checking on it
 

@@ -126,6 +126,7 @@ routine suggestions any time, by chat or voice.
 | [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
 | [docs/phone.md](docs/phone.md) | Phone pickups, chat from your phone, the status page, presence |
 | [docs/configuration.md](docs/configuration.md) | Every setting in `focus.env` |
+| [docs/backup.md](docs/backup.md) | A daily copy of `state.json` to another computer, with a key that can only read that file |
 | [docs/architecture.md](docs/architecture.md) | How it fits together, security model, adding your own inputs and outputs, development |
 
 ## Cost
