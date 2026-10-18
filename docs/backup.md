@@ -75,6 +75,9 @@ own redirection can change the encoding.
 If the PC is off at 18:00, that day is skipped; the next copy still has the
 full 14-day history.
 
+The coach's reply log (`replies.jsonl`, next to the state file) isn't part
+of this copy: it's for improving the coach, not for restoring.
+
 ## Restoring
 
 With your normal login, not the backup key:

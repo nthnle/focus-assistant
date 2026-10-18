@@ -90,6 +90,8 @@ focus later 3 friday  # move #3 to Friday; without a day, to "someday"
 focus now 5           # bring a later one back to today
 focus goal add Ship the beta           # one to three goals for the week
 focus goal done 1     # also: focus goal drop 1, focus goals
+focus rate bad it ignored the weekend   # or good: feedback on the coach's latest reply
+focus feedback        # replies rated bad or failing a check, last 14 days
 focus last            # the latest check-in
 focus status          # services, next timers, today, presence and API cost
 ```
@@ -119,6 +121,14 @@ week's goals. If Friday's wrap-up didn't happen (a day off, the Pi was
 off), Monday morning does a short version first. You can also ask for
 routine suggestions any time, by chat or voice.
 
+**Improving the coach.** Every reply the model writes is kept on the Pi for
+60 days in `replies.jsonl`, next to exactly what the coach was given, and
+checked against the rules code can verify (length, no markdown, a morning
+check-in that names a priority, short on weekends). Rate replies with
+`focus rate good|bad`, or tell the coach "that was wrong". `focus feedback`
+lists what was rated bad or failed a check: bring those to the next round
+of changes to the prompts or code.
+
 ## Guides
 
 | Guide | Covers |
@@ -143,7 +153,8 @@ check-ins fall back to a fixed nudge built from your priorities.
 
 ## Privacy
 
-- **Your data stays on the Pi**, in one JSON file, except what is sent to
+- **Your data stays on the Pi**, in one JSON file (and a 60-day log of the
+  coach's replies, for improving it), except what is sent to
   the model host you chose, to write each reply: your priorities, today's
   events and check-ins, and recent daily summaries. Check that host's data
   retention policy.

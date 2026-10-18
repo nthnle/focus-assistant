@@ -7,7 +7,7 @@ import logging
 import sys
 from datetime import date, datetime
 
-from . import actions, checkin, config, days, pause, state as st, status
+from . import actions, checkin, config, days, feedback, pause, state as st, status
 from .coach import CoachError
 
 
@@ -115,6 +115,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("pause", help="hold check-ins and stretch reminders: 11:00, 45m, tomorrow, monday ...")
     p.add_argument("until", nargs="+")
     sub.add_parser("resume", help="end a pause now")
+    p = sub.add_parser("rate", help="rate the coach's latest reply, to improve it later")
+    p.add_argument("value", choices=["good", "bad"])
+    p.add_argument("note", nargs="*", help="what was wrong or right")
+    p = sub.add_parser("feedback", help="replies rated bad or failing a check")
+    p.add_argument("--days", type=int, default=14)
     p = sub.add_parser("report", help="log how the current block is going")
     p.add_argument("how", choices=["on-track", "drifted"])
 
@@ -123,6 +128,16 @@ def main(argv: list[str] | None = None) -> int:
     cfg = config.load()
 
     try:
+        if args.cmd == "rate":
+            try:
+                rated = feedback.rate(cfg, args.value, " ".join(args.note))
+            except ValueError as exc:
+                raise st.StateError(str(exc)) from exc
+            print(f"Rated {args.value}: {rated['reply']}")
+            return 0
+        if args.cmd == "feedback":
+            print(feedback.report(cfg, args.days))
+            return 0
         if args.cmd == "checkin":
             if checkin.run(cfg, args.slot) is None:
                 print("Paused for today; no check-in. `focus resume` ends the pause.")

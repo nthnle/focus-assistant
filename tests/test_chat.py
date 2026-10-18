@@ -42,7 +42,7 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     first = sent[0]
     assert first["model"] == "test-chat-model"   # chat uses FOCUS_CHAT_MODEL, not FOCUS_MODEL
     assert first["messages"][0] == {"role": "system", "content": chat.SYSTEM_PROMPT}
-    assert {t["function"]["name"] for t in first["tools"]} == set(chat._HANDLERS)
+    assert {t["function"]["name"] for t in first["tools"]} == set(chat._HANDLERS) | {"rate_reply"}
     assert all(t["type"] == "function" for t in first["tools"])
     assert "<data>" in first["messages"][-1]["content"]
     # The second call replays the assistant turn, then the tool's result.

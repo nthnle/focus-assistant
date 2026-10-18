@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime
 
-from . import coach, outputs, pause, pricing, state as st
+from . import coach, feedback, outputs, pause, pricing, state as st
 from .config import Config
 from .days import monday_of
 
@@ -55,6 +55,9 @@ def run(cfg: Config, slot: str | None = None) -> str | None:
         if reply is not None:
             _remember_the_week(s, payload, text)
         outputs.deliver(outputs.load(cfg.outputs), s, slot, text)
+
+    if reply is not None:
+        feedback.record(cfg, "checkin", payload, reply.text, reply.model)
 
     return text
 

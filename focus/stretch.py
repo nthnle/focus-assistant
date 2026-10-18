@@ -24,7 +24,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, blocks, coach, config, pause, presence, pricing, state as st
+from . import actions, blocks, coach, config, feedback, pause, presence, pricing, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -70,7 +70,9 @@ def compose(cfg: Config, now: datetime, client: openai.OpenAI | None = None) -> 
             cfg, client, model=cfg.chat_model, system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
         )
-        return {"text": coach.reply_text(response),
+        text = coach.reply_text(response)
+        feedback.record(cfg, "stretch", payload, text, cfg.chat_model)
+        return {"text": text,
                 "usage": pricing.priced({"model": cfg.chat_model, "in": response.usage.input_tokens,
                                          "out": response.usage.output_tokens},
                                         cfg.chat_model, response.usage.input_tokens,

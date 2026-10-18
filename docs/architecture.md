@@ -99,6 +99,7 @@ focus/
   presence.py     away or not, from charger events and desk sound
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
   days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later priorities
+  feedback.py     replies.jsonl: every model reply with its payload, checks and ratings
   blocks.py       focus blocks (FOCUS_BLOCKS)
   display.py      the status page (HTML)
   status.py       `focus status`

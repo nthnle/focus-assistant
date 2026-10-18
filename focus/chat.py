@@ -15,7 +15,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, coach, days, pause, pricing, state as st
+from . import actions, coach, days, feedback, pause, pricing, state as st
 from .coach import CoachError
 from .config import Config
 from .state import State
@@ -100,6 +100,10 @@ TOOLS = [
           {"text": {"type": "string", "description": "An outcome for the week, e.g. 'Ship the beta'"}}),
     _tool("complete_goal", "Mark a week goal met.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
     _tool("drop_goal", "Remove a week goal.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
+    _tool("rate_reply", "Record feedback on the coach's previous reply (a check-in or an earlier answer) "
+                        "when the user says it was wrong, unhelpful, or spot on.",
+          {"value": {"type": "string", "enum": ["good", "bad"]},
+           "note": {"type": "string", "description": "What was wrong or right, in their words"}}),
 ]
 
 
@@ -167,6 +171,12 @@ def _arguments(raw: str) -> dict:
         if not isinstance(args["on"], str) or not args["on"].strip():
             raise ValueError("on must be a non-empty string")
         args["on"] = args["on"].strip()[:40]
+    if "value" in args and args["value"] not in ("good", "bad"):
+        raise ValueError("value must be good or bad")
+    if "note" in args:
+        if not isinstance(args["note"], str):
+            raise ValueError("note must be a string")
+        args["note"] = args["note"].strip()[:500]
     if "until" in args:
         if not isinstance(args["until"], str) or not args["until"].strip():
             raise ValueError("until must be a non-empty string")
@@ -178,6 +188,13 @@ def _arguments(raw: str) -> dict:
 
 def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
     """Apply one tool call; returns (result text, is_error)."""
+    if name == "rate_reply":
+        try:
+            args = _arguments(raw_args)
+            rated = feedback.rate(cfg, args["value"], args.get("note", ""))
+            return f"Recorded as {args['value']}: {rated['reply'][:120]}", False
+        except (KeyError, TypeError, ValueError) as exc:
+            return f"Error: {exc}", True
     handler = _HANDLERS.get(name)
     if handler is None:
         return f"Unknown tool {name}", True
@@ -258,4 +275,5 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
             "model": cfg.chat_model,
             "tokens": {"in": tokens_in, "out": tokens_out},
         }, cfg.chat_model, tokens_in, tokens_out))
+    feedback.record(cfg, "voice" if voice else "chat", {**payload, "message": message}, reply, cfg.chat_model)
     return reply
