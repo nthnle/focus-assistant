@@ -33,6 +33,8 @@ def test_content_length(raw, expected):
     ("192.168.1.51", "192.168.1.50", False),
     ("192.168.1.51", "10.0.0.0/8, 192.168.1.0/24", True),
     ("8.8.8.8", "8.8.8.8", False),                 # listing a public address doesn't open it
+    ("127.0.0.1", "192.168.1.50", True),           # the Pi itself, for curl tests
+    ("::1", "192.168.1.50", True),
 ])
 def test_client_allowed(monkeypatch, address, allowed, ok):
     if allowed:
@@ -87,9 +89,8 @@ def test_allowlist_applies_to_live_requests(base, monkeypatch):
     url, calls = base
     auth = {"Authorization": f"Bearer {TOKEN}", "Content-Length": "0"}
     monkeypatch.setenv("FOCUS_ALLOWED_CLIENTS", "192.168.1.50")
-    assert raw_post(f"{url}/dock/out", auth) == 403
-    monkeypatch.setenv("FOCUS_ALLOWED_CLIENTS", "127.0.0.1")
-    assert raw_post(f"{url}/dock/out", auth) == 204
+    assert raw_post(f"{url}/dock/out", auth) == 204   # loopback: always allowed
+    assert raw_post(f"{url}/dock/out", {"Content-Length": "0"}) == 403   # but still needs the token
     assert calls == ["out"]
 
 

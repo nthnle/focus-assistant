@@ -64,7 +64,9 @@ def client_allowed(address: str, allowed: list | None) -> bool:
         return False
     if not ip.is_private:
         return False
-    return allowed is None or any(ip in net for net in allowed)
+    # The Pi itself is always allowed: loopback can't come from the network,
+    # and it lets you test a service with curl on the Pi.
+    return allowed is None or ip.is_loopback or any(ip in net for net in allowed)
 
 
 def authorized(handler: BaseHTTPRequestHandler, token: str, in_query: bool = False) -> bool:

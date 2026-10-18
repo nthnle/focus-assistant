@@ -66,7 +66,7 @@ The **check-in times** are set in the systemd timer, not here; see
 | Setting | Default | |
 |---|---|---|
 | `FOCUS_DOCK_TOKEN` | (generated) | Token the phone's dock shortcuts send. |
-| `FOCUS_ALLOWED_CLIENTS` | (any home-network address) | Comma-separated addresses or networks allowed to reach the dock, status page and chat, e.g. your phone's reserved IP `192.168.1.50`. Public addresses are never allowed. A bad entry stops the services from starting. |
+| `FOCUS_ALLOWED_CLIENTS` | (any home-network address) | Comma-separated addresses or networks allowed to reach the dock, status page and chat, e.g. your phone's reserved IP `192.168.1.50`. The Pi itself (localhost) is always allowed, for testing with curl; public addresses never are. A bad entry stops the services from starting. |
 | `FOCUS_DISPLAY_TOKEN` | (generated) | Token for the status page URL. Set it empty (`FOCUS_DISPLAY_TOKEN=`) to stop serving the page; a missing line gets a new token on the next install. |
 | `FOCUS_DOCK_PORT` | `8765` | Port for the dock and the status page. |
 | `FOCUS_DOCK_HOST` | `0.0.0.0` | Address to listen on. |
