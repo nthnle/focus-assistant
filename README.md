@@ -127,7 +127,8 @@ checked against the rules code can verify (length, no markdown, a morning
 check-in that names a priority, short on weekends). Rate replies with
 `focus rate good|bad`, or tell the coach "that was wrong". `focus feedback`
 lists what was rated bad or failed a check: bring those to the next round
-of changes to the prompts or code.
+of changes to the prompts or code. The loop is drawn in
+[docs/architecture.md](docs/architecture.md).
 
 ## Guides
 

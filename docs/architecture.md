@@ -22,6 +22,11 @@ At a glance:
   <img alt="A week at a glance: Monday opens the week with goals and last Friday's tip, a later priority shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
 </picture>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/feedback-simple-dark.png">
+  <img alt="Improving the coach: each reply is logged on the Pi with its input, checked by code, rated by you, listed by focus feedback, and fixed in a session; saved test cases are planned" src="diagrams/feedback-simple.png">
+</picture>
+
 In detail:
 
 <picture>
