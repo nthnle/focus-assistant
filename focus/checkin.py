@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 from . import coach, outputs, pause, pricing, state as st
 from .config import Config
+from .days import monday_of
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +52,23 @@ def run(cfg: Config, slot: str | None = None) -> str | None:
                 "tokens": {"in": reply.input_tokens, "out": reply.output_tokens},
             }, reply.model, reply.input_tokens, reply.output_tokens)
         s.checkins.append({"slot": slot, "at": st.now_iso(), "reply": text, **record})
+        if reply is not None:
+            _remember_the_week(s, payload, text)
         outputs.deliver(outputs.load(cfg.outputs), s, slot, text)
 
     return text
+
+
+def _remember_the_week(s: st.State, payload: dict, text: str) -> None:
+    """Keep what a weekly check-in said, so next week's opening can use it.
+
+    Only for replies from the model: an offline check-in leaves the week open
+    for the next morning to try again.
+    """
+    if payload.get("week_start") and s.last_week:
+        s.last_week["opened"] = True
+    if payload.get("weekly_review"):
+        if payload.get("late") and s.last_week:
+            s.last_week["review"] = text
+        else:
+            s.week_review = {"week": monday_of(date.fromisoformat(s.date)).isoformat(), "text": text}

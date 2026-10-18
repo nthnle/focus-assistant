@@ -6,18 +6,45 @@ stays identical whichever input was used.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from . import state as st
 from .state import State
 
 
-def add_priority(s: State, text: str) -> st.Priority:
+def add_priority(s: State, text: str, on: date | str | None = None) -> st.Priority:
+    """`on`: a later day it shows up on, or "later"; None for today."""
     text = text.strip()
     if not text:
         raise st.StateError("Priority text is empty")
     p = st.Priority(id=s.next_id, text=text, added_at=st.now_iso())
     s.next_id += 1
+    s.priorities.append(p)
+    if on is not None:
+        schedule_priority(s, p.id, on)
+    return p
+
+
+def schedule_priority(s: State, priority_id: int, on: date | str | None) -> st.Priority:
+    """Move a priority to a later day, to "later", or (None) back to today."""
+    p = s.find(priority_id)
+    if p.done:
+        raise st.StateError(f"{p.text} is already done")
+    if on is None:
+        if p.on is not None:
+            p.on = None
+            p.added_at = st.now_iso()  # back today: it hasn't slipped yet
+        return p
+    if isinstance(on, date):
+        if on.isoformat() <= s.date:
+            raise st.StateError("Pick a day after today, or bring it back to today instead")
+        on = on.isoformat()
+    elif on != st.LATER:
+        raise st.StateError(f"Can't schedule for {on!r}")
+    p.on = on
+    p.carried_days = 0
+    # Put it with the later ones, so today's numbering doesn't shift around it.
+    s.priorities.remove(p)
     s.priorities.append(p)
     return p
 
@@ -51,10 +78,13 @@ def drop_priority(s: State, priority_id: int) -> st.Priority:
 
 
 def move_priority(s: State, priority_id: int, position: int) -> None:
-    """Move to a 1-based position; the top three are what the display shows."""
+    """Move to a 1-based position in `s.ordered`; the top three open are what
+    the display shows."""
     p = s.find(priority_id)
-    s.priorities.remove(p)
-    s.priorities.insert(max(0, position - 1), p)
+    order = s.ordered
+    order.remove(p)
+    order.insert(max(0, position - 1), p)
+    s.priorities = order
 
 
 def log_event(s: State, kind: str, detail: str | None = None,
@@ -86,3 +116,30 @@ def pause(s: State, until: datetime) -> dict:
 def resume(s: State) -> dict:
     s.paused_until = None
     return log_event(s, st.RESUME)
+
+
+MAX_GOALS = 3
+
+
+def add_goal(s: State, text: str) -> dict:
+    """One of this week's goals; they clear when the next week starts."""
+    text = text.strip()
+    if not text:
+        raise st.StateError("Goal text is empty")
+    if len(s.goals) >= MAX_GOALS:
+        raise st.StateError(f"Keep it to {MAX_GOALS} goals a week; drop one first")
+    goal = {"id": max((g["id"] for g in s.goals), default=0) + 1, "text": text, "done_at": None}
+    s.goals.append(goal)
+    return goal
+
+
+def complete_goal(s: State, goal_id: int) -> dict:
+    goal = s.find_goal(goal_id)
+    goal["done_at"] = goal["done_at"] or st.now_iso()
+    return goal
+
+
+def drop_goal(s: State, goal_id: int) -> dict:
+    goal = s.find_goal(goal_id)
+    s.goals.remove(goal)
+    return goal

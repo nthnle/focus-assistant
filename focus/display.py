@@ -159,7 +159,7 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
         if any(c.get("unheard") for c in state.checkins):
             chips.append(("Check-in", "Waiting for you", ALERT))
 
-    done = len(state.priorities) - len(state.open_priorities)
+    done = len([p for p in state.today_list if p.done])
     pickups = sum(1 for e in state.events if e["kind"] == PHONE_OUT)
     breaks = sum(1 for e in state.events if e["kind"] == STRETCH_REMINDER)
     chips.append(("Today", f"{done} done, {len(state.open_priorities)} open", PLAIN))

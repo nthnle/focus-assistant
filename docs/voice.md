@@ -81,8 +81,9 @@ soon as its first sentence is written. Voice replies are one short sentence:
 After each reply a soft chime means it's still listening for 5 seconds:
 speak again and it's another turn, with no button or wake word. Say nothing
 and it stops. The coach is the same one as [phone chat](phone.md#chat): it
-can add, rename, complete, reopen, drop and move priorities, log how a block
-is going, and pause ("quiet until 11", "I'm off until Monday"). It's built for quick commands, not long conversations.
+can add, rename, schedule, complete, reopen, drop and move priorities, set
+week goals, log how a block is going, and pause ("quiet until 11", "I'm off
+until Monday"). It's built for quick commands, not long conversations.
 
 Install the voice extras and a speech model:
 

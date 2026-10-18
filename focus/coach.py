@@ -18,12 +18,13 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Callable
 
 import openai
 
-from . import pause, state as st
+from . import blocks, pause, state as st
+from .days import monday_of
 from .config import Config
 from .state import State
 
@@ -41,10 +42,19 @@ whether they have paused. Use those numbers as given; never work them out \
 again from the events. The phone belongs on its charger during focus time, \
 so phone_out means it was picked up.
 
+week_goals are the one to three goals they set for this week. When a \
+priority clearly serves one, you may say so in a few words. `later` holds \
+priorities scheduled for another day: leave them alone unless asked.
+
 The reply may be shown on a small e-ink screen or spoken aloud, so write \
-plain sentences: no markdown, no lists, no emoji, at most 70 words.
+plain sentences: no markdown, no lists, no emoji, at most 70 words (100 for \
+a weekly review).
 
 By check-in:
+- first morning of the week (week_start is true): open the week. If \
+last_week.review suggested something to try, recall it in a few words. If \
+week_goals is empty, ask them to set one to three goals for the week. Then \
+carry on as a normal morning.
 - morning: name the one priority to start with and why. If there are more \
 than three open priorities, or something has carried over for three or more \
 days, say so and suggest dropping or shrinking it.
@@ -54,9 +64,16 @@ concrete reset.
 - evening: acknowledge what got done, name what carries over, and suggest \
 the first thing for tomorrow. Encourage putting the phone away for the night.
 - Friday evening (weekly_review is true): look back at the whole week \
-instead, using this_week and today: what got done, what kept carrying over, \
-how the phone and breaks went, and one thing to try next week. End the \
-week on something they did well.
+instead, using this_week and today: which week_goals were met, what got \
+done, what kept carrying over, how the phone and breaks went. Then suggest \
+one concrete change to their routine, grounded in a pattern you can point \
+to in this_week (pickups bunching at one hour, things getting done late in \
+the day, check-ins missed): a different focus block, a break at another \
+time, the phone elsewhere during focus time, or fewer priorities. `routine` \
+has the current settings. End the week on something they did well.
+- a weekly_review at a morning check-in (late is true) means Friday's \
+wrap-up was missed: look back at last week in two or three sentences, \
+suggest the routine change, then name the one priority to start with.
 
 If there are no priorities, ask them to set up to three, in one sentence.
 Be warm and direct. Do not invent tasks, progress or events that are not in \
@@ -115,30 +132,31 @@ def facts(s: State, now: str) -> dict:
     """Counts and totals worked out in code, so the model never has to do
     arithmetic on timestamps (open models get it wrong surprisingly often)."""
     open_ = s.open_priorities
-    pickups, minutes, out_at = 0, 0.0, None
-    try:
-        for e in s.events:
-            if e["kind"] == st.PHONE_OUT:
-                pickups += 1
-                out_at = datetime.fromisoformat(e["at"])
-            elif e["kind"] == st.PHONE_IN and out_at is not None:
-                minutes += (datetime.fromisoformat(e["at"]) - out_at).total_seconds() / 60
-                out_at = None
-        if out_at is not None:
-            minutes += max(0.0, (datetime.fromisoformat(now) - out_at).total_seconds() / 60)
-    except (KeyError, ValueError, TypeError):
-        pass  # a malformed or mixed-timezone event: leave the totals as far as they got
+    phone = st.phone_summary(s.events, now)
     reports = [e.get("detail") for e in s.events if e["kind"] == st.SELF_REPORT]
     return {
         "next_up": open_[0].text if open_ else None,
         "open_count": len(open_),
-        "done_count": len(s.priorities) - len(open_),
+        "done_count": len([p for p in s.today_list if p.done]),
         "carried_3_days_or_more": [p.text for p in open_ if p.carried_days >= 3],
-        "phone_pickups_today": pickups,
-        "phone_minutes_off_charger_today": round(minutes),
-        "phone_off_charger_now_since": out_at.strftime("%H:%M") if out_at else None,
-        "paused": pause.describe(s, datetime.fromisoformat(now)),
+        "phone_pickups_today": phone["pickups"],
+        "phone_minutes_off_charger_today": phone["minutes"],
+        "phone_off_charger_now_since": phone["out_since"].strftime("%H:%M") if phone["out_since"] else None,
         "last_self_report": reports[-1] if reports else None,
+        "paused": pause.describe(s, datetime.fromisoformat(now)),
+    }
+
+
+def _goals(goals: list[dict]) -> list[dict]:
+    return [{"id": g["id"], "text": g["text"], "done": bool(g.get("done_at"))} for g in goals]
+
+
+def routine() -> dict:
+    """The settings a routine suggestion would change."""
+    return {
+        "focus_blocks": [f"{a:%H:%M}-{b:%H:%M}" for a, b in blocks.from_env()],
+        "stretch_reminders": "at :50 past each hour of a focus block",
+        "voice_quiet_hours": "00:00-08:00",
     }
 
 
@@ -155,22 +173,39 @@ def build_payload(s: State, slot: str, now: str) -> dict:
                 "done_at": p.done_at,
                 "carried_days": p.carried_days,
             }
-            for p in s.priorities
+            for p in s.today_list
         ],
+        "later": [{"id": p.id, "text": p.text, "on": p.on} for p in s.later],
+        "week_goals": _goals(s.goals),
         "earlier_checkins_today": [
             {"slot": c["slot"], "at": c["at"], "reply": c.get("reply")} for c in s.checkins
         ],
         # "usage" is bookkeeping for `focus status`, not something the coach needs.
         "events_today": [{k: v for k, v in e.items() if k != "usage"} for e in s.events],
         "chat_today": [{"at": c["at"], "user": c["user"], "reply": c["reply"]} for c in s.chat[-6:]],
-        "recent_days": s.history[-5:],
+        "recent_days": s.history[-(7 if slot == "chat" else 5):],
     }
     today = date.fromisoformat(s.date)
+    monday = monday_of(today)
+    if slot == "chat":
+        payload["routine"] = routine()
     if slot == "evening" and today.weekday() == 4:
         # Friday: the evening check-in becomes the week's wrap-up.
-        monday = (today - timedelta(days=4)).isoformat()
         payload["weekly_review"] = True
-        payload["this_week"] = [h for h in s.history if h["date"] >= monday]
+        payload["this_week"] = [h for h in s.history if h["date"] >= monday.isoformat()]
+        payload["routine"] = routine()
+    if slot == "morning" and s.last_week and not s.last_week.get("opened"):
+        # The first morning of a new week.
+        last = s.last_week
+        payload["week_start"] = True
+        payload["last_week"] = {"goals": _goals(last.get("goals", [])), "review": last.get("review")}
+        days = [h for h in s.history if last["week"] <= h["date"] < monday.isoformat()]
+        if last.get("review") is None and any(h.get("checkins") for h in days):
+            # Friday's wrap-up didn't happen (a day off, the Pi was off): do it now, briefly.
+            payload["weekly_review"] = True
+            payload["late"] = True
+            payload["this_week"] = days
+            payload["routine"] = routine()
     return payload
 
 
@@ -347,6 +382,6 @@ def offline_reply(s: State, slot: str) -> str:
         if top:
             return f"The coach is offline. Still open at the top: {top}."
         return "The coach is offline. Everything on today's list is done."
-    done = len(s.priorities) - len(s.open_priorities)
+    done = len([p for p in s.today_list if p.done])
     tomorrow = f"; first thing tomorrow: {top}." if top else "."
     return f"The coach is offline. {done} done today{tomorrow} Put the phone away for the night."

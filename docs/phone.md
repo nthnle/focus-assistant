@@ -103,10 +103,11 @@ a wrong token; no line at all means the request never arrived.
 Message the coach from your phone: "I finished the spec, what's next?", "add
 email Sam", "move the report to the top", "I'm drifting". It sees the same
 data as a check-in, and it can change your priorities through a fixed set of
-tools (add, rename, complete, reopen, drop, move, report, pause, resume).
-It can't do anything
-else. Today's conversation is kept, so follow-ups work, and the next
-check-in sees it.
+tools: add, rename, schedule for another day, complete, reopen, drop, move,
+report, pause, resume, and add, complete or drop a week goal. It can't do
+anything else. Ask it "how could I improve my routine?" and it suggests one
+or two changes from your last week, each tied to a pattern it saw. Today's
+conversation is kept, so follow-ups work, and the next check-in sees it.
 
 Because this service holds the API key, a leaked chat token could spend
 money. `FOCUS_CHAT_DAILY_LIMIT` caps it at 50 messages a day, counting

@@ -10,12 +10,12 @@ stay inside that turn.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Callable
 
 import openai
 
-from . import actions, coach, pause, pricing, state as st
+from . import actions, coach, days, pause, pricing, state as st
 from .coach import CoachError
 from .config import Config
 from .state import State
@@ -35,8 +35,13 @@ Help them decide and keep going: answer questions about their day, and \
 change their priorities when they ask, using the tools. Use the priority ids \
 from the data. If a request is ambiguous, ask one short question instead of \
 guessing. If they want quiet for a while (a meeting, a call, a day off), \
-use pause; resume ends a pause early. Never invent tasks, progress or \
-events. Take counts and totals from `facts` as given, and after a change \
+use pause; resume ends a pause early. For another day, add the priority \
+and then schedule it. Week goals are one to three outcomes for this week, \
+set with add_goal, usually on Monday. If they ask how to improve their \
+routine, suggest one or two concrete changes (focus block times, breaks, \
+where the phone lives, how many priorities), each tied to a pattern you can \
+point to in recent_days, and say that focus blocks are changed in \
+focus.env. Never invent tasks, progress or events. Take counts and totals from `facts` as given, and after a change \
 take what is next from the tool result's "Next open" line, not from the \
 data sent before the change.
 
@@ -88,7 +93,27 @@ TOOLS = [
           {"until": {"type": "string", "description": "When to start again: 11:00, 2pm, 45m, 2h, "
                                                       "tomorrow, monday, or a date like 2026-10-24"}}),
     _tool("resume", "End a pause now.", {}),
+    _tool("schedule_priority", "Move a priority to another day, to 'later' (no date yet), or back to 'today'.",
+          {"id": _ID, "on": {"type": "string", "description": "today, later, tomorrow, a weekday like "
+                                                              "wednesday, or a date like 2026-10-24"}}),
+    _tool("add_goal", "Add one of this week's goals (one to three a week).",
+          {"text": {"type": "string", "description": "An outcome for the week, e.g. 'Ship the beta'"}}),
+    _tool("complete_goal", "Mark a week goal met.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
+    _tool("drop_goal", "Remove a week goal.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
 ]
+
+
+def _day(s: State, on: str) -> date | str | None:
+    """A schedule_priority day: None for today, "later", or a date."""
+    word = on.strip().lower()
+    if word == "today":
+        return None
+    if word == st.LATER:
+        return st.LATER
+    day = days.parse_day(word, date.fromisoformat(s.date))
+    if day is None:
+        raise ValueError(f"on must be today, later, tomorrow, a weekday or a date, not {on!r}")
+    return day
 
 _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "add_priority": lambda s, a: actions.add_priority(s, a["text"]),
@@ -100,16 +125,23 @@ _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "report": lambda s, a: actions.log_event(s, st.SELF_REPORT, a["how"]),
     "pause": lambda s, a: actions.pause(s, pause.parse_until(a["until"], datetime.now().astimezone())),
     "resume": lambda s, a: actions.resume(s),
+    "schedule_priority": lambda s, a: actions.schedule_priority(s, a["id"], _day(s, a["on"])),
+    "add_goal": lambda s, a: actions.add_goal(s, a["text"]),
+    "complete_goal": lambda s, a: actions.complete_goal(s, a["id"]),
+    "drop_goal": lambda s, a: actions.drop_goal(s, a["id"]),
 }
 
 
 def _priorities_text(s: State) -> str:
     if not s.priorities:
-        return "No priorities."
-    return "\n".join(
-        f"{i}. id={p.id} {'[done] ' if p.done else ''}{p.text}"
-        for i, p in enumerate(s.priorities, 1)
-    )
+        lines = ["No priorities."]
+    else:
+        lines = [
+            f"{i}. id={p.id} {'[done] ' if p.done else ''}{f'[on {p.on}] ' if p.on and not p.due(s.date) else ''}{p.text}"
+            for i, p in enumerate(s.ordered, 1)
+        ]
+    goals = [f"goal id={g['id']} {'[met] ' if g.get('done_at') else ''}{g['text']}" for g in s.goals]
+    return "\n".join(lines + (["Week goals:"] + goals if goals else []))
 
 
 def _arguments(raw: str) -> dict:
@@ -130,6 +162,10 @@ def _arguments(raw: str) -> dict:
         if not isinstance(args["text"], str) or not args["text"].strip():
             raise ValueError("text must be a non-empty string")
         args["text"] = args["text"].strip()[:MAX_PRIORITY_CHARS]
+    if "on" in args:
+        if not isinstance(args["on"], str) or not args["on"].strip():
+            raise ValueError("on must be a non-empty string")
+        args["on"] = args["on"].strip()[:40]
     if "until" in args:
         if not isinstance(args["until"], str) or not args["until"].strip():
             raise ValueError("until must be a non-empty string")

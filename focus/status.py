@@ -75,7 +75,8 @@ def report(cfg: Config, s: State, now: datetime,
            systemctl: Callable[..., str | None] = _systemctl) -> str:
     """`now` must be timezone-aware, like the timestamps in state."""
     open_ = len(s.open_priorities)
-    done = len(s.priorities) - open_
+    done = len([p for p in s.today_list if p.done])
+    goals_done = sum(1 for g in s.goals if g.get("done_at"))
     checkins = ", ".join(f"{c['slot']} {_hm(c['at'])}" + (" (held, away)" if c.get("unheard") else "")
                          for c in s.checkins) or "none yet"
     focus_blocks = blocks.from_env()
@@ -92,7 +93,8 @@ def report(cfg: Config, s: State, now: datetime,
     lines += [
         "",
         "Today",
-        f"  Priorities   {open_} open, {done} done",
+        f"  Priorities   {open_} open, {done} done" + (f", {len(s.later)} later" if s.later else ""),
+        f"  Week goals   {f'{goals_done} of {len(s.goals)} done' if s.goals else 'none set'}",
         f"  Check-ins    {checkins}",
         f"  Focus block  {'yes, ' + current if current else 'no'}",
         f"  Phone        {'off the charger since ' + out.strftime('%H:%M') if out else 'on the charger (or no charger reports today)'}",

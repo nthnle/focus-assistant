@@ -56,11 +56,17 @@ a desktop PC that copies `state.json` at 18:00.
   lock for the whole read-modify-write and saves atomically (write, then
   rename), so a power cut never leaves a half-written file.
 - **Day rollover** happens in code at the first use each day: unfinished
-  priorities carry over with `carried_days + 1`, a summary of the day goes
-  into `history`, and the day's check-ins, events and chat are cleared.
-- **`focus.actions`** is every state change (add, rename, complete, reopen,
-  drop, move, pause, resume, log an event). The CLI, chat tools, voice and buttons all call it, so
-  behaviour is the same whichever input you use.
+  priorities carry over (`carried_days + 1`, if a check-in ran that day and
+  they were on the list by then), a summary of the day goes into `history`
+  (with the patterns routine suggestions need: check-in times, when things
+  got done, phone pickups by hour), and the day's check-ins, events and chat
+  are cleared. Priorities scheduled for another day wait in the same list
+  until their day. At the first rollover of a new week, the week's goals and
+  Friday's review move into `last_week` for Monday's check-in.
+- **`focus.actions`** is every state change (add, rename, schedule,
+  complete, reopen, drop, move, goals, pause, resume, log an event). The
+  CLI, chat tools, voice and buttons all call it, so behaviour is the same
+  whichever input you use.
 - **The coach** (`coach.py`) is a single chat-completions call per check-in,
   to an open model on any OpenAI-compatible host. It gets a JSON payload:
   priorities, today's check-ins, events and chat, and the last five daily
@@ -69,7 +75,7 @@ a desktop PC that copies `state.json` at 18:00.
   reached, the check-in is a fixed nudge built from the same data
   (`offline_reply`), recorded with model `offline`.
 - **Chat** (`chat.py`) adds a small tool loop: the model can change
-  priorities only through nine tools that call `focus.actions`, at most six
+  priorities only through thirteen tools that call `focus.actions`, at most six
   model calls per message. Open models don't always follow a tool schema,
   so every argument is checked (JSON, whole-number ids, known values,
   length) before anything changes. Earlier turns are replayed as plain text.
@@ -87,6 +93,7 @@ focus/
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback)
   presence.py     away or not, from charger events and desk sound
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
+  days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later priorities
   blocks.py       focus blocks (FOCUS_BLOCKS)
   display.py      the status page (HTML)
   status.py       `focus status`

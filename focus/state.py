@@ -8,7 +8,13 @@ Day rollover happens here, in code, not in the model: unfinished priorities
 carry over with a counter, finished ones are archived into `history`. A day
 counts toward that counter only if a check-in ran on it, so weekends, days
 off and planning the next day in the evening don't make a priority look
-like it is slipping.
+like it is slipping. Each day's summary also keeps the patterns the coach
+needs to suggest changes to your routine: when the phone came out, when
+things got done, when check-ins ran.
+
+Weekly goals live alongside: they belong to the current week, and at the
+first rollover of a new week they move into `last_week`, with Friday's
+review, for Monday's check-in to pick up.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ except ImportError:  # Windows dev machines; the Pi always has fcntl
     fcntl = None
 
 from .config import Config
+from .days import monday_of
 
 SCHEMA_VERSION = 1
 
@@ -39,6 +46,8 @@ RESUME = "resume"
 PHONE_OUT = "phone_out"
 PHONE_IN = "phone_in"
 STRETCH_REMINDER = "stretch_reminder"
+
+LATER = "later"  # Priority.on: no date yet
 
 
 class StateError(Exception):
@@ -52,10 +61,17 @@ class Priority:
     done_at: str | None = None
     carried_days: int = 0
     added_at: str | None = None
+    # Scheduled for later: an ISO date it shows up on, or "later" for some
+    # day you pick. Until then it is off today's list and never counts as carried.
+    on: str | None = None
 
     @property
     def done(self) -> bool:
         return self.done_at is not None
+
+    def due(self, day: str) -> bool:
+        """On the list for `day` (ISO date). Done ones stay where they were."""
+        return self.done or self.on is None or (self.on != LATER and self.on <= day)
 
 
 @dataclass
@@ -72,11 +88,44 @@ class State:
     # Check-ins and stretch reminders wait until then (focus.pause). Unlike
     # the rest of the day, it survives rollover: a pause can last for days.
     paused_until: str | None = None
+    # This week's one to three goals: {"id", "text", "done_at"}.
+    goals: list[dict] = field(default_factory=list)
+    # The week before: {"week", "goals", "review", "opened"}, set at the first
+    # rollover of a new week. `opened` once Monday's check-in has used it.
+    last_week: dict | None = None
+    # Friday's wrap-up, once it has run: {"week", "text"}.
+    week_review: dict | None = None
     version: int = SCHEMA_VERSION
 
     @property
+    def today_list(self) -> list[Priority]:
+        """Today's priorities, done ones included, in their order."""
+        return [p for p in self.priorities if p.due(self.date)]
+
+    @property
+    def later(self) -> list[Priority]:
+        """Scheduled for another day: dated ones first, then "later"."""
+        waiting = [p for p in self.priorities if not p.due(self.date)]
+        return sorted(waiting, key=lambda p: (p.on == LATER, p.on))
+
+    @property
+    def ordered(self) -> list[Priority]:
+        """Today's list, then the later ones: how they are numbered everywhere."""
+        return self.today_list + self.later
+
+    @property
     def open_priorities(self) -> list[Priority]:
-        return [p for p in self.priorities if not p.done]
+        return [p for p in self.today_list if not p.done]
+
+    @property
+    def done_priorities(self) -> list[Priority]:
+        return [p for p in self.priorities if p.done]
+
+    def find_goal(self, goal_id: int) -> dict:
+        for g in self.goals:
+            if g["id"] == goal_id:
+                return g
+        raise StateError(f"No goal with id {goal_id}")
 
     def find(self, priority_id: int) -> Priority:
         for p in self.priorities:
@@ -101,11 +150,45 @@ class State:
             chat_attempts=data.get("chat_attempts", len(data.get("chat", []))),
             history=data.get("history", []),
             paused_until=data.get("paused_until"),
+            goals=data.get("goals", []),
+            last_week=data.get("last_week"),
+            week_review=data.get("week_review"),
         )
 
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def phone_summary(events: list[dict], now: str | None = None) -> dict:
+    """Pickups and minutes off the charger from PHONE_OUT / PHONE_IN events.
+
+    With `now`, a phone still out counts up to then; without, only the time
+    it was back counts. Malformed or mixed-timezone events stop the totals
+    where they got to.
+    """
+    pickups, minutes, out_at, hours = 0, 0.0, None, {}
+    try:
+        for e in events:
+            if e["kind"] == PHONE_OUT:
+                pickups += 1
+                out_at = datetime.fromisoformat(e["at"])
+                hours[f"{out_at:%H}"] = hours.get(f"{out_at:%H}", 0) + 1
+            elif e["kind"] == PHONE_IN and out_at is not None:
+                minutes += (datetime.fromisoformat(e["at"]) - out_at).total_seconds() / 60
+                out_at = None
+        if out_at is not None and now is not None:
+            minutes += max(0.0, (datetime.fromisoformat(now) - out_at).total_seconds() / 60)
+    except (KeyError, ValueError, TypeError):
+        pass
+    return {"pickups": pickups, "minutes": round(minutes), "out_since": out_at, "by_hour": hours}
+
+
+def _hm(iso: str | None) -> str | None:
+    try:
+        return f"{datetime.fromisoformat(iso):%H:%M}" if iso else None
+    except (TypeError, ValueError):
+        return None
 
 
 def roll_over(state: State, today: date, history_days: int) -> bool:
@@ -117,14 +200,21 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     for e in state.events:
         key = e["kind"] if e["kind"] != SELF_REPORT else f"{SELF_REPORT}:{e.get('detail')}"
         event_counts[key] = event_counts.get(key, 0) + 1
+    phone = phone_summary(state.events)
 
     state.history.append({
         "date": state.date,
-        "done": [p.text for p in state.priorities if p.done],
+        "done": [p.text for p in state.today_list if p.done],
         "open": [p.text for p in state.open_priorities],
         "checkins": len(state.checkins),
         "chats": len(state.chat),
         "events": event_counts,
+        # Patterns for routine suggestions.
+        "checkin_times": [t for c in state.checkins if (t := _hm(c.get("at")))],
+        "done_times": [t for p in state.today_list if p.done and (t := _hm(p.done_at))],
+        "phone_pickups": phone["pickups"],
+        "phone_minutes_off": phone["minutes"],
+        "pickups_by_hour": phone["by_hour"],
     })
     state.history = state.history[-history_days:]
 
@@ -132,11 +222,23 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     # that were already there at its last check-in: one added in the evening
     # is tomorrow's plan, not something that slipped.
     last_checkin = state.checkins[-1].get("at") if state.checkins else None
-    carried = state.open_priorities
-    for p in carried:
+    for p in state.open_priorities:
         if last_checkin and (p.added_at is None or _before(p.added_at, last_checkin)):
             p.carried_days += 1
-    state.priorities = carried
+    state.priorities = [p for p in state.priorities if not p.done]
+
+    old_week = monday_of(date.fromisoformat(state.date))
+    if monday_of(today) != old_week:
+        review = state.week_review if state.week_review and state.week_review.get("week") == old_week.isoformat() else None
+        state.last_week = {
+            "week": old_week.isoformat(),
+            "goals": state.goals,
+            "review": review["text"] if review else None,
+            "opened": False,
+        }
+        state.goals = []
+        state.week_review = None
+
     state.checkins = []
     state.events = []
     state.chat = []

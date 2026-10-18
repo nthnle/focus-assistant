@@ -17,15 +17,14 @@ from __future__ import annotations
 import re
 from datetime import datetime, time, timedelta
 
+from .days import parse_day
 from .state import State
 
 MAX_DAYS = 60
-WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 HELP = "say when: 11:00, 2pm, 45m, 2h, tomorrow, monday or 2026-10-24"
 
 _DURATION = re.compile(r"(\d+)\s*(m|min|mins|minutes?|h|hr|hrs|hours?)")
 _CLOCK = re.compile(r"(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?")
-_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def parse_until(text: str, now: datetime) -> datetime:
@@ -41,13 +40,8 @@ def parse_until(text: str, now: datetime) -> datetime:
     if m := _DURATION.fullmatch(t):
         amount, unit = int(m[1]), m[2]
         until = now + (timedelta(hours=amount) if unit.startswith("h") else timedelta(minutes=amount))
-    elif t == "tomorrow":
-        until = _midnight(today + timedelta(days=1), now)
-    elif (day := next((d for d in WEEKDAYS if len(t) >= 3 and d.startswith(t)), None)) is not None:
-        ahead = (WEEKDAYS.index(day) - today.weekday()) % 7 or 7
-        until = _midnight(today + timedelta(days=ahead), now)
-    elif _DATE.fullmatch(t):
-        until = _midnight(datetime.strptime(t, "%Y-%m-%d").date(), now)
+    elif (day := parse_day(t, today)) is not None:
+        until = _midnight(day, now)
     elif m := _CLOCK.fullmatch(t):
         hour, minute, half = int(m[1]), int(m[2] or 0), m[3]
         if half and not 1 <= hour <= 12 or hour > 23 or minute > 59:
