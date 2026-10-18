@@ -113,7 +113,7 @@ root only; systemd reads it and passes it to the services that need it.
 |---|---|---|---|---|
 | `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
-| `focus-dock` | always (charger reports from the iPhone + status page) | **no** | home network only, inbound | none |
+| `focus-dock` | always (charger reports from the iPhone + the status page, a browser preview of the e-ink display) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes, capped by a daily limit | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 

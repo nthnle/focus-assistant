@@ -22,7 +22,7 @@ your phone.**
 | **Priorities** from the command line: `focus add`, `focus done`, `focus move` ... unfinished ones carry over, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report, what's next?", plus buttons on a speakerphone | a USB speakerphone |
-| A **status page** for any browser on your network: today's top three, the coach's last words, focus block, phone, breaks | nothing extra |
+| A **status page** that previews the e-ink display in a browser while the panel is on its way, for development: today's top three, the coach's last words, focus block, phone, breaks | nothing extra |
 | **Phone pickups**: it notices when you take your phone off its charger during focus time | your usual charger (pad or cable), iOS Shortcuts |
 | **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
 | **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | phone pickups (and the speakerphone, for desk sound) |
