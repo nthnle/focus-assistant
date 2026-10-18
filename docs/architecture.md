@@ -30,7 +30,8 @@ In detail:
 </picture>
 
 The sources are the HTML files in [`diagrams/`](diagrams/) (1600x1000, light
-or dark from the browser's setting). The "dock" in them is just the phone's
+or dark from the browser's setting); [`diagrams/README.md`](diagrams/README.md)
+says how to re-export the PNGs after an edit. The "dock" in them is just the phone's
 usual charger; `focus-dock` is the Pi service that logs what the iPhone
 reports about it. The drawings describe one setup: Groq
 running `openai/gpt-oss-120b`, an Anker PowerConf on a powered USB hub, and
