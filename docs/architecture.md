@@ -17,6 +17,11 @@ At a glance:
   <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone pickups as icons on You, Pi and Groq lanes, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
 </picture>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/week-simple-dark.png">
+  <img alt="A week at a glance: Monday opens the week with goals and last Friday's tip, a later priority shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
+</picture>
+
 In detail:
 
 <picture>

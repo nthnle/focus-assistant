@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A week at a glance</title>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f7f8fa}
+@media (prefers-color-scheme: dark){body{background:#111418}}
+a{color:#1c5bc9}a:hover{color:#123f8f}
+.t-light,.t-auto{--bg:#f7f8fa;--panel:#eef0f3;--card:#ffffff;--ink:#1a1e24;--muted:#4f5864;--line:#7b8491;--border:#c5cbd3;--host:#a8400c;--host-bg:#fdf1e7;--host-line:#c95a1e;--phone:#1c5bc9;--phone-bg:#ebf2fe;--chip:#1a1e24;--chip-ink:#ffffff}
+.t-dark{--bg:#111418;--panel:#191d23;--card:#222830;--ink:#e7eaee;--muted:#a4acb7;--line:#8c96a3;--border:#3b434e;--host:#f39a63;--host-bg:#2c1f17;--host-line:#e07b40;--phone:#82abff;--phone-bg:#172338;--chip:#e7eaee;--chip-ink:#111418}
+@media (prefers-color-scheme: dark){.t-auto{--bg:#111418;--panel:#191d23;--card:#222830;--ink:#e7eaee;--muted:#a4acb7;--line:#8c96a3;--border:#3b434e;--host:#f39a63;--host-bg:#2c1f17;--host-line:#e07b40;--phone:#82abff;--phone-bg:#172338;--chip:#e7eaee;--chip-ink:#111418}}
+.s{color:var(--muted)}
+.kb{display:inline-block;font:600 12px/18px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.05em;padding:1px 7px;border-radius:5px;border:1px solid var(--border);color:var(--muted)}
+.kb.no{background:var(--chip);color:var(--chip-ink);border-color:var(--chip)}
+.kb.host{border-color:var(--host-line);color:var(--host)}
+.day{position:absolute;top:176px;width:200px;height:330px;box-sizing:border-box;padding:18px 16px;display:flex;flex-direction:column;gap:14px;border-radius:16px;background:var(--card);border:1.5px solid var(--border)}
+.day h3{margin:0;font-size:22px;line-height:28px;font-weight:600}
+.it{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:20px}
+.it svg{flex:none;margin-top:1px}
+.in{position:absolute;top:780px;width:192px;height:104px;box-sizing:border-box;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;background:var(--card);border:1.5px solid var(--border);border-radius:14px;font-size:15px;line-height:20px}
+</style>
+<div class="t-auto" style="position: relative; width: 1600px; height: 1000px; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif">
+
+<!-- bands -->
+<div style="position: absolute; left: 48px; top: 700px; width: 1504px; height: 268px; box-sizing: border-box; border: 1.5px solid var(--border); border-radius: 16px"></div>
+<div style="position: absolute; left: 64px; top: 760px; width: 872px; height: 144px; box-sizing: border-box; background: var(--panel); border-radius: 12px"></div>
+
+<!-- arrows -->
+<svg width="8" height="40" viewBox="0 0 8 40" preserveAspectRatio="none" style="position: absolute; left: 1008px; top: 506px; width: 8px; height: 40px; overflow: visible; fill: none; stroke: var(--host-line); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 40"></path></svg>
+<svg width="432" height="8" viewBox="0 0 432 8" preserveAspectRatio="none" style="position: absolute; left: 1012px; top: 542px; width: 432px; height: 8px; overflow: visible; fill: none; stroke: var(--host-line); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 432 4"></path></svg>
+<svg width="8" height="39" viewBox="0 0 8 39" preserveAspectRatio="none" style="position: absolute; left: 1440px; top: 507px; width: 8px; height: 39px; overflow: visible; fill: none; stroke: var(--host-line); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#c95a1e" stroke="none" style="stroke: none; fill: #c95a1e; fill: context-stroke"/></marker></defs><path d="M 4 39 L 4 5" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 936px; top: 828px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: var(--host-line); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#c95a1e" stroke="none" style="stroke: none; fill: #c95a1e; fill: context-stroke"/></marker></defs><path d="M 0 4 L 58 4" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" style="position: absolute; left: 1192px; top: 828px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: var(--host-line); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#c95a1e" stroke="none" style="stroke: none; fill: #c95a1e; fill: context-stroke"/></marker></defs><path d="M 0 4 L 58 4" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+
+<!-- title -->
+<div style="position: absolute; left: 40px; top: 32px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.01em">A week at a glance</div>
+<div style="position: absolute; left: 40px; top: 78px; width: 1100px; font-size: 17px; line-height: 24px; color: var(--muted)">Goals on Monday, a wrap-up with one routine tip on Friday, and that tip back on Monday. The days and the dentist are examples.</div>
+
+<!-- the days -->
+<div class="day" style="left: 48px; border: 2px solid var(--ink)">
+<h3>Mon</h3><span class="kb no" style="align-self: flex-start">OPENS THE WEEK</span>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"></path></svg><span>Recalls last Friday’s tip</span></div>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg><span>Asks for 1 to 3 goals for the week</span></div>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>Then the usual three check-ins</span></div>
+</div>
+<div class="day" style="left: 264px">
+<h3>Tue</h3>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg><span>Check-ins tie today’s work to the goals</span></div>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 11v2"></path></svg><span>Each night the day’s patterns are kept</span></div>
+</div>
+<div class="day" style="left: 480px">
+<h3>Wed</h3>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg><span>“Book the dentist”, added for Wednesday, shows up today</span></div>
+<div class="it s"><span style="font-size: 14px">Until then it stayed off the list and out of the top three</span></div>
+</div>
+<div class="day" style="left: 696px; background: transparent; border: 1.5px dashed var(--line)">
+<h3>Thu</h3><span class="kb" style="align-self: flex-start">DAY OFF</span>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"></path></svg><span>“Off until Friday”: paused</span></div>
+<div class="it s"><span style="font-size: 14px">No check-ins, no cost, and nothing counts as slipping</span></div>
+</div>
+<div class="day" style="left: 912px; background: var(--host-bg); border: 2px solid var(--host-line)">
+<h3 style="color: var(--host)">Fri</h3><span class="kb host" style="align-self: flex-start">17:30 WRAP-UP</span>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12l3 3 5-6"></path></svg><span>Which goals were met</span></div>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"></path></svg><span>What kept slipping</span></div>
+<div class="it" style="color: var(--host)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"></path></svg><span><b>One routine tip</b> from the week’s patterns</span></div>
+</div>
+<div class="day" style="left: 1128px; background: transparent; border: 1.5px dashed var(--line); color: var(--muted)">
+<h3>Sat–Sun</h3>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"></path></svg><span>No check-ins</span></div>
+</div>
+<div class="day" style="left: 1344px; border: 2px solid var(--ink)">
+<h3>Mon</h3><span class="kb no" style="align-self: flex-start">NEXT WEEK</span>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"></path></svg><span>“Last week you said you’d try a 15:00 break.”</span></div>
+<div class="it"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg><span>New goals</span></div>
+<div class="it s"><span style="font-size: 14px">Missed Friday? A short look back comes first</span></div>
+</div>
+<div style="position: absolute; left: 1044px; top: 560px; width: 360px; text-align: center; font-size: 15px; line-height: 20px; color: var(--host)">the tip and last week’s goals carry over</div>
+
+<!-- where the tip comes from -->
+<div style="position: absolute; left: 72px; top: 716px; font-size: 22px; line-height: 28px; font-weight: 600">Where the routine tip comes from</div>
+<div style="position: absolute; left: 80px; top: 768px; font-size: 13px; line-height: 16px; font-weight: 600; letter-spacing: .08em; color: var(--muted)">EACH DAY’S SUMMARY KEEPS</div>
+<div class="in" style="left: 80px; top: 790px; height: 100px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>When check-ins ran</span></div>
+<div class="in" style="left: 292px; top: 790px; height: 100px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12l3 3 5-6"></path></svg><span>When things got done</span></div>
+<div class="in" style="left: 504px; top: 790px; height: 100px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"></rect><path d="M11 18h2"></path></svg><span>Phone pickups by hour</span></div>
+<div class="in" style="left: 716px; top: 790px; height: 100px; border-style: dashed"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18M9 10v10"></path></svg><span>plus your focus blocks</span></div>
+<div class="in" style="left: 1000px; background: var(--host-bg); border: 2px solid var(--host-line); color: var(--host)"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"></path></svg><span><b>Coach</b><br>spots one pattern</span></div>
+<div class="in" style="left: 1256px; width: 272px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"></path></svg><span>“Pickups bunch at 14:00: start the afternoon block at 13:30”</span></div>
+<div style="position: absolute; left: 940px; top: 800px; width: 56px; text-align: center; font-size: 14px; line-height: 18px; font-weight: 600; color: var(--host)">text</div>
+<div style="position: absolute; left: 1196px; top: 800px; width: 56px; text-align: center; font-size: 14px; line-height: 18px; color: var(--host)">tip</div>
+<div style="position: absolute; left: 1000px; top: 908px; width: 528px; font-size: 15px; line-height: 20px; color: var(--muted)">Friday’s wrap-up gives one. Ask any time for more: “how could I improve my routine?” You change focus blocks in focus.env.</div>
+
+</div>
+</body>
+</html>

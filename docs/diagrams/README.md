@@ -3,7 +3,8 @@
 | File | Shows |
 |---|---|
 | `architecture-simple.html` | The parts at a glance: phone, charger, the Pi's services, speakerphone, model host |
-| `workflow-simple.html` | A weekday at a glance, with one voice turn and the offline fallback |
+| `workflow-simple.html` | A weekday at a glance, with a pause, one voice turn and the offline fallback |
+| `week-simple.html` | A week at a glance: goals, a day off, Friday's wrap-up and where the routine tip comes from |
 | `architecture.html` | The same parts in detail: what each arrow carries, keys, trust boundaries |
 | `workflow.html` | The weekday in detail, with timings |
 
