@@ -10,8 +10,8 @@ your phone.**
 ```
 09:00  MORNING CHECK-IN
        Start with the quarterly report: it has carried over three days, so
-       give it the first block before email. Keep the phone docked until
-       the 10:50 break.
+       give it the first block before email. Leave the phone on its
+       charger until the 10:50 break.
 ```
 
 ## What it can do
@@ -23,9 +23,9 @@ your phone.**
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report, what's next?", plus buttons on a speakerphone | a USB speakerphone |
 | A **status page** for any browser on your network: today's top three, the coach's last words, focus block, phone, breaks | nothing extra |
-| A **phone dock**: it notices when you pick your phone up during focus time | an iPhone on a charger, iOS Shortcuts |
+| **Phone pickups**: it notices when you take your phone off its charger during focus time | your usual charger (pad or cable), iOS Shortcuts |
 | **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
-| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the phone dock (and the speakerphone, for desk sound) |
+| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | phone pickups (and the speakerphone, for desk sound) |
 | An **e-ink display** (Pimoroni Inky Impression 4") | the panel. Code written and previewed, not yet tested on real hardware. |
 
 It runs on a Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), and should
@@ -87,7 +87,7 @@ Keep to about three: the coach pushes back when you have more.
 |---|---|
 | [docs/install.md](docs/install.md) | Full setup, updating, the check-in schedule, troubleshooting |
 | [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
-| [docs/phone.md](docs/phone.md) | Phone dock, chat from your phone, the status page, presence |
+| [docs/phone.md](docs/phone.md) | Phone pickups, chat from your phone, the status page, presence |
 | [docs/configuration.md](docs/configuration.md) | Every setting in `focus.env` |
 | [docs/architecture.md](docs/architecture.md) | How it fits together, security model, adding your own inputs and outputs, development |
 
@@ -117,8 +117,9 @@ check-ins fall back to a fixed nudge built from your priorities.
   used for presence. A speakerphone's mute button, or the nightly quiet
   hours (voice off from 00:00 to 08:00), turn it off completely.
 - **The network services listen on your home network only**, each behind
-  its own token. Of the two, only chat holds the model key; the dock and status
-  page can't spend money. Every service runs sandboxed with only the access
+  its own token. Of the two, only chat holds the model key; the service that
+  receives charger reports (`focus-dock`) and the status page can't spend
+  money. Every service runs sandboxed with only the access
   it needs. Details in [docs/architecture.md](docs/architecture.md).
 
 ## Status

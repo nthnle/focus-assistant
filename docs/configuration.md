@@ -23,7 +23,7 @@ point that `install.sh` copies.
 | `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. |
 | `FOCUS_HISTORY_DAYS` | `14` | Days of daily summaries kept for the coach's context. |
 | `FOCUS_STATE_DIR` | `~/.local/state/focus-assistant` | Where `state.json` lives. The systemd units set this; you normally don't. |
-| `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. Used by the phone dock, stretch reminders, presence and the status page. |
+| `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. Used by phone pickups, stretch reminders, presence and the status page. |
 | `FOCUS_LOG_WORDS` | (off) | `1` writes what you say, type or mark done into the system journal. Off, the journal gets only the length (`<16 chars>`). Turn it on while tuning voice. |
 
 **When the host can't be reached** (or a setting is missing), check-ins
@@ -61,14 +61,14 @@ The **check-in times** are set in the systemd timer, not here; see
 | `FOCUS_VOICE_WAKE_FRAMES` | `3` | Consecutive 80 ms frames above the threshold needed to fire. |
 | `FOCUS_VOICE_WAKE_VAD` | `0.5` | Speech-detector threshold the wake word also needs. `0` turns it off. |
 
-## Phone dock and status page
+## Phone pickups and status page
 
 | Setting | Default | |
 |---|---|---|
-| `FOCUS_DOCK_TOKEN` | (generated) | Token the phone's dock shortcuts send. |
-| `FOCUS_ALLOWED_CLIENTS` | (any home-network address) | Comma-separated addresses or networks allowed to reach the dock, status page and chat, e.g. your phone's reserved IP `192.168.1.50`. The Pi itself (localhost) is always allowed, for testing with curl; public addresses never are. A bad entry stops the services from starting. |
+| `FOCUS_DOCK_TOKEN` | (generated) | Token the iPhone's charger shortcuts send to `focus-dock`. |
+| `FOCUS_ALLOWED_CLIENTS` | (any home-network address) | Comma-separated addresses or networks allowed to reach `focus-dock` (charger reports and the status page) and chat, e.g. your phone's reserved IP `192.168.1.50`. The Pi itself (localhost) is always allowed, for testing with curl; public addresses never are. A bad entry stops the services from starting. |
 | `FOCUS_DISPLAY_TOKEN` | (generated) | Token for the status page URL. Set it empty (`FOCUS_DISPLAY_TOKEN=`) to stop serving the page; a missing line gets a new token on the next install. |
-| `FOCUS_DOCK_PORT` | `8765` | Port for the dock and the status page. |
+| `FOCUS_DOCK_PORT` | `8765` | Port for `focus-dock`: charger reports and the status page. |
 | `FOCUS_DOCK_HOST` | `0.0.0.0` | Address to listen on. |
 | `FOCUS_DOCK_SETTLE` | `30` | Seconds the phone must stay off the charger before it counts. |
 
@@ -85,7 +85,7 @@ The **check-in times** are set in the systemd timer, not here; see
 
 | Setting | Default | |
 |---|---|---|
-| `FOCUS_AWAY_PHONE_MIN` | `10` | Minutes off the dock before you can count as away. |
+| `FOCUS_AWAY_PHONE_MIN` | `10` | Minutes off the charger before you can count as away. |
 | `FOCUS_AWAY_QUIET_MIN` | `15` | ...and minutes of desk silence. |
 
 ## E-ink display

@@ -2,12 +2,12 @@
 
 Three services that talk to your phone or browser over your home network:
 
-- the **[phone dock](#phone-dock)**, which notices when you pick up your
-  phone during focus time
+- **[phone pickups](#phone-pickups)**, which notices when you take your
+  phone off its charger during focus time
 - **[chat](#chat)** with the coach from your phone, typed or through Siri
 - the **[status page](#status-page)**, which shows your day in any browser
 
-and **[presence](#presence)**, which uses the dock to tell whether you're
+and **[presence](#presence)**, which uses the charger reports to tell whether you're
 at the desk.
 
 The phone parts use **iOS Shortcuts**. Android with an automation app that
@@ -28,7 +28,7 @@ it's untested.
 - **Rotating a token:** delete its line from `focus.env`, run
   `sudo deploy/install.sh` (it writes a new one), and update the Shortcut
   or bookmark.
-- Of these, only chat holds the API key. The dock and status page can't
+- Of these, only chat holds the API key. `focus-dock` and the status page can't
   spend money.
 
 Read a token with, for example:
@@ -40,7 +40,12 @@ sudo grep FOCUS_DOCK_TOKEN /etc/focus-assistant/focus.env
 The examples use `focus.local` as the Pi's address. If your phone can't
 resolve `.local` names, use the Pi's IP address (`hostname -I`).
 
-## Phone dock
+## Phone pickups
+
+The "dock" is just your phone's usual charger, a pad or a cable. It has no
+electronics or connection of its own: the iPhone tells the Pi when it starts
+or stops charging, and a small service on the Pi, `focus-dock`, writes that
+down. That service also serves the [status page](#status-page).
 
 During a focus block (`FOCUS_BLOCKS`, default 09:00-12:00 and 13:00-17:30 on
 weekdays), taking the phone off its charger for more than 30 seconds logs a
@@ -135,10 +140,10 @@ three open priorities, and a status strip: where you are in the day (focus
 until 12:00, break till 11:00, next block), the next break, the phone,
 whether you're away or have a check-in waiting, and today's done count,
 phone pickups and breaks. It's read-only, and live: it updates within two
-seconds of any change, whether from voice, chat, the CLI, the dock or a
+seconds of any change, whether from voice, chat, the CLI, a charger report or a
 check-in.
 
-The dock service serves it, so enable that first. Then open:
+`focus-dock` serves it, so enable that first. Then open:
 
 ```
 http://focus.local:8765/display?k=<FOCUS_DISPLAY_TOKEN>
@@ -153,11 +158,11 @@ The upper panel mirrors the e-ink display layout ([architecture.md](architecture
 ## Presence
 
 So the coach doesn't talk to an empty desk: you count as **away** when the
-phone has been off the dock for 10 minutes **and** the desk has been quiet
+phone has been off its charger for 10 minutes **and** the desk has been quiet
 for 15 (no typing, chair or voice heard by the [voice service's
 microphone](voice.md#2-voice-commands)). Only the time of the last sound is
-stored, in `presence.json`; never audio. Without the voice service, the dock
-decides alone.
+stored, in `presence.json`; never audio. Without the voice service, the charger
+reports decide alone.
 
 While you're away:
 
@@ -166,7 +171,7 @@ While you're away:
   seconds of your return ("While you were away, the midday check-in said:
   ..."). The status page shows it meanwhile.
 
-**Its blind spot:** leave your phone on the dock and walk off, and it still
+**Its blind spot:** leave your phone on the charger and walk off, and it still
 thinks you're there. Tune it with `FOCUS_AWAY_PHONE_MIN` and
 `FOCUS_AWAY_QUIET_MIN`;
 `journalctl -u focus-stretch -u focus-checkin -u focus-voice | grep -i away`

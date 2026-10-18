@@ -5,6 +5,20 @@ add your own inputs and outputs.
 
 ## Overview
 
+At a glance:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-simple-dark.png">
+  <img alt="At a glance: the iPhone (with an ordinary charger), the Pi's shared core and five services, the speakerphone, the planned e-ink display, and Groq, which only receives text" src="diagrams/architecture-simple.png">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-simple-dark.png">
+  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone pickups as icons on You, Pi and Groq lanes, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
+</picture>
+
+In detail:
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-dark.png">
   <img alt="Architecture: the phone, the Pi's five sandboxed services, the shared core, the speakerphone and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
@@ -12,12 +26,13 @@ add your own inputs and outputs.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-dark.png">
-  <img alt="One weekday: check-ins, stretch reminders, phone dock events, voice and chat across You, Pi and model host lanes, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
+  <img alt="One weekday: check-ins, stretch reminders, phone charger events, voice and chat across You, Pi and model host lanes, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
 </picture>
 
-The sources are [`diagrams/architecture.html`](diagrams/architecture.html)
-and [`diagrams/workflow.html`](diagrams/workflow.html) (1600x1000, light or
-dark from the browser's setting). The drawings describe one setup: Groq
+The sources are the HTML files in [`diagrams/`](diagrams/) (1600x1000, light
+or dark from the browser's setting). The "dock" in them is just the phone's
+usual charger; `focus-dock` is the Pi service that logs what the iPhone
+reports about it. The drawings describe one setup: Groq
 running `openai/gpt-oss-120b`, an Anker PowerConf on a powered USB hub, and
 a desktop PC that copies `state.json` at 18:00.
 
@@ -69,7 +84,7 @@ focus/
   chat.py         chat: prompt, tools, tool loop, daily limit
   checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback)
-  presence.py     away or not, from dock events and desk sound
+  presence.py     away or not, from charger events and desk sound
   blocks.py       focus blocks (FOCUS_BLOCKS)
   display.py      the status page (HTML)
   status.py       `focus status`
@@ -98,7 +113,7 @@ root only; systemd reads it and passes it to the services that need it.
 |---|---|---|---|---|
 | `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
-| `focus-dock` | always (phone dock + status page) | **no** | home network only, inbound | none |
+| `focus-dock` | always (charger reports from the iPhone + status page) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes, capped by a daily limit | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 

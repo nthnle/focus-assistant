@@ -53,8 +53,9 @@ sudo deploy/install.sh
 - installs the systemd units, enables the check-in timer and the nightly
   voice quiet hours, and restarts any optional services that are running
 
-The optional services (dock, chat, voice, stretch reminders) are installed
-but **not enabled**: you turn each one on when you set it up.
+The optional services (charger reports and status page, chat, voice,
+stretch reminders) are installed but **not enabled**: you turn each one on
+when you set it up.
 
 ## 3. Set the model
 
@@ -96,7 +97,7 @@ The empty `OnCalendar=` clears the defaults. Keep each time inside its
 window (morning, midday, evening). If the Pi was off at a scheduled time,
 the check-in runs once when it comes back.
 
-Focus blocks, used by the phone dock, stretch reminders and the status page,
+Focus blocks, used by phone pickups, stretch reminders and the status page,
 are set separately with `FOCUS_BLOCKS` (default `09:00-12:00,13:00-17:30`).
 See [configuration.md](configuration.md).
 
