@@ -17,9 +17,13 @@ def _show(s: st.State) -> None:
     if quiet:
         print(f"Paused {quiet}. Resume with: focus resume")
     if s.goals:
-        print("This week:")
-        for i, g in enumerate(s.goals, 1):
-            print(f"  [{'x' if g.get('done_at') else ' '}] {i}. {g['text']}")
+        n = 0
+        for title, goals in (("This week:", s.this_weeks_goals), ("Next week:", s.next_weeks_goals)):
+            if goals:
+                print(title)
+            for g in goals:
+                n += 1
+                print(f"  [{'x' if g.get('done_at') else ' '}] {n}. {g['text']}")
         print()
     if not s.priorities:
         print("No priorities yet. Add one with: focus add \"...\"")
@@ -51,9 +55,10 @@ def _at(s: st.State, number: int) -> st.Priority:
 
 
 def _goal_at(s: st.State, number: int) -> dict:
-    if not 1 <= number <= len(s.goals):
+    goals = s.this_weeks_goals + s.next_weeks_goals  # as `focus show` numbers them
+    if not 1 <= number <= len(goals):
         raise st.StateError(f"No goal {number}; `focus goals` lists them")
-    return s.goals[number - 1]
+    return goals[number - 1]
 
 
 def _day(s: st.State, words: list[str] | None) -> date | str:
@@ -94,8 +99,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("day", nargs="*", help="tomorrow, wed, 2026-10-24 (default: someday)")
     p = sub.add_parser("now", help="bring a later priority back to today")
     p.add_argument("number", type=int)
-    sub.add_parser("goals", help="this week's goals")
-    p = sub.add_parser("goal", help="this week's goals: add, done or drop one")
+    sub.add_parser("goals", help="this week's goals (and next week's, on a weekend)")
+    p = sub.add_parser("goal", help="week goals: add, done or drop one; on a weekend, add sets next week's")
     p.add_argument("action", choices=["add", "done", "drop"])
     p.add_argument("what", nargs="+", help="the goal's text (add) or its number (done, drop)")
     for name, help_ in [("done", "mark done"), ("undo", "mark not done"), ("drop", "remove")]:

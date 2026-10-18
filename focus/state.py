@@ -12,9 +12,10 @@ like it is slipping. Each day's summary also keeps the patterns the coach
 needs to suggest changes to your routine: when the phone came out, when
 things got done, when check-ins ran.
 
-Weekly goals live alongside: they belong to the current week, and at the
-first rollover of a new week they move into `last_week`, with Friday's
-review, for Monday's check-in to pick up.
+Weekly goals live alongside: each belongs to a week (one set on a Saturday
+or Sunday is for the week ahead), and at the first rollover of a new week
+the old week's goals move into `last_week`, with Friday's review, for
+Monday's check-in to pick up.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ except ImportError:  # Windows dev machines; the Pi always has fcntl
     fcntl = None
 
 from .config import Config
-from .days import monday_of
+from .days import goal_week, monday_of
 
 SCHEMA_VERSION = 1
 
@@ -88,7 +89,8 @@ class State:
     # Check-ins and stretch reminders wait until then (focus.pause). Unlike
     # the rest of the day, it survives rollover: a pause can last for days.
     paused_until: str | None = None
-    # This week's one to three goals: {"id", "text", "done_at"}.
+    # One to three goals a week: {"id", "text", "done_at", "week"}, week being
+    # its Monday. On a weekend there may also be some for the week ahead.
     goals: list[dict] = field(default_factory=list)
     # The week before: {"week", "goals", "review", "opened"}, set at the first
     # rollover of a new week. `opened` once Monday's check-in has used it.
@@ -120,6 +122,16 @@ class State:
     @property
     def done_priorities(self) -> list[Priority]:
         return [p for p in self.priorities if p.done]
+
+    @property
+    def this_weeks_goals(self) -> list[dict]:
+        monday = monday_of(date.fromisoformat(self.date)).isoformat()
+        return [g for g in self.goals if g.get("week", monday) <= monday]
+
+    @property
+    def next_weeks_goals(self) -> list[dict]:
+        monday = monday_of(date.fromisoformat(self.date)).isoformat()
+        return [g for g in self.goals if g.get("week", monday) > monday]
 
     def find_goal(self, goal_id: int) -> dict:
         for g in self.goals:
@@ -227,16 +239,22 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
             p.carried_days += 1
     state.priorities = [p for p in state.priorities if not p.done]
 
-    old_week = monday_of(date.fromisoformat(state.date))
-    if monday_of(today) != old_week:
+    old_day = date.fromisoformat(state.date)
+    old_week = monday_of(old_day)
+    new_week = monday_of(today)
+    if new_week != old_week:
         review = state.week_review if state.week_review and state.week_review.get("week") == old_week.isoformat() else None
+        # Goals saved before goals had a week: count them for the week of the
+        # day they were last seen (a weekend counts toward the week ahead).
+        week_of = {id(g): g.get("week") or goal_week(old_day).isoformat() for g in state.goals}
         state.last_week = {
             "week": old_week.isoformat(),
-            "goals": state.goals,
+            "goals": [g for g in state.goals if week_of[id(g)] < new_week.isoformat()],
             "review": review["text"] if review else None,
             "opened": False,
         }
-        state.goals = []
+        state.goals = [dict(g, week=week_of[id(g)]) for g in state.goals
+                       if week_of[id(g)] >= new_week.isoformat()]
         state.week_review = None
 
     state.checkins = []

@@ -109,7 +109,8 @@ check-ins are skipped entirely, so a holiday costs nothing and doesn't count
 toward carried days.
 
 **Weeks.** Set one to three goals for the week (`focus goal add`, or tell
-the coach on Monday). The coach ties the day's priorities to them, and on
+the coach on Monday; goals set on a Saturday or Sunday are for the week
+ahead). The coach ties the day's priorities to them, and on
 Friday evening the check-in becomes a wrap-up: which goals were met, what
 kept slipping, and one concrete change to your routine, grounded in a
 pattern from the week (pickups bunching after lunch, things getting done

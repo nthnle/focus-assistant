@@ -124,7 +124,7 @@ def test_facts_do_the_arithmetic():
         "carried_3_days_or_more": ["Report"],
         "phone_pickups_today": 3, "phone_minutes_off_charger_today": 18 + 45 + 10,
         "phone_off_charger_now_since": "12:50", "last_self_report": "drifted",
-        "paused": None,
+        "paused": None, "weekday": "Monday",
     }
 
 

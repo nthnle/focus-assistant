@@ -43,7 +43,8 @@ again from the events. The phone belongs on its charger during focus time, \
 so phone_out means it was picked up.
 
 week_goals are the one to three goals they set for this week. When a \
-priority clearly serves one, you may say so in a few words. `later` holds \
+priority clearly serves one, you may say so in a few words. next_week_goals, \
+if present, are already set for the week ahead. `later` holds \
 priorities scheduled for another day: leave them alone unless asked.
 
 The reply may be shown on a small e-ink screen or spoken aloud, so write \
@@ -74,6 +75,10 @@ has the current settings. End the week on something they did well.
 - a weekly_review at a morning check-in (late is true) means Friday's \
 wrap-up was missed: look back at last week in two or three sentences, \
 suggest the routine change, then name the one priority to start with.
+
+facts.weekday says what day it is. Check-ins only run by themselves on \
+weekdays; on a Saturday or Sunday they asked for one, so keep it to two \
+sentences, don't judge what got done that day, and look ahead to Monday.
 
 If there are no priorities, ask them to set up to three, in one sentence.
 Be warm and direct. Do not invent tasks, progress or events that are not in \
@@ -144,6 +149,7 @@ def facts(s: State, now: str) -> dict:
         "phone_off_charger_now_since": phone["out_since"].strftime("%H:%M") if phone["out_since"] else None,
         "last_self_report": reports[-1] if reports else None,
         "paused": pause.describe(s, datetime.fromisoformat(now)),
+        "weekday": f"{datetime.fromisoformat(now):%A}",
     }
 
 
@@ -176,7 +182,7 @@ def build_payload(s: State, slot: str, now: str) -> dict:
             for p in s.today_list
         ],
         "later": [{"id": p.id, "text": p.text, "on": p.on} for p in s.later],
-        "week_goals": _goals(s.goals),
+        "week_goals": _goals(s.this_weeks_goals),
         "earlier_checkins_today": [
             {"slot": c["slot"], "at": c["at"], "reply": c.get("reply")} for c in s.checkins
         ],
@@ -187,6 +193,8 @@ def build_payload(s: State, slot: str, now: str) -> dict:
     }
     today = date.fromisoformat(s.date)
     monday = monday_of(today)
+    if s.next_weeks_goals:
+        payload["next_week_goals"] = _goals(s.next_weeks_goals)
     if slot == "chat":
         payload["routine"] = routine()
     if slot == "evening" and today.weekday() == 4:

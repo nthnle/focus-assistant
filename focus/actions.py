@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from . import state as st
+from .days import goal_week
 from .state import State
 
 
@@ -122,13 +123,15 @@ MAX_GOALS = 3
 
 
 def add_goal(s: State, text: str) -> dict:
-    """One of this week's goals; they clear when the next week starts."""
+    """One of this week's goals, or next week's on a weekend. They move out
+    when their week is over."""
     text = text.strip()
     if not text:
         raise st.StateError("Goal text is empty")
-    if len(s.goals) >= MAX_GOALS:
+    week = goal_week(date.fromisoformat(s.date)).isoformat()
+    if sum(1 for g in s.goals if g.get("week", week) == week) >= MAX_GOALS:
         raise st.StateError(f"Keep it to {MAX_GOALS} goals a week; drop one first")
-    goal = {"id": max((g["id"] for g in s.goals), default=0) + 1, "text": text, "done_at": None}
+    goal = {"id": max((g["id"] for g in s.goals), default=0) + 1, "text": text, "done_at": None, "week": week}
     s.goals.append(goal)
     return goal
 

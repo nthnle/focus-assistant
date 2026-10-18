@@ -96,7 +96,7 @@ TOOLS = [
     _tool("schedule_priority", "Move a priority to another day, to 'later' (no date yet), or back to 'today'.",
           {"id": _ID, "on": {"type": "string", "description": "today, later, tomorrow, a weekday like "
                                                               "wednesday, or a date like 2026-10-24"}}),
-    _tool("add_goal", "Add one of this week's goals (one to three a week).",
+    _tool("add_goal", "Add one of this week's goals (one to three a week); on a weekend it is for next week.",
           {"text": {"type": "string", "description": "An outcome for the week, e.g. 'Ship the beta'"}}),
     _tool("complete_goal", "Mark a week goal met.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
     _tool("drop_goal", "Remove a week goal.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
@@ -140,7 +140,8 @@ def _priorities_text(s: State) -> str:
             f"{i}. id={p.id} {'[done] ' if p.done else ''}{f'[on {p.on}] ' if p.on and not p.due(s.date) else ''}{p.text}"
             for i, p in enumerate(s.ordered, 1)
         ]
-    goals = [f"goal id={g['id']} {'[met] ' if g.get('done_at') else ''}{g['text']}" for g in s.goals]
+    goals = [f"goal id={g['id']} {'[met] ' if g.get('done_at') else ''}{g['text']}" for g in s.this_weeks_goals]
+    goals += [f"goal id={g['id']} [next week] {g['text']}" for g in s.next_weeks_goals]
     return "\n".join(lines + (["Week goals:"] + goals if goals else []))
 
 

@@ -143,3 +143,41 @@ def test_chat_gets_routine_settings_and_can_plan(cfg):
     assert "[on later] Book dentist" in sent[1]["messages"][-2]["content"]
     with st.locked_state(cfg) as s:
         assert s.open_priorities == [] and s.goals[0]["text"] == "Ship the beta"
+
+
+# --- goals set on a weekend ------------------------------------------------
+
+SUN = date(2026, 10, 18)
+
+
+def test_a_goal_set_on_the_weekend_is_for_the_week_ahead(cfg):
+    with day(cfg, WED) as s:
+        actions.add_goal(s, "Ship the beta")
+    with day(cfg, SUN) as s:
+        actions.add_goal(s, "Hire a designer")
+        assert [g["text"] for g in s.this_weeks_goals] == ["Ship the beta"]
+        assert [g["text"] for g in s.next_weeks_goals] == ["Hire a designer"]
+        payload = coach.build_payload(s, "evening", "2026-10-18T16:20:00-05:00")
+        assert payload["facts"]["weekday"] == "Sunday"
+        assert payload["next_week_goals"][0]["text"] == "Hire a designer"
+    with day(cfg, NEXT_MON) as s:
+        assert [g["text"] for g in s.goals] == ["Hire a designer"]
+        assert [g["text"] for g in s.last_week["goals"]] == ["Ship the beta"]
+
+
+def test_a_goal_saved_before_goals_had_a_week_survives_a_sunday(cfg):
+    with day(cfg, SUN) as s:
+        s.goals = [{"id": 1, "text": "GEIR", "done_at": None}]   # as an older version saved it
+    with day(cfg, NEXT_MON) as s:
+        assert [(g["text"], g["week"]) for g in s.goals] == [("GEIR", "2026-10-19")]
+
+
+def test_the_three_goal_cap_counts_one_week(cfg):
+    with day(cfg, FRI) as s:
+        for text in ("A", "B", "C"):
+            actions.add_goal(s, text)
+    with day(cfg, SUN) as s:
+        for text in ("D", "E", "F"):
+            actions.add_goal(s, text)          # next week's, so allowed
+        with pytest.raises(st.StateError):
+            actions.add_goal(s, "G")
