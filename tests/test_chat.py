@@ -51,7 +51,16 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     assert replayed["tool_calls"][0]["function"]["name"] == "complete_priority"
     assert result["role"] == "tool" and result["tool_call_id"] == "call_1"
     assert "[done] Write spec" in result["content"]
-    assert "Next open: Email Sam" in result["content"]
+    assert "Next open: Email Sam (changed)" in result["content"]
+
+
+def test_tool_result_says_when_the_next_item_did_not_change(cfg):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Car inspection")
+
+    text, is_error = chat._run_tool(cfg, "add_priority", json.dumps({"text": "Lawn pre-emergent"}))
+    assert not is_error
+    assert "Next open: Car inspection (unchanged)" in text
 
 
 def test_chat_model_defaults_to_the_check_in_model(cfg, monkeypatch):

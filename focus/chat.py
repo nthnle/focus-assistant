@@ -47,7 +47,9 @@ data sent before the change.
 
 Your reply may be read aloud, so write plain sentences: no markdown, no \
 lists, no emoji, at most 60 words. After changing something, say what you \
-changed in a few words."""
+changed in a few words, naming the item, not just "done" or "all set". \
+Mention what is next only when the "Next open" line says (changed), or when \
+they ask."""
 
 # Added for messages spoken at the desk: there the reply is heard, and every
 # extra sentence is another second or two of waiting.
@@ -55,8 +57,9 @@ VOICE_RULES = """
 
 This message was spoken at the desk and your reply will be read aloud. \
 Answer in one short sentence, at most 15 words, unless they asked a question \
-that needs more. After a change, confirm it and name what is next, like \
-this: Done. Next is the email to Sam."""
+that needs more. After a change, confirm it by naming the item, like this: \
+Added lawn pre-emergent. Add what is next only if it changed, like this: \
+Done with the report. Next is the email to Sam."""
 
 
 def _tool(name: str, description: str, properties: dict) -> dict:
@@ -201,9 +204,12 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
     try:
         args = _arguments(raw_args)
         with st.locked_state(cfg) as s:
+            before = s.open_priorities[0].id if s.open_priorities else None
             handler(s, args)
             open_ = s.open_priorities
             next_open = f"Next open: {open_[0].text}" if open_ else "Next open: nothing, the list is done"
+            # Lets the model skip "next is X" when the change didn't touch the top.
+            next_open += " (changed)" if (open_[0].id if open_ else None) != before else " (unchanged)"
             quiet = pause.describe(s, datetime.now().astimezone())
             paused = f"\nPaused {quiet}" if quiet else ""
             return f"Done. {next_open}{paused}\nPriorities now:\n" + _priorities_text(s), False
