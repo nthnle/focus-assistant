@@ -43,6 +43,7 @@ The **check-in times** are set in the systemd timer, not here; see
 | Setting | Default | |
 |---|---|---|
 | `FOCUS_SPEECH_DEVICE` | `default` | ALSA device for the speaker (and the microphone, for voice), e.g. `plughw:CARD=PowerConf,DEV=0`. **Required for voice:** `default` is the Pi's headphone jack, which has no microphone. |
+| `FOCUS_SPEECH_LEAD_MS` | `300` | Silence played before speech when the speaker has been quiet for over 2 s, so a USB speaker's amplifier is awake before the first word. Raise it if the start of a sentence still sounds cut off; `0` turns it off. |
 | `FOCUS_SPEECH_VOICE` | `/opt/focus-assistant/voices/en_US-lessac-medium.onnx` | The Piper voice. |
 | `FOCUS_SPEECH_WAV` | (unset) | Save speech to this WAV file instead of playing it, for testing without a speaker. |
 

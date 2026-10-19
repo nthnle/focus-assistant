@@ -80,6 +80,37 @@ def test_aplay_command(monkeypatch):
     assert proc.fed == b"RIFF"
 
 
+def wav_of(frames: bytes, rate: int = 1000) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(frames)
+    return buf.getvalue()
+
+
+def frames_of(wav: bytes) -> bytes:
+    with wave.open(io.BytesIO(wav)) as r:
+        return r.readframes(r.getnframes())
+
+
+def test_silence_goes_first_only_after_a_quiet_spell(monkeypatch):
+    monkeypatch.setattr(speech.subprocess, "Popen", FakeAplay)
+    now = [100.0]
+    player = speech.Aplay("x", lead_s=0.3, clock=lambda: now[0])
+    voice = b"\x01\x02" * 10
+
+    player(wav_of(voice))                      # first sound: the speaker is asleep
+    assert frames_of(FakeAplay.made[-1].fed) == b"\0" * 600 + voice  # 300 frames x 2 bytes
+    now[0] += 0.5
+    player(wav_of(voice))                      # the next sentence, right after
+    assert frames_of(FakeAplay.made[-1].fed) == voice
+    now[0] += 5
+    player(wav_of(voice))                      # quiet again for a while
+    assert frames_of(FakeAplay.made[-1].fed).startswith(b"\0" * 600)
+
+
 def test_aplay_stop_terminates_and_is_not_an_error(monkeypatch):
     monkeypatch.setattr(speech.subprocess, "Popen", FakeAplay)
     player = speech.aplay("x")

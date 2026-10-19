@@ -8,6 +8,9 @@ speakerphone use its plughw name from `aplay -L`, so ALSA converts Piper's
     FOCUS_SPEECH_VOICE   the .onnx voice (default: the one install puts in
                          /opt/focus-assistant/voices)
     FOCUS_SPEECH_DEVICE  ALSA device, default "default"
+    FOCUS_SPEECH_LEAD_MS silence played first after the speaker has been
+                         quiet, so a USB speaker's amp is awake before the
+                         first word (default 300; 0 turns it off)
     FOCUS_SPEECH_WAV     save to this WAV instead of playing (no speaker needed)
 
     python -m focus.outputs.speech            say the last check-in again
@@ -36,6 +39,9 @@ from ..state import State
 log = logging.getLogger(__name__)
 
 DEFAULT_VOICE = "/opt/focus-assistant/voices/en_US-lessac-medium.onnx"
+DEFAULT_LEAD_MS = 300
+# Quiet for longer than this, and the speaker may have gone to sleep again.
+WAKE_AFTER_S = 2.0
 
 
 def synthesize(voice, text: str) -> bytes:
@@ -45,21 +51,52 @@ def synthesize(voice, text: str) -> bytes:
     return buf.getvalue()
 
 
-class Aplay:
-    """Plays a WAV through aplay; stop() cuts off whatever is playing (a play press)."""
+def with_lead_in(wav: bytes, seconds: float) -> bytes:
+    """The same WAV with `seconds` of silence in front (unchanged if it isn't a WAV)."""
+    try:
+        with wave.open(io.BytesIO(wav)) as r:
+            params = r.getparams()
+            frames = r.readframes(r.getnframes())
+    except (wave.Error, EOFError):
+        return wav
+    quiet = b"\x80" if params.sampwidth == 1 else b"\0"  # 8-bit WAV is unsigned
+    silence = quiet * (int(params.framerate * seconds) * params.nchannels * params.sampwidth)
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setparams(params)
+        w.writeframes(silence + frames)
+    return out.getvalue()
 
-    def __init__(self, device: str):
+
+class Aplay:
+    """Plays a WAV through aplay; stop() cuts off whatever is playing (a play press).
+
+    A USB speaker powers its amp down when idle and swallows the first part
+    of a second while it wakes, so after a quiet spell each WAV starts with
+    `lead_s` of silence. Sentences played back to back get none.
+    """
+
+    def __init__(self, device: str, lead_s: float = DEFAULT_LEAD_MS / 1000,
+                 clock: Callable[[], float] = time.monotonic):
         self.device = device
+        self.lead_s = lead_s
+        self.clock = clock
         self._proc: subprocess.Popen | None = None
         self._stopped = False
+        self._ended_at: float | None = None
 
     def __call__(self, wav: bytes) -> None:
         self._stopped = False
+        idle = self._ended_at is None or self.clock() - self._ended_at > WAKE_AFTER_S
+        if idle and self.lead_s > 0:
+            wav = with_lead_in(wav, self.lead_s)
         self._proc = subprocess.Popen(["aplay", "-q", "-D", self.device, "-"], stdin=subprocess.PIPE)
         try:
             self._proc.communicate(wav, timeout=120)
         except BrokenPipeError:
             pass  # stopped while writing
+        finally:
+            self._ended_at = self.clock()
         if self._proc.returncode and not self._stopped:
             raise subprocess.CalledProcessError(self._proc.returncode, "aplay")
 
@@ -71,7 +108,7 @@ class Aplay:
 
 
 def aplay(device: str) -> Aplay:
-    return Aplay(device)
+    return Aplay(device, int(os.environ.get("FOCUS_SPEECH_LEAD_MS", DEFAULT_LEAD_MS)) / 1000)
 
 
 def save_to(path: str) -> Callable[[bytes], None]:
