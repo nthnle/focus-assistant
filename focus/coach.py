@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Callable
@@ -32,20 +33,20 @@ from .state import State
 # data goes in the user message, not here.
 SYSTEM_PROMPT = """\
 You are a focus coach on a small device on the user's desk. Three times a \
-day you get their priorities, what they have done, and what the device has \
+day you get their to-do list, what they have done, and what the device has \
 logged (self-reports, pauses, phone taken off its charger during focus time). \
-Reply with what helps them do the right next thing.
+Reply with what helps them get through it.
 
-`facts` already has the counts and totals: the next priority, phone pickups \
+`facts` already has the counts and totals: open and done items, phone pickups \
 and minutes off the charger, what has carried over three days or more, and \
 whether they have paused. Use those numbers as given; never work them out \
 again from the events. The phone belongs on its charger during focus time, \
 so phone_out means it was picked up.
 
-week_goals are the one to three goals they set for this week. When a \
-priority clearly serves one, you may say so in a few words. next_week_goals, \
+week_goals are the one to three goals they set for this week. When an \
+item clearly serves one, you may say so in a few words. next_week_goals, \
 if present, are already set for the week ahead. `later` holds \
-priorities scheduled for another day: leave them alone unless asked.
+items scheduled for another day: leave them alone unless asked.
 
 The reply may be shown on a small e-ink screen or spoken aloud, so write \
 plain sentences: no markdown, no lists, no emoji, at most 70 words (100 for \
@@ -56,9 +57,10 @@ By check-in:
 last_week.review suggested something to try, recall it in a few words. If \
 week_goals is empty, ask them to set one to three goals for the week. Then \
 carry on as a normal morning.
-- morning: name the one priority to start with and why. If there are more \
-than three open priorities, or something has carried over for three or more \
-days, say so and suggest dropping or shrinking it.
+- morning: suggest one item to start with and why. The list is not ranked, \
+so pick by what is due, what unblocks other items, what serves a week goal, \
+or a quick win to get going. If something has carried over for three or \
+more days, say so and suggest shrinking, rescheduling or dropping it.
 - midday: compare progress against the morning plan. If they drifted or the \
 phone came out often, name it plainly once, without guilt, and give one \
 concrete reset.
@@ -70,11 +72,11 @@ done, what kept carrying over, how the phone and breaks went. Then suggest \
 one concrete change to their routine, grounded in a pattern you can point \
 to in this_week (pickups bunching at one hour, things getting done late in \
 the day, check-ins missed): a different focus block, a break at another \
-time, the phone elsewhere during focus time, or fewer priorities. `routine` \
+time, the phone elsewhere during focus time, or a shorter list. `routine` \
 has the current settings. End the week on something they did well.
 - a weekly_review at a morning check-in (late is true) means Friday's \
 wrap-up was missed: look back at last week in two or three sentences, \
-suggest the routine change, then name the one priority to start with.
+suggest the routine change, then suggest one item to start with.
 - rewrite_of is present: this check-in already ran at \
 rewrite_of.written_at, and since then the list changed (done_since was \
 marked done). Write it again for the list as it is now, at the same \
@@ -84,9 +86,14 @@ facts.weekday says what day it is. Check-ins only run by themselves on \
 weekdays; on a Saturday or Sunday they asked for one, so keep it to two \
 sentences, don't judge what got done that day, and look ahead to Monday.
 
-If there are no priorities, ask them to set up to three, in one sentence.
+If the list is empty, ask what they need to get done, in one sentence. \
+Never call an item "next" or rank the list.
 Be warm and direct. Do not invent tasks, progress or events that are not in \
-the data."""
+the data.
+
+After the reply, on a line of its own, write `start: <id>` with the id of \
+the item you suggested starting with, or `start: none`. The device removes \
+that line; its done button marks that item."""
 
 
 @dataclass
@@ -95,6 +102,7 @@ class CoachReply:
     model: str
     input_tokens: int
     output_tokens: int
+    start_id: int | None = None   # the item it suggested starting with
 
 
 class CoachError(Exception):
@@ -144,7 +152,6 @@ def facts(s: State, now: str) -> dict:
     phone = st.phone_summary(s.events, now)
     reports = [e.get("detail") for e in s.events if e["kind"] == st.SELF_REPORT]
     return {
-        "next_up": open_[0].text if open_ else None,
         "open_count": len(open_),
         "done_count": len([p for p in s.today_list if p.done]),
         "carried_3_days_or_more": [p.text for p in open_ if p.carried_days >= 3],
@@ -374,26 +381,43 @@ def ask(cfg: Config, payload: dict, client: openai.OpenAI | None = None) -> Coac
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
     )
+    text, start_id = split_start(reply_text(response))
     return CoachReply(
-        text=reply_text(response),
+        text=text,
         # The name from focus.env, so `focus status` can match it to its price.
         model=cfg.model,
+        start_id=start_id,
         input_tokens=response.usage.input_tokens,
         output_tokens=response.usage.output_tokens,
     )
 
 
+# "start: 12" on the reply's last line; models sometimes add backticks or bold.
+_START = re.compile(r"(?:^|\n)[ \t`*]*start:\s*`?(\d+|none)`?[ \t`*.]*$", re.I)
+
+
+def split_start(text: str) -> tuple[str, int | None]:
+    """The reply without its closing `start: <id>` line, and that id."""
+    m = _START.search(text.rstrip())
+    if not m:
+        return text, None
+    reply = text.rstrip()[:m.start()].rstrip()
+    return (reply or text), (int(m.group(1)) if m.group(1).isdigit() else None)
+
+
+def _items(n: int) -> str:
+    return f"{n} item" if n == 1 else f"{n} items"
+
+
 def offline_reply(s: State, slot: str) -> str:
     """What a check-in says when the model can't be reached: fixed, but from the data."""
-    top = s.open_priorities[0].text if s.open_priorities else None
-    if slot == "morning":
-        if top:
-            return f"The coach is offline. Start with: {top}."
-        return "The coach is offline. Set up to three priorities for today."
-    if slot == "midday":
-        if top:
-            return f"The coach is offline. Still open at the top: {top}."
+    open_ = len(s.open_priorities)
+    if slot in ("morning", "midday"):
+        if open_:
+            return f"The coach is offline. {_items(open_)} open on today's list."
+        if slot == "morning":
+            return "The coach is offline. Add what you need to get done today."
         return "The coach is offline. Everything on today's list is done."
     done = len([p for p in s.today_list if p.done])
-    tomorrow = f"; first thing tomorrow: {top}." if top else "."
-    return f"The coach is offline. {done} done today{tomorrow} Put the phone away for the night."
+    left = f", {open_} still open." if open_ else "."
+    return f"The coach is offline. {done} done today{left} Put the phone away for the night."

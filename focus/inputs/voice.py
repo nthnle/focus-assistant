@@ -105,16 +105,19 @@ def call_presses(stream: io.BufferedReader, report: bytes = CALL_REPORT) -> Iter
             yield None
 
 
-def mark_top_done(cfg: Config) -> str:
-    """The call button: mark the top open priority done; returns what to say."""
+def mark_suggested_done(cfg: Config) -> str:
+    """The call button: mark done the item the latest check-in suggested
+    starting with; returns what to say."""
     with st.locked_state(cfg) as s:
         if not s.open_priorities:
             return "Nothing left to mark done."
-        top = s.open_priorities[0]
-        actions.complete_priority(s, top.id)
-        rest = s.open_priorities
-    log.info("Call button: marked %s done", config.words(top.text))
-    return f"Done: {top.text}. " + (f"Next is {rest[0].text}." if rest else "That's everything on your list.")
+        item = s.suggested
+        if item is None:
+            return "Tell me which one is done."
+        actions.complete_priority(s, item.id)
+        left = len(s.open_priorities)
+    log.info("Call button: marked %s done", config.words(item.text))
+    return f"Done: {item.text}. " + (f"{left} left on your list." if left else "That's everything on your list.")
 
 
 def undo_last_done(cfg: Config) -> str:
@@ -698,12 +701,12 @@ def main() -> int:
         else:
             try:
                 calls = call_presses(stack.enter_context(open(hidraw, "rb", buffering=0)))
-                log.info("Call button on %s marks the top priority done", hidraw)
+                log.info("Call button on %s marks the suggested item done", hidraw)
             except PermissionError:
                 log.warning("Can't read %s; install.sh adds the udev rule that allows it", hidraw)
         log.info("Ready: %s, then speak", " or ".join(ways))
         run(voice, mic, presses, wake, calls=calls,
-            on_call=lambda: (spoken.say(mark_top_done(cfg)), refresh()),
+            on_call=lambda: (spoken.say(mark_suggested_done(cfg)), refresh()),
             on_double_call=lambda: (spoken.say(undo_last_done(cfg)), refresh()), **extras)
     return 0
 

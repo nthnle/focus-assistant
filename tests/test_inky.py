@@ -40,17 +40,17 @@ def test_overlong_reply_is_truncated_at_smallest_font():
     assert lines[-1].endswith("…") and not lines[-1].endswith("……")
 
 
-def test_redraws_only_when_top3_or_reply_changes(tmp_path, monkeypatch):
+def test_redraws_only_when_the_items_shown_or_reply_change(tmp_path, monkeypatch):
     shown = []
     out = inky.InkyOutput(tmp_path / "inky.last")
     monkeypatch.setattr(out, "_show", shown.append)
-    s = make_state("Write spec", "Email Sam", "Book dentist", "Fourth")
+    s = make_state("Write spec", "Email Sam", "Book dentist", "Fourth", "Fifth", "Sixth", "Seventh")
 
     out.checkin(s, "morning", REPLY)
     out.checkin(s, "morning", REPLY)
     assert len(shown) == 1
 
-    s.priorities[3].text = "Fourth, renamed"  # not in the top 3
+    s.priorities[6].text = "Seventh, renamed"  # only counted in "+2 more"
     out.checkin(s, "midday", REPLY)
     assert len(shown) == 1
 

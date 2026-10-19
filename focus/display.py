@@ -1,8 +1,8 @@
 """The Inky layout as an HTML page, for any browser on the home network.
 
 The panel has the same content as `outputs/inky.py`: the latest check-in's
-slot and the date, the top 3 open priorities (red tag = days carried) and
-the reply. Under it, a status strip the e-ink panel doesn't have: where you
+slot and the date, today's open items (up to SHOWN, red tag = days carried)
+and the reply. Under it, a status strip the e-ink panel doesn't have: where you
 are in the day (focus block, break, between blocks), the next 50/10 break,
 the phone, presence, and today's counts.
 
@@ -27,6 +27,8 @@ from . import state as st
 from .state import PHONE_OUT, STRETCH_REMINDER, State
 
 POLL_SECONDS = 2
+# Open items the screen lists before "+N more"; the 4" panel fits six.
+SHOWN = 6
 # A fallback in case the script can't run: a plain reload this often.
 REFRESH_SECONDS = 300
 
@@ -57,17 +59,16 @@ _PAGE = """<!doctype html>
   header {{ display: flex; justify-content: space-between; font-weight: 700;
             font-size: clamp(11px, 2.8cqi, 18px); }}
   .slot {{ color: var(--red); letter-spacing: .02em; }}
-  /* Room for three rows always, so the reply never jumps when priorities change. */
-  ol {{ list-style: none; padding: 0; margin-top: 3.5cqi; font-size: clamp(14px, 4.1cqi, 26px);
-        line-height: 1.45; height: 4.35em; }}
+  ol {{ list-style: none; padding: 0; margin-top: 3cqi; font-size: clamp(12px, 3.3cqi, 20px);
+        line-height: 1.35; }}
   li {{ display: flex; align-items: baseline; gap: 2cqi; font-weight: 700; }}
   li .n {{ color: var(--red); }}
   li .t {{ flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
   li .c {{ color: var(--red); font-size: .7em; }}
   li.none {{ font-weight: 700; }}
+  li.more {{ font-weight: 400; color: var(--red); padding-left: calc(2cqi + .6em); }}
   hr {{ border: 0; border-top: 2px solid var(--ink); margin: 1.3cqi 0 2.5cqi; }}
-  .reply {{ flex: 1; overflow: hidden; font-size: clamp(13px, 3.4cqi, 22px); line-height: 1.3;
-            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }}
+  .reply {{ flex: 1; min-height: 0; overflow: hidden; font-size: clamp(11px, 2.85cqi, 18px); line-height: 1.28; }}
   .since {{ margin-top: 1.5cqi; color: var(--red); font-weight: 700; font-size: clamp(12px, 3cqi, 19px);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
   .since:empty {{ display: none; }}
@@ -177,6 +178,15 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     return chips
 
 
+def shown(state: State) -> tuple[list, int]:
+    """The open items a screen lists, in the order they were added, and how
+    many more there are. Over SHOWN, the last row becomes "+N more"."""
+    open_ = state.open_priorities
+    if len(open_) <= SHOWN:
+        return open_, 0
+    return open_[:SHOWN - 1], len(open_) - (SHOWN - 1)
+
+
 def since_note(state: State) -> str:
     """What was marked done after the latest check-in was written, so the
     reply never reads as out of date ("Since 16:20: done Mow the lawn").
@@ -198,11 +208,14 @@ def _content(state: State, now: str, cfg: Config | None,
     reply = (last.get("reply") or "") if last else "The first check-in of the day will appear here."
 
     rows = []
-    for i, p in enumerate(state.open_priorities[:3], 1):
+    items, more = shown(state)
+    for p in items:
         carried = f'<span class="c">{p.carried_days}d</span>' if p.carried_days else ""
-        rows.append(f'<li><span class="n">{i}</span><span class="t">{escape(p.text)}</span>{carried}</li>')
+        rows.append(f'<li><span class="n">&bull;</span><span class="t">{escape(p.text)}</span>{carried}</li>')
+    if more:
+        rows.append(f'<li class="more">+{more} more</li>')
     if not rows:
-        rows.append('<li class="none">No open priorities</li>')
+        rows.append('<li class="none">Nothing open on the list</li>')
 
     chips = "".join(
         f'<div class="chip {tone}"><div class="k">{escape(k)}</div><div class="v">{escape(v)}</div></div>'

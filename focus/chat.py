@@ -29,28 +29,31 @@ MAX_PRIORITY_CHARS = 200
 SYSTEM_PROMPT = """\
 You are the user's focus coach, the same one that checks in three times a \
 day from a small device on their desk. Now they are messaging you from their \
-phone, often by voice. Each message comes with their current priorities, \
-today's check-ins and device events.
+phone, often by voice. Each message comes with their to-do list (the \
+`priorities` in the data), today's check-ins and device events.
 
-Help them decide and keep going: answer questions about their day, and \
-change their priorities when they ask, using the tools. Use the priority ids \
-from the data. If a request is ambiguous, ask one short question instead of \
-guessing. If they want quiet for a while (a meeting, a call, a day off), \
-use pause; resume ends a pause early. For another day, add the priority \
-and then schedule it. Week goals are one to three outcomes for this week, \
-set with add_goal, usually on Monday. If they ask how to improve their \
-routine, suggest one or two concrete changes (focus block times, breaks, \
-where the phone lives, how many priorities), each tied to a pattern you can \
-point to in recent_days, and say that focus blocks are changed in \
-focus.env. Never invent tasks, progress or events. Take counts and totals from `facts` as given, and after a change \
-take the list from the tool result's "Priorities now", not from the data \
-sent before the change.
+Help them get through the list: answer questions about their day, and \
+change the list when they ask, using the tools. Use the item ids from the \
+data. If a request is ambiguous, ask one short question instead of \
+guessing. To change an item's wording, rename it; drop an item only when \
+they clearly ask for it to be removed. If they want quiet for a while (a \
+meeting, a call, a day off), use pause; resume ends a pause early. For \
+another day, add the item and then schedule it. Week goals are one to \
+three outcomes for this week, set with add_goal, usually on Monday. If \
+they ask how to improve their routine, suggest one or two concrete changes \
+(focus block times, breaks, where the phone lives, how long the list is), \
+each tied to a pattern you can point to in recent_days, and say that focus \
+blocks are changed in focus.env. Never invent tasks, progress or events. \
+Take counts and totals from `facts` as given, and after a change take the \
+list from the tool result's "List now", not from the data sent before the \
+change.
+
+The list is not ranked: never call an item "next" or "the top one". If \
+they ask what to do, suggest one item and why.
 
 Your reply may be read aloud, so write plain sentences: no markdown, no \
 lists, no emoji, at most 60 words. After changing something, say what you \
-changed in a few words, naming the item, not just "done" or "all set". \
-Don't add what is next after a change: the device adds that itself when \
-the top of the list changed. Say what is next only when they ask."""
+changed in a few words, naming the item, not just "done" or "all set"."""
 
 # Added for messages spoken at the desk: there the reply is heard, and every
 # extra sentence is another second or two of waiting.
@@ -78,18 +81,16 @@ def _tool(name: str, description: str, properties: dict) -> dict:
     }
 
 
-_ID = {"type": "integer", "description": "Priority id from the data"}
+_ID = {"type": "integer", "description": "Item id from the data"}
 
 TOOLS = [
-    _tool("add_priority", "Add a priority to the end of today's list.",
+    _tool("add_priority", "Add an item to today's to-do list.",
           {"text": {"type": "string", "description": "Short imperative, e.g. 'Email Sam the budget'"}}),
-    _tool("rename_priority", "Change a priority's wording, e.g. to fix a typo.",
+    _tool("rename_priority", "Change an item's wording, e.g. to fix a typo or a mis-hearing.",
           {"id": _ID, "text": {"type": "string", "description": "The new wording"}}),
-    _tool("complete_priority", "Mark a priority done.", {"id": _ID}),
-    _tool("reopen_priority", "Mark a done priority as not done.", {"id": _ID}),
-    _tool("drop_priority", "Remove a priority entirely.", {"id": _ID}),
-    _tool("move_priority", "Move a priority to a 1-based position; 1 is the top.",
-          {"id": _ID, "position": {"type": "integer", "description": "1 = top"}}),
+    _tool("complete_priority", "Mark an item done.", {"id": _ID}),
+    _tool("reopen_priority", "Mark a done item as not done.", {"id": _ID}),
+    _tool("drop_priority", "Remove an item from the list entirely. Only when they ask to remove it.", {"id": _ID}),
     _tool("report", "Log how the current focus block is going, when the user says so.",
           {"how": {"type": "string", "enum": ["on_track", "drifted"]}}),
     _tool("pause", "Hold spoken check-ins and stretch reminders until a time, or skip whole days off.",
@@ -128,7 +129,6 @@ _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "complete_priority": lambda s, a: actions.complete_priority(s, a["id"]),
     "reopen_priority": lambda s, a: actions.reopen_priority(s, a["id"]),
     "drop_priority": lambda s, a: actions.drop_priority(s, a["id"]),
-    "move_priority": lambda s, a: actions.move_priority(s, a["id"], a["position"]),
     "report": lambda s, a: actions.log_event(s, st.SELF_REPORT, a["how"]),
     "pause": lambda s, a: actions.pause(s, pause.parse_until(a["until"], datetime.now().astimezone())),
     "resume": lambda s, a: actions.resume(s),
@@ -141,7 +141,7 @@ _HANDLERS: dict[str, Callable[[State, dict], object]] = {
 
 def _priorities_text(s: State) -> str:
     if not s.priorities:
-        lines = ["No priorities."]
+        lines = ["The list is empty."]
     else:
         lines = [
             f"{i}. id={p.id} {'[done] ' if p.done else ''}{f'[on {p.on}] ' if p.on and not p.due(s.date) else ''}{p.text}"
@@ -152,7 +152,6 @@ def _priorities_text(s: State) -> str:
     return "\n".join(lines + (["Week goals:"] + goals if goals else []))
 
 
-_SAYS_NEXT = re.compile(r"\bnext (is|up)\b", re.I)
 _ENDS_WITH_NEXT = re.compile(r"[\s;,.]*\bnext (is|up)\b[^.!?]*[.!?]?\s*$", re.I)
 
 
@@ -196,11 +195,6 @@ class _FirstPartFilter:
         self.tail = joined[-2:]
 
 
-def _top_id(s: State) -> int | None:
-    open_ = s.open_priorities
-    return open_[0].id if open_ else None
-
-
 def _arguments(raw: str) -> dict:
     """The model's arguments, checked: open models don't always follow the schema."""
     try:
@@ -209,7 +203,7 @@ def _arguments(raw: str) -> dict:
         raise ValueError(f"arguments are not valid JSON ({exc})") from exc
     if not isinstance(args, dict):
         raise ValueError("arguments must be a JSON object")
-    for key in ("id", "position"):
+    for key in ("id",):
         if key in args:
             value = args[key]
             if isinstance(value, bool) or not str(value).strip().lstrip("-").isdigit():
@@ -253,12 +247,10 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
     try:
         args = _arguments(raw_args)
         with st.locked_state(cfg) as s:
-            before = s.open_priorities[0].id if s.open_priorities else None
             handler(s, args)
-            open_ = s.open_priorities
             quiet = pause.describe(s, datetime.now().astimezone())
             paused = f"\nPaused {quiet}" if quiet else ""
-            return f"Done.{paused}\nPriorities now:\n" + _priorities_text(s), False
+            return f"Done.{paused}\nList now:\n" + _priorities_text(s), False
     except (st.StateError, KeyError, TypeError, ValueError) as exc:
         return f"Error: {exc}", True
 
@@ -283,7 +275,6 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         s.chat_attempts += 1
         payload = coach.build_payload(s, "chat", st.now_iso())
         history = s.chat[-HISTORY_TURNS:]
-        top_before = _top_id(s)
 
     # Short timeouts: the phone is waiting, and a Shortcut gives up after about a minute.
     client = client or coach.make_client(
@@ -320,16 +311,6 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         raise CoachError("The coach took too many steps; try a simpler request")
 
     reply = _first_part(coach.reply_text(response))
-    if changed and not _SAYS_NEXT.search(reply):
-        after = st.peek(cfg)
-        if _top_id(after) != top_before:
-            # Said by the code, not the model: given the list, the model names
-            # the next item after every change, moved or not.
-            open_ = after.open_priorities
-            sentence = f"Next is {open_[0].text}." if open_ else "That's everything on your list."
-            if on_text:
-                on_text(" " + sentence)
-            reply = f"{reply.rstrip()} {sentence}"
     with st.locked_state(cfg) as s:
         s.chat.append(pricing.priced({
             "at": st.now_iso(),

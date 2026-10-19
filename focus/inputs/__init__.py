@@ -1,7 +1,7 @@
 """Input adapters (later phases). Each one turns hardware into calls on
 `focus.actions` inside `focus.state.locked_state`, and nothing else:
 
-    buttons.py  Inky Impression A/B/C/D -> complete top priority / on track /
+    buttons.py  Inky Impression A/B/C/D -> complete the suggested item / on track /
                 drifted / pause (gpiozero, long-running service)
     dock.py     iPhone Shortcut reports charger on/off over the home network
                 -> PHONE_OUT / PHONE_IN events

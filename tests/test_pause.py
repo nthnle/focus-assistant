@@ -121,22 +121,22 @@ def test_carried_days_count_only_check_in_days_and_not_evening_plans(cfg):
     assert {p.text: p.carried_days for p in s.priorities} == {"Write spec": 1, "Book dentist": 0}
 
 
-def test_cli_numbers_by_position_and_stars_the_open_top_three(cfg, capsys):
+def test_cli_numbers_by_position(cfg, capsys):
     for text in ("Write the spec", "Email Sam", "Review PR", "Book dentist"):
         cli.main(["add", text])
     capsys.readouterr()
     cli.main(["done", "1"])
     lines = capsys.readouterr().out.splitlines()
     assert lines == [
-        " [x] 1. Write the spec",
-        "*[ ] 2. Email Sam",
-        "*[ ] 3. Review PR",
-        "*[ ] 4. Book dentist",
+        "[x] 1. Write the spec",
+        "[ ] 2. Email Sam",
+        "[ ] 3. Review PR",
+        "[ ] 4. Book dentist",
     ]
     cli.main(["edit", "4", "Book", "the", "dentist"])
-    assert "*[ ] 4. Book the dentist" in capsys.readouterr().out
+    assert "[ ] 4. Book the dentist" in capsys.readouterr().out
     assert cli.main(["drop", "9"]) == 1
-    assert "No priority 9" in capsys.readouterr().err
+    assert "No item 9" in capsys.readouterr().err
 
 
 def test_cli_pause_and_resume(cfg, capsys):

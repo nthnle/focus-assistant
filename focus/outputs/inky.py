@@ -1,4 +1,4 @@
-"""Draw the top 3 open priorities and the coach's reply on the Inky Impression 4".
+"""Draw today's open items and the coach's reply on the Inky Impression 4".
 
 `render()` is pure Pillow, so the layout can be worked on without the panel:
 
@@ -8,8 +8,8 @@
                                 redraws the last check-in in state.json
                                 (no API call).
 
-A full refresh takes about 30 s, so the panel is only redrawn when the top 3
-or the reply has changed since the last draw.
+A full refresh takes about 30 s, so the panel is only redrawn when the items
+shown or the reply have changed since the last draw.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from .. import config, state as st
+from ..display import shown
 from ..state import State
 
 log = logging.getLogger(__name__)
@@ -36,8 +37,8 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)  # one accent; the 7-colour panel has a clean red
 
 HEADER_SIZE = 18
-PRIORITY_SIZE = 26
-PRIORITY_LINE = 38
+ITEM_SIZE = 19   # six rows of these leave the reply about six lines
+ITEM_LINE = 26
 REPLY_MAX_SIZE = 24
 REPLY_MIN_SIZE = 16
 
@@ -118,24 +119,29 @@ def render(state: State, slot: str, reply: str) -> Image.Image:
     draw.text((SIZE[0] - MARGIN, y), day, font=header, fill=BLACK, anchor="ra")
     y += 40
 
-    # Fixed-height block so the reply never jumps when priorities change.
-    pfont = _font(PRIORITY_SIZE, bold=True)
-    tag_font = _font(HEADER_SIZE, bold=True)
-    open_ = state.open_priorities
-    if not open_:
-        draw.text((MARGIN, y), "No open priorities", font=pfont, fill=BLACK)
-    for i, p in enumerate(open_[:3], 1):
-        row = y + (i - 1) * PRIORITY_LINE
+    pfont = _font(ITEM_SIZE, bold=True)
+    tag_font = _font(HEADER_SIZE - 3, bold=True)
+    items, more = shown(state)
+    bullet = "\u2022  "
+    bullet_w = pfont.getlength(bullet)
+    rows = 0
+    if not items:
+        draw.text((MARGIN, y), "Nothing open on the list", font=pfont, fill=BLACK)
+        rows = 1
+    for p in items:
+        row = y + rows * ITEM_LINE
         tag = f"{p.carried_days}d" if p.carried_days else ""
         tag_w = tag_font.getlength(tag) + 12 if tag else 0
-        num = f"{i}  "
-        num_w = pfont.getlength(num)
-        draw.text((MARGIN, row), num, font=pfont, fill=RED)
-        text = _ellipsize(p.text, pfont, width - num_w - tag_w)
-        draw.text((MARGIN + num_w, row), text, font=pfont, fill=BLACK)
+        draw.text((MARGIN, row), bullet, font=pfont, fill=RED)
+        text = _ellipsize(p.text, pfont, width - bullet_w - tag_w)
+        draw.text((MARGIN + bullet_w, row), text, font=pfont, fill=BLACK)
         if tag:
-            draw.text((SIZE[0] - MARGIN, row + 6), tag, font=tag_font, fill=RED, anchor="ra")
-    y += 3 * PRIORITY_LINE + 8
+            draw.text((SIZE[0] - MARGIN, row + 4), tag, font=tag_font, fill=RED, anchor="ra")
+        rows += 1
+    if more:
+        draw.text((MARGIN + bullet_w, y + rows * ITEM_LINE), f"+{more} more", font=_font(ITEM_SIZE), fill=RED)
+        rows += 1
+    y += rows * ITEM_LINE + 8
 
     draw.line((MARGIN, y, SIZE[0] - MARGIN, y), fill=BLACK, width=2)
     y += 16
@@ -151,8 +157,9 @@ def render(state: State, slot: str, reply: str) -> Image.Image:
 
 
 def fingerprint(state: State, reply: str) -> str:
-    top = [(p.text, p.carried_days) for p in state.open_priorities[:3]]
-    return hashlib.sha256(json.dumps([top, reply]).encode()).hexdigest()
+    items, more = shown(state)
+    listed = [(p.text, p.carried_days) for p in items]
+    return hashlib.sha256(json.dumps([listed, more, reply]).encode()).hexdigest()
 
 
 class InkyOutput:

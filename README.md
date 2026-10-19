@@ -27,10 +27,10 @@ More diagrams, including a weekday timeline, are in
 | | Needs |
 |---|---|
 | **Check-ins** at 09:00, 13:00 and 17:30 on weekdays; **weekly goals**, a **weekly wrap-up** on Friday evening with a suggested change to your routine, and a Monday check-in that opens the week | a Pi and a key for a hosted open model |
-| **Priorities** from the command line: `focus add`, `focus done`, `focus move` ... unfinished ones carry over, and the coach notices when something keeps slipping | nothing extra |
+| A **to-do list** (not ranked) from the command line: `focus add`, `focus done`, `focus later` ... unfinished items carry over, each check-in suggests one to start with, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
-| **Voice commands** at the desk: "Hey Jarvis, done with the report, what's next?", plus buttons on a speakerphone | a USB speakerphone |
-| A **status page** that previews the e-ink display in a browser while the panel is on its way, for development: today's top three, the coach's last words, focus block, phone, breaks | nothing extra |
+| **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
+| A **status page** that previews the e-ink display in a browser while the panel is on its way, for development: today's open items, the coach's last words, focus block, phone, breaks | nothing extra |
 | **Phone pickups**: it notices when you take your phone off its charger during focus time | your usual charger (pad or cable), iOS Shortcuts |
 | **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
@@ -79,9 +79,8 @@ What to do and when, on one page: [docs/routine.md](docs/routine.md).
 
 ```bash
 focus add Finish the quarterly report
-focus show            # numbered list; * marks the top 3 open, the ones the coach and display focus on
+focus show            # the list, numbered in the order you added things (not a ranking)
 focus done 1          # numbers are positions in `focus show`
-focus move 4 1        # put #4 at the top
 focus edit 2 Email Sam the budget
 focus drop 3
 focus report drifted  # or on-track: tell the coach how the block is going

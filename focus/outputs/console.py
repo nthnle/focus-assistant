@@ -13,11 +13,9 @@ class ConsoleOutput:
         if open_:
             print()
             number = {p.id: i for i, p in enumerate(state.ordered, 1)}  # as `focus show` numbers them
-            for p in open_[:3]:
+            for p in open_:
                 carried = f" (carried {p.carried_days}d)" if p.carried_days else ""
                 print(f"  {number[p.id]}. {p.text}{carried}")
-            if len(open_) > 3:
-                print(f"  ...and {len(open_) - 3} more")
 
 
 def create() -> ConsoleOutput:

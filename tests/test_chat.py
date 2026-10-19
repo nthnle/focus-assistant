@@ -28,12 +28,11 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
 
     client, sent = scripted(
         completion(tool_calls=[tool_call("complete_priority", {"id": 1})]),
-        completion("Marked the spec done. Email Sam next."),
+        completion("Marked the spec done."),
     )
     reply = chat.run(cfg, "finished the spec", client=client)
 
-    # The top moved, so the code names what is next.
-    assert reply == "Marked the spec done. Email Sam next. Next is Email Sam."
+    assert reply == "Marked the spec done."   # nothing added: the list has no "next"
     with st.locked_state(cfg) as s:
         assert s.priorities[0].done
         assert s.chat[-1]["user"] == "finished the spec"
@@ -51,7 +50,7 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     assert replayed["role"] == "assistant"
     assert replayed["tool_calls"][0]["function"]["name"] == "complete_priority"
     assert result["role"] == "tool" and result["tool_call_id"] == "call_1"
-    assert "[done] Write spec" in result["content"]
+    assert "[done] Write spec" in result["content"] and "List now" in result["content"]
 
 
 @pytest.mark.parametrize("reply, replayed", [
@@ -81,33 +80,8 @@ def test_a_glued_on_second_message_is_dropped(text, first):
         assert "".join(sent) == first
 
 
-def test_next_item_is_not_added_twice(cfg):
-    with st.locked_state(cfg) as s:
-        actions.add_priority(s, "Car inspection")
-        actions.add_priority(s, "Call the dentist")
-    client, _ = scripted(
-        completion(tool_calls=[tool_call("complete_priority", {"id": 1})]),
-        completion("Car inspection done; next is Call the dentist."),
-    )
-    assert chat.run(cfg, "car inspection done", client=client) == "Car inspection done; next is Call the dentist."
-
-
-def test_next_item_is_named_only_when_the_top_changed(cfg):
-    with st.locked_state(cfg) as s:
-        actions.add_priority(s, "Car inspection")
-        actions.add_priority(s, "Lawn pre-emergent")
-
-    client, _ = scripted(
-        completion(tool_calls=[tool_call("complete_priority", {"id": 2})]),
-        completion("Marked pre-emergent done."),
-        completion(tool_calls=[tool_call("complete_priority", {"id": 1})]),
-        completion("Car inspection is done."),
-    )
-    assert chat.run(cfg, "pre-emergent is done", client=client) == "Marked pre-emergent done."
-    assert chat.run(cfg, "car inspection done", client=client) == \
-        "Car inspection is done. That's everything on your list."
-    with st.locked_state(cfg) as s:
-        assert s.chat[-1]["reply"].endswith("That's everything on your list.")
+def test_there_is_no_move_tool():
+    assert "move_priority" not in {t["function"]["name"] for t in chat.TOOLS}
 
 
 def test_chat_model_defaults_to_the_check_in_model(cfg, monkeypatch):
@@ -147,8 +121,7 @@ def test_streamed_tool_calls_are_put_back_together(cfg):
 
     pieces = []
     reply = chat.run(cfg, "done", client=client_for(handler), on_text=pieces.append)
-    # The code's own "what is next" sentence is streamed to the speaker too.
-    assert reply == "".join(pieces) == "Done. That's everything on your list."
+    assert reply == "".join(pieces) == "Done."
     with st.locked_state(cfg) as s:
         assert s.priorities[0].done
 

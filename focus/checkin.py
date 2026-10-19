@@ -52,6 +52,8 @@ def run(cfg: Config, slot: str | None = None) -> str | None:
                 "model": reply.model,
                 "tokens": {"in": reply.input_tokens, "out": reply.output_tokens},
             }, reply.model, reply.input_tokens, reply.output_tokens)
+        if reply is not None and reply.start_id is not None:
+            record["start_id"] = reply.start_id   # what the call button marks done
         s.checkins.append({"slot": slot, "at": st.now_iso(), "reply": text, **record})
         if reply is not None:
             _remember_the_week(s, payload, text)
@@ -108,6 +110,9 @@ def refresh(cfg: Config, client=None, today: date | None = None) -> str | None:
             return None
         last.setdefault("first_reply", last.get("reply"))
         last["reply"] = reply.text
+        last.pop("start_id", None)
+        if reply.start_id is not None:
+            last["start_id"] = reply.start_id
         last["updated_at"] = st.now_iso()
         last.setdefault("rewrites", []).append(pricing.priced({
             "model": reply.model,

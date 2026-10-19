@@ -97,7 +97,7 @@ def check(kind: str, payload: dict, reply: str) -> list[str]:
         open_ = [p["text"] for p in payload.get("priorities", []) if not p.get("done")]
         said = _words(text)
         if open_ and not any(_words(p) & said for p in open_):
-            problems.append("morning check-in doesn't name any open priority")
+            problems.append("morning check-in doesn't suggest any open item")
     return problems
 
 

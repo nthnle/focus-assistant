@@ -1,8 +1,10 @@
+import pytest
+
 from focus import display
 from focus.state import Priority, State
 
 
-def test_top_three_open_with_carried_tag():
+def test_open_items_with_carried_tag():
     s = State(date="2026-10-16", priorities=[
         Priority(1, "Done one", done_at="x"),
         Priority(2, "Spec", carried_days=3),
@@ -10,19 +12,30 @@ def test_top_three_open_with_carried_tag():
     ])
     page = display.render_html(s, "2026-10-16T09:05:00-05:00")
     assert "Spec" in page and '<span class="c">3d</span>' in page
-    assert "Report" in page and "Fourth open" not in page and "Done one" not in page
+    assert "Report" in page and "Fourth open" in page and "Done one" not in page
+    assert "more</li>" not in page
     assert "NO CHECK-IN YET" in page
     assert "Fri 16 Oct" in page and "Updated 09:05" in page
 
 
 def test_empty_state():
     page = display.render_html(State(date="2026-10-16"), "2026-10-16T09:05:00-05:00")
-    assert "No open priorities" in page
+    assert "Nothing open on the list" in page
+
+
+@pytest.mark.parametrize("n, listed, more", [(6, 6, 0), (7, 5, 2), (10, 5, 5)])
+def test_a_long_list_ends_in_more(n, listed, more):
+    s = State(date="2026-10-16", priorities=[Priority(i, f"Item {i}") for i in range(1, n + 1)])
+    items, extra = display.shown(s)
+    assert (len(items), extra) == (listed, more)
+    page = display.render_html(s, "2026-10-16T09:05:00-05:00")
+    assert page.count("&bull;") == listed
+    assert (f"+{more} more" in page) == bool(more)
 
 
 from datetime import datetime, timedelta, timezone  # noqa: E402
 
-import pytest  # noqa: E402
+
 
 from focus import blocks, config, state as st  # noqa: E402
 

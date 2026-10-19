@@ -84,6 +84,17 @@ def test_a_rewrite_that_repeats_the_old_check_in_is_not_kept(cfg, monkeypatch):
     assert display.since_note(s) == "Since 16:20: done Mow the lawn"   # the note stays up
 
 
+def test_refresh_replaces_the_suggested_item(cfg, monkeypatch):
+    with st.locked_state(cfg) as s:
+        s.checkins.append({"slot": "morning", "at": st.now_iso(), "reply": "Start with a.", "start_id": 1})
+    monkeypatch.setattr(coach, "ask", lambda *a, **k: coach.CoachReply("Now b.", "test-model", 1, 1, start_id=2))
+    checkin.refresh(cfg)
+    assert st.peek(cfg).checkins[-1]["start_id"] == 2
+    monkeypatch.setattr(coach, "ask", lambda *a, **k: coach.CoachReply("All done.", "test-model", 1, 1))
+    checkin.refresh(cfg)
+    assert "start_id" not in st.peek(cfg).checkins[-1]
+
+
 def test_refresh_needs_a_check_in(cfg, monkeypatch):
     monkeypatch.setattr(coach, "ask", lambda *a, **k: pytest.fail("no call without a check-in"))
     assert checkin.refresh(cfg) is None

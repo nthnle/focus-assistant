@@ -80,14 +80,37 @@ def test_peek_reads_without_saving(cfg):
     assert cfg.state_path.stat().st_mtime_ns == before
 
 
-def test_move_and_drop(cfg):
+def test_drop(cfg):
     with st.locked_state(cfg) as s:
         for t in ("a", "b", "c"):
             actions.add_priority(s, t)
-        actions.move_priority(s, 3, 1)
-        assert [p.text for p in s.priorities] == ["c", "a", "b"]
         actions.drop_priority(s, 1)
-        assert [p.text for p in s.priorities] == ["c", "b"]
+        assert [p.text for p in s.priorities] == ["b", "c"]
+
+
+def test_suggested_is_the_check_ins_pick_while_it_is_open(cfg):
+    with st.locked_state(cfg) as s:
+        for t in ("a", "b", "c"):
+            actions.add_priority(s, t)
+        assert s.suggested is None   # no check-in has picked one
+        s.checkins.append({"slot": "morning", "at": "x", "reply": "Start with b.", "start_id": 2})
+        s.checkins.append({"slot": "midday", "at": "y", "reply": "Keep going."})   # picked none
+        assert s.suggested.text == "b"
+        actions.complete_priority(s, 2)
+        assert s.suggested is None   # done; "a" and "c" are both open, so no guess
+        actions.complete_priority(s, 1)
+        assert s.suggested.text == "c"   # the only one left
+
+
+def test_checkin_saves_the_item_it_suggested(cfg, monkeypatch):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Ship the parser")
+    monkeypatch.setattr(coach, "ask", lambda _cfg, payload, client=None:
+                        coach.CoachReply("Start with the parser.", "test-model", 1, 1, start_id=1))
+    checkin.run(cfg, "morning")
+    with st.locked_state(cfg) as s:
+        assert s.checkins[-1]["start_id"] == 1
+        assert s.checkins[-1]["reply"] == "Start with the parser."
 
 
 def test_corrupt_state_raises_clearly(cfg):
@@ -137,7 +160,7 @@ def test_coach_failure_gives_the_offline_check_in(cfg, monkeypatch, capsys):
     monkeypatch.setattr(coach, "ask", failing_ask)
     text = checkin.run(cfg, "midday")
 
-    assert text == "The coach is offline. Still open at the top: Ship the parser."
+    assert text == "The coach is offline. 1 item open on today's list."
     assert text in capsys.readouterr().out
     with st.locked_state(cfg) as s:
         assert s.checkins[-1]["reply"] == text

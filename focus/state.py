@@ -120,6 +120,20 @@ class State:
         return [p for p in self.today_list if not p.done]
 
     @property
+    def suggested(self) -> Priority | None:
+        """The open item the latest check-in suggested starting with, or the
+        only open item when there is just one. The list has no order, so
+        this is what "the one" means for the call button."""
+        open_ = self.open_priorities
+        for c in reversed(self.checkins):
+            if c.get("start_id") is not None:
+                match = [p for p in open_ if p.id == c["start_id"]]
+                if match:
+                    return match[0]
+                break  # done already; an older suggestion is out of date too
+        return open_[0] if len(open_) == 1 else None
+
+    @property
     def done_priorities(self) -> list[Priority]:
         return [p for p in self.priorities if p.done]
 

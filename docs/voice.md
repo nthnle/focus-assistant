@@ -75,17 +75,19 @@ Press the speakerphone's **play** button, wait for the rising chime, and
 speak. A falling chime means it heard you; the coach starts answering as
 soon as its first sentence is written. Voice replies are one short sentence:
 
-> "Done with the report, what's next?"
-> *"Done. Next is the email to Sam."*
+> "Done with the report."
+> *"Marked the report done."*
 
-"Next is …" is only added when the change moved the top of your list, so
-adding or finishing something further down gets a plain confirmation
-("Marked pre-emergent done.").
+> "What should I do now?"
+> *"Call the dentist; it's quick and clears a pending appointment."*
+
+The list isn't ranked, so the coach never says what's "next"; ask it and it
+suggests one item, with a reason.
 
 After each reply a soft chime means it's still listening for 5 seconds:
 speak again and it's another turn, with no button or wake word. Say nothing
 and it stops. The coach is the same one as [phone chat](phone.md#chat): it
-can add, rename, schedule, complete, reopen, drop and move priorities, set
+can add, rename, schedule, complete, reopen and drop items, set
 week goals, log how a block is going, and pause ("quiet until 11", "I'm off
 until Monday"). It's built for quick commands, not long conversations.
 
@@ -169,7 +171,7 @@ On the Anker PowerConf:
 | Button | Does |
 |---|---|
 | **Play** | Talk: starts a voice command. Pressed while you speak, it ends the recording; pressed while the coach speaks, it cuts the reply off. |
-| **Call** | Marks your top priority done and says what's next, instantly, with no API call. **Double press** (within 0.4 s) undoes it. |
+| **Call** | Marks done the item the latest check-in suggested starting with (or the only open one), instantly, with no API call. If no check-in suggested one, it asks you to say which. **Double press** (within 0.4 s) undoes it. |
 | **Mute** | Mutes the microphones inside the device. The Pi gets silence: a true privacy switch. |
 | **Volume** | Speaker volume, handled by the speakerphone itself. |
 

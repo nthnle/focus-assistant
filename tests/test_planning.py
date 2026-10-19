@@ -51,15 +51,17 @@ def test_scheduling_rules(cfg):
         assert s.open_priorities == [p] and p.on is None
 
 
-def test_numbers_and_moves_follow_the_shown_order(cfg, capsys):
+def test_numbers_follow_the_shown_order(cfg, capsys):
     for args in (["add", "Write spec"], ["add", "--on", "later", "Learn Rust"], ["add", "Email Sam"]):
         cli.main(args)
     capsys.readouterr()
-    cli.main(["move", "2", "1"])
+    cli.main(["show"])
     out = capsys.readouterr().out.splitlines()
-    assert out == ["*[ ] 1. Email Sam", "*[ ] 2. Write spec", "Later:", " [ ] 3. Learn Rust  (someday)"]
+    assert out == ["[ ] 1. Write spec", "[ ] 2. Email Sam", "Later:", "[ ] 3. Learn Rust  (someday)"]
     cli.main(["now", "3"])
-    assert "*[ ] 3. Learn Rust" in capsys.readouterr().out
+    assert "[ ] 2. Learn Rust" in capsys.readouterr().out   # back in the order it was added
+    with pytest.raises(SystemExit):   # no ranking, so no move command
+        cli.main(["move", "2", "1"])
     assert cli.main(["add", "--on", "someday-ish", "X"]) == 1
 
 

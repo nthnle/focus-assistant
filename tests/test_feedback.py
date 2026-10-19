@@ -19,7 +19,7 @@ MORNING = {"checkin": "morning", "facts": {"weekday": "Tuesday"},
 
 @pytest.mark.parametrize("kind, payload, reply, problem", [
     ("checkin", MORNING, "Start with the spec before email.", None),
-    ("checkin", MORNING, "Start with email today.", "doesn't name any open priority"),
+    ("checkin", MORNING, "Start with email today.", "doesn't suggest any open item"),
     ("checkin", MORNING, "**Write the spec** first.", "markdown"),
     ("checkin", MORNING, "- Write the spec\n- then email", "markdown"),
     ("checkin", MORNING, "Write the spec first 🚀", "emoji"),

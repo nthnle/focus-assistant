@@ -78,16 +78,6 @@ def drop_priority(s: State, priority_id: int) -> st.Priority:
     return p
 
 
-def move_priority(s: State, priority_id: int, position: int) -> None:
-    """Move to a 1-based position in `s.ordered`; the top three open are what
-    the display shows."""
-    p = s.find(priority_id)
-    order = s.ordered
-    order.remove(p)
-    order.insert(max(0, position - 1), p)
-    s.priorities = order
-
-
 def log_event(s: State, kind: str, detail: str | None = None,
               at: datetime | None = None) -> dict:
     """`at` backdates the event, for inputs that confirm it after a delay."""

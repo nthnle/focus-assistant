@@ -1,4 +1,4 @@
-"""`focus` command: run a check-in, or edit priorities until hardware exists."""
+"""`focus` command: run a check-in, or edit the to-do list."""
 
 from __future__ import annotations
 
@@ -26,9 +26,8 @@ def _show(s: st.State) -> None:
                 print(f"  [{'x' if g.get('done_at') else ' '}] {n}. {g['text']}")
         print()
     if not s.priorities:
-        print("No priorities yet. Add one with: focus add \"...\"")
+        print("Nothing on the list yet. Add something with: focus add \"...\"")
         return
-    top = {p.id for p in s.open_priorities[:3]}  # what the display and the coach treat as the top three
     today = s.today_list
     if not today:
         print("Nothing on today's list.")
@@ -38,8 +37,7 @@ def _show(s: st.State) -> None:
         mark = "x" if p.done else " "
         carried = f"  (carried {p.carried_days}d)" if p.carried_days else ""
         when = "" if p.due(s.date) else f"  ({_on(p.on)})"
-        star = "*" if p.id in top else " "
-        print(f"{star}[{mark}] {i}. {p.text}{carried}{when}")
+        print(f"[{mark}] {i}. {p.text}{carried}{when}")
 
 
 def _on(on: str) -> str:
@@ -47,10 +45,10 @@ def _on(on: str) -> str:
 
 
 def _at(s: st.State, number: int) -> st.Priority:
-    """The priority shown as `number` by `focus show`."""
+    """The item shown as `number` by `focus show`."""
     order = s.ordered
     if not 1 <= number <= len(order):
-        raise st.StateError(f"No priority {number}; `focus show` lists them")
+        raise st.StateError(f"No item {number}; `focus show` lists them")
     return order[number - 1]
 
 
@@ -88,30 +86,27 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("checkin", help="run a coach check-in (what the timer calls)")
     p.add_argument("--slot", choices=checkin.SLOTS, help="default: from the time of day")
 
-    sub.add_parser("show", help="list this week's goals, today's priorities and later ones")
+    sub.add_parser("show", help="list this week's goals, today's list and later items")
     sub.add_parser("last", help="print the latest check-in reply")
     sub.add_parser("status", help="services, today, presence and API cost at a glance")
-    p = sub.add_parser("add", help="add a priority")
+    p = sub.add_parser("add", help="add an item to the list")
     p.add_argument("--on", metavar="DAY", help="for another day: tomorrow, wed, 2026-10-24, later")
     p.add_argument("text", nargs="+")
-    p = sub.add_parser("later", help="move a priority off today's list, to a day or to someday")
+    p = sub.add_parser("later", help="move an item off today's list, to a day or to someday")
     p.add_argument("number", type=int)
     p.add_argument("day", nargs="*", help="tomorrow, wed, 2026-10-24 (default: someday)")
-    p = sub.add_parser("now", help="bring a later priority back to today")
+    p = sub.add_parser("now", help="bring a later item back to today")
     p.add_argument("number", type=int)
     sub.add_parser("goals", help="this week's goals (and next week's, on a weekend)")
     p = sub.add_parser("goal", help="week goals: add, done or drop one; on a weekend, add sets next week's")
     p.add_argument("action", choices=["add", "done", "drop"])
     p.add_argument("what", nargs="+", help="the goal's text (add) or its number (done, drop)")
     for name, help_ in [("done", "mark done"), ("undo", "mark not done"), ("drop", "remove")]:
-        p = sub.add_parser(name, help=f"{help_} a priority (its number in `focus show`)")
+        p = sub.add_parser(name, help=f"{help_} an item (its number in `focus show`)")
         p.add_argument("number", type=int)
-    p = sub.add_parser("edit", help="change a priority's wording")
+    p = sub.add_parser("edit", help="change an item's wording")
     p.add_argument("number", type=int)
     p.add_argument("text", nargs="+")
-    p = sub.add_parser("move", help="move a priority to a position (1 = top)")
-    p.add_argument("number", type=int)
-    p.add_argument("position", type=int)
     p = sub.add_parser("pause", help="hold check-ins and stretch reminders: 11:00, 45m, tomorrow, monday ...")
     p.add_argument("until", nargs="+")
     sub.add_parser("resume", help="end a pause now")
@@ -175,8 +170,6 @@ def main(argv: list[str] | None = None) -> int:
                 actions.drop_priority(s, _at(s, args.number).id)
             elif args.cmd == "edit":
                 actions.rename_priority(s, _at(s, args.number).id, " ".join(args.text))
-            elif args.cmd == "move":
-                actions.move_priority(s, _at(s, args.number).id, args.position)
             elif args.cmd == "pause":
                 try:
                     until = pause.parse_until(" ".join(args.until), datetime.now().astimezone())

@@ -15,9 +15,9 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 
 | When | Do |
 |---|---|
-| Before 09:00 | Put up to three priorities on the list: `focus add Write the spec`, or "add email Sam". Phone on its charger. |
-| 09:00 | Listen to the morning check-in and start with what it names. |
-| Focus time | Leave the phone on the charger. Stand up when the :50 reminder says so. Finished something? Press the speakerphone's **Call** button (marks the top priority done), or say "done with the report". |
+| Before 09:00 | Put what you need to get done on the list: `focus add Write the spec`, or "add email Sam". It isn't ranked. Phone on its charger. |
+| 09:00 | Listen to the morning check-in: it suggests one item to start with, and why. |
+| Focus time | Leave the phone on the charger. Stand up when the :50 reminder says so. Finished something? Say "done with the report", or, if it's the one the check-in suggested, press the speakerphone's **Call** button. |
 | A meeting or call | "Quiet until 11", or `focus pause 11:00`. Check-ins wait until it ends; stretch reminders are skipped. |
 | 13:00 | Midday check-in. If you drifted, take the one reset it gives you. |
 | 17:30 | Evening check-in. Add tomorrow's first thing now (it won't count as slipping). Phone away for the night. |
@@ -43,10 +43,9 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 ## Quick reference
 
 ```bash
-focus show            # the list, numbered; * marks the top three
+focus show            # the list, numbered in the order you added things
 focus last            # the latest check-in
 focus done 2          # by its number in `focus show`
-focus move 4 1        # to the top
 focus edit 2 Email Sam the budget
 focus resume          # end a pause
 focus status          # services, today, goals, pauses, replies, cost

@@ -72,11 +72,30 @@ def test_missing_model_is_explained(monkeypatch):
         coach.ask(config.load(), {}, client=client)
 
 
+@pytest.mark.parametrize("raw, text, start", [
+    ("Start with the report.\nstart: 3", "Start with the report.", 3),
+    ("Keep going.\n\n`start: none`", "Keep going.", None),
+    ("Do it.\n**start: 12**", "Do it.", 12),
+    ("A plain reply.", "A plain reply.", None),
+    ("Mention start: 4 mid-line.", "Mention start: 4 mid-line.", None),
+])
+def test_the_start_line_is_split_off(raw, text, start):
+    assert coach.split_start(raw) == (text, start)
+
+
+def test_ask_returns_the_suggested_item():
+    client, _ = scripted(completion("Start with the parser.\nstart: 7"))
+    reply = coach.ask(config.load(), {"checkin": "morning"}, client=client)
+    assert (reply.text, reply.start_id) == ("Start with the parser.", 7)
+
+
 @pytest.mark.parametrize("slot, open_, expected", [
-    ("morning", ["Ship the parser"], "Start with: Ship the parser."),
-    ("morning", [], "Set up to three priorities"),
-    ("midday", ["Ship the parser"], "Still open at the top: Ship the parser."),
-    ("evening", ["Email Sam"], "1 done today; first thing tomorrow: Email Sam."),
+    ("morning", ["Ship the parser"], "1 item open on today's list."),
+    ("morning", [], "Add what you need to get done today."),
+    ("midday", ["Ship the parser", "Email Sam"], "2 items open on today's list."),
+    ("midday", [], "Everything on today's list is done."),
+    ("evening", ["Email Sam"], "1 done today, 1 still open."),
+    ("evening", [], "1 done today. Put the phone away"),
 ])
 def test_offline_reply_uses_the_data(slot, open_, expected):
     s = State(date="2026-10-12", priorities=[Priority(1, "Write spec", done_at="2026-10-12T10:00:00")]
@@ -120,7 +139,7 @@ def test_facts_do_the_arithmetic():
     ])
     f = coach.build_payload(s, "midday", f"{d}T13:00:00-05:00")["facts"]
     assert f == {
-        "next_up": "Report", "open_count": 2, "done_count": 1,
+        "open_count": 2, "done_count": 1,
         "carried_3_days_or_more": ["Report"],
         "phone_pickups_today": 3, "phone_minutes_off_charger_today": 18 + 45 + 10,
         "phone_off_charger_now_since": "12:50", "last_self_report": "drifted",
@@ -131,5 +150,5 @@ def test_facts_do_the_arithmetic():
 def test_facts_survive_an_empty_day_and_odd_events():
     f = coach.facts(State(date="2026-10-12", events=[{"at": "not a time", "kind": "phone_out"}]),
                     "2026-10-12T09:00:00-05:00")
-    assert f["next_up"] is None and f["open_count"] == 0
+    assert "next_up" not in f and f["open_count"] == 0
     assert f["phone_minutes_off_charger_today"] == 0

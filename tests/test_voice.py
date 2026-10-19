@@ -410,16 +410,20 @@ def test_find_hidraw_by_usb_id(tmp_path):
     assert voice.find_hidraw("0000FFFF:0000FFFF", tmp_path) is None
 
 
-def test_mark_top_done(cfg):
+def test_call_button_marks_the_suggested_item_done(cfg):
     from focus import actions, state as st
-    assert voice.mark_top_done(cfg) == "Nothing left to mark done."
+    assert voice.mark_suggested_done(cfg) == "Nothing left to mark done."
     with st.locked_state(cfg) as s:
-        actions.add_priority(s, "Write the report")
-        actions.add_priority(s, "Email Sam")
-    assert voice.mark_top_done(cfg) == "Done: Write the report. Next is Email Sam."
-    assert voice.mark_top_done(cfg) == "Done: Email Sam. That's everything on your list."
+        for text in ("Write the report", "Email Sam", "Book dentist"):
+            actions.add_priority(s, text)
+    assert voice.mark_suggested_done(cfg) == "Tell me which one is done."   # no check-in picked one
     with st.locked_state(cfg) as s:
-        assert s.open_priorities == []
+        s.checkins.append({"slot": "morning", "at": st.now_iso(), "reply": "Email Sam first.", "start_id": 2})
+    assert voice.mark_suggested_done(cfg) == "Done: Email Sam. 2 left on your list."
+    assert voice.mark_suggested_done(cfg) == "Tell me which one is done."   # its pick is done
+    with st.locked_state(cfg) as s:
+        actions.complete_priority(s, 1)
+    assert voice.mark_suggested_done(cfg) == "Done: Book dentist. That's everything on your list."
 
 
 def _spaced_presses(*gaps):

@@ -100,10 +100,10 @@ a wrong token; no line at all means the request never arrived.
 
 ## Chat
 
-Message the coach from your phone: "I finished the spec, what's next?", "add
-email Sam", "move the report to the top", "I'm drifting". It sees the same
-data as a check-in, and it can change your priorities through a fixed set of
-tools: add, rename, schedule for another day, complete, reopen, drop, move,
+Message the coach from your phone: "I finished the spec", "add email Sam",
+"what should I do now?", "I'm drifting". It sees the same data as a
+check-in, and it can change your to-do list through a fixed set of tools:
+add, rename, schedule for another day, complete, reopen, drop,
 report, pause, resume, add, complete or drop a week goal, and rate the
 previous reply when you tell it that one was wrong or spot on. It can't do
 anything else. Ask it "how could I improve my routine?" and it suggests one

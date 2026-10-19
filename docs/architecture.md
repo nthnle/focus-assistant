@@ -74,7 +74,7 @@ a desktop PC that copies `state.json` at 18:00.
   until their day. At the first rollover of a new week, the week's goals and
   Friday's review move into `last_week` for Monday's check-in.
 - **`focus.actions`** is every state change (add, rename, schedule,
-  complete, reopen, drop, move, goals, pause, resume, log an event). The
+  complete, reopen, drop, goals, pause, resume, log an event). The
   CLI, chat tools, voice and buttons all call it, so behaviour is the same
   whichever input you use.
 - **The coach** (`coach.py`) is a single chat-completions call per check-in,
@@ -178,9 +178,9 @@ token check and server loop that the dock and chat use.
 ## E-ink display
 
 `outputs/inky.py` draws the check-in for a Pimoroni **Inky Impression 4"**
-(640x400, 7 colours): the slot and date, the top three open priorities (a
-red tag shows days carried) and the reply, shrinking from 24 px to 16 px to
-fit. It redraws only when something changed, since a full refresh takes
+(640x400, 7 colours): the slot and date, today's open items (up to six,
+then "+N more"; a red tag shows days carried) and the reply, shrinking from
+24 px to 16 px to fit. It redraws only when something changed, since a full refresh takes
 about 30 seconds. **It hasn't been tested on a real panel yet.**
 
 Preview it on any machine, without the panel or an API call:
