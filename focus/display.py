@@ -103,8 +103,13 @@ async function check() {{
   try {{
     const r = await fetch(location.href, {{ cache: "no-store", headers: {{ "If-None-Match": '"' + version + '"' }} }});
     if (r.status !== 200) return;  // 304: nothing changed
-    const fresh = new DOMParser().parseFromString(await r.text(), "text/html").querySelector("main");
-    document.querySelector("main").replaceWith(fresh);
+    const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+    // New styles (after an update): swapping <main> alone would keep the old ones.
+    if (doc.querySelector("style").textContent !== document.querySelector("style").textContent) {{
+      location.reload();
+      return;
+    }}
+    document.querySelector("main").replaceWith(doc.querySelector("main"));
     version = (r.headers.get("ETag") || "").replaceAll('"', "");
   }} catch (e) {{}}
 }}
@@ -215,10 +220,11 @@ def _content(state: State, now: str, cfg: Config | None,
 
 def render(state: State, now: str, cfg: Config | None = None,
            focus_blocks: list[blocks.Block] | None = None) -> tuple[str, str]:
-    """(version, html). The version changes exactly when the content does, not
-    with the footer's clock. `now` is an ISO timestamp with its offset."""
+    """(version, html). The version changes exactly when the content or the
+    page itself (after an update) does, not with the footer's clock. `now`
+    is an ISO timestamp with its offset."""
     content = _content(state, now, cfg, focus_blocks)
-    version = hashlib.sha256("\0".join(content.values()).encode()).hexdigest()[:16]
+    version = hashlib.sha256("\0".join([_PAGE, *content.values()]).encode()).hexdigest()[:16]
     return version, _PAGE.format(
         refresh=REFRESH_SECONDS,
         poll_ms=POLL_SECONDS * 1000,
