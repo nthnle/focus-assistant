@@ -10,6 +10,7 @@ stay inside that turn.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime
 from typing import Callable
 
@@ -42,14 +43,14 @@ routine, suggest one or two concrete changes (focus block times, breaks, \
 where the phone lives, how many priorities), each tied to a pattern you can \
 point to in recent_days, and say that focus blocks are changed in \
 focus.env. Never invent tasks, progress or events. Take counts and totals from `facts` as given, and after a change \
-take what is next from the tool result's "Next open" line, not from the \
-data sent before the change.
+take the list from the tool result's "Priorities now", not from the data \
+sent before the change.
 
 Your reply may be read aloud, so write plain sentences: no markdown, no \
 lists, no emoji, at most 60 words. After changing something, say what you \
 changed in a few words, naming the item, not just "done" or "all set". \
-Mention what is next only when the "Next open" line says (changed), or when \
-they ask."""
+Don't add what is next after a change: the device adds that itself when \
+the top of the list changed. Say what is next only when they ask."""
 
 # Added for messages spoken at the desk: there the reply is heard, and every
 # extra sentence is another second or two of waiting.
@@ -58,8 +59,7 @@ VOICE_RULES = """
 This message was spoken at the desk and your reply will be read aloud. \
 Answer in one short sentence, at most 15 words, unless they asked a question \
 that needs more. After a change, confirm it by naming the item, like this: \
-Added lawn pre-emergent. Add what is next only if it changed, like this: \
-Done with the report. Next is the email to Sam."""
+Added lawn pre-emergent."""
 
 
 def _tool(name: str, description: str, properties: dict) -> dict:
@@ -152,6 +152,55 @@ def _priorities_text(s: State) -> str:
     return "\n".join(lines + (["Week goals:"] + goals if goals else []))
 
 
+_SAYS_NEXT = re.compile(r"\bnext (is|up)\b", re.I)
+_ENDS_WITH_NEXT = re.compile(r"[\s;,.]*\bnext (is|up)\b[^.!?]*[.!?]?\s*$", re.I)
+
+
+def _without_next(reply: str) -> str:
+    """An earlier reply minus its closing "next is X": replayed with it, the
+    model copies the habit into every answer."""
+    rest = _ENDS_WITH_NEXT.sub("", reply).rstrip()
+    if not rest:
+        return reply
+    return rest if rest[-1] in ".!?" else rest + "."
+
+
+# A sentence end glued to a capital ("Marked done.Done."): gpt-oss sometimes
+# writes a second message, and the host joins the two with no space.
+# The lowercase before the stop keeps "U.S." intact.
+_SECOND_PART = re.compile(r"(?<=[a-z0-9)'\"’”][.!?])(?=[A-Z])")
+
+
+def _first_part(text: str) -> str:
+    m = _SECOND_PART.search(text)
+    return text[:m.start()] if m else text
+
+
+class _FirstPartFilter:
+    """Streams text on until a glued-on second message starts, then drops the rest."""
+
+    def __init__(self, out: Callable[[str], None]):
+        self.out = out
+        self.tail = ""      # the last characters sent, for a stop split across pieces
+        self.cut = False
+
+    def feed(self, piece: str) -> None:
+        if self.cut:
+            return
+        joined = self.tail + piece
+        m = _SECOND_PART.search(joined, len(self.tail))
+        if m:
+            piece, self.cut = joined[len(self.tail):m.start()], True
+        if piece:
+            self.out(piece)
+        self.tail = joined[-2:]
+
+
+def _top_id(s: State) -> int | None:
+    open_ = s.open_priorities
+    return open_[0].id if open_ else None
+
+
 def _arguments(raw: str) -> dict:
     """The model's arguments, checked: open models don't always follow the schema."""
     try:
@@ -207,12 +256,9 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
             before = s.open_priorities[0].id if s.open_priorities else None
             handler(s, args)
             open_ = s.open_priorities
-            next_open = f"Next open: {open_[0].text}" if open_ else "Next open: nothing, the list is done"
-            # Lets the model skip "next is X" when the change didn't touch the top.
-            next_open += " (changed)" if (open_[0].id if open_ else None) != before else " (unchanged)"
             quiet = pause.describe(s, datetime.now().astimezone())
             paused = f"\nPaused {quiet}" if quiet else ""
-            return f"Done. {next_open}{paused}\nPriorities now:\n" + _priorities_text(s), False
+            return f"Done.{paused}\nPriorities now:\n" + _priorities_text(s), False
     except (st.StateError, KeyError, TypeError, ValueError) as exc:
         return f"Error: {exc}", True
 
@@ -236,6 +282,7 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         s.chat_attempts += 1
         payload = coach.build_payload(s, "chat", st.now_iso())
         history = s.chat[-HISTORY_TURNS:]
+        top_before = _top_id(s)
 
     # Short timeouts: the phone is waiting, and a Shortcut gives up after about a minute.
     client = client or coach.make_client(
@@ -244,7 +291,7 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
     messages: list[dict] = []
     for turn in history:
         messages.append({"role": "user", "content": turn["user"]})
-        messages.append({"role": "assistant", "content": turn["reply"]})
+        messages.append({"role": "assistant", "content": _without_next(turn["reply"])})
     messages.append({
         "role": "user",
         "content": f"<data>\n{json.dumps(payload, ensure_ascii=False)}\n</data>\n\n{message}",
@@ -252,8 +299,9 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
 
     tokens_in = tokens_out = 0
     changed: list[str] = []
+    stream = _FirstPartFilter(on_text).feed if on_text else None
     for _ in range(MAX_STEPS):
-        response = coach.create(cfg, client, model=cfg.chat_model, on_text=on_text,
+        response = coach.create(cfg, client, model=cfg.chat_model, on_text=stream,
                                 system=SYSTEM_PROMPT + (VOICE_RULES if voice else ""),
                                 tools=TOOLS, messages=messages)
         tokens_in += response.usage.input_tokens
@@ -270,7 +318,17 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
     else:
         raise CoachError("The coach took too many steps; try a simpler request")
 
-    reply = coach.reply_text(response)
+    reply = _first_part(coach.reply_text(response))
+    if changed and not _SAYS_NEXT.search(reply):
+        after = st.peek(cfg)
+        if _top_id(after) != top_before:
+            # Said by the code, not the model: given the list, the model names
+            # the next item after every change, moved or not.
+            open_ = after.open_priorities
+            sentence = f"Next is {open_[0].text}." if open_ else "That's everything on your list."
+            if on_text:
+                on_text(" " + sentence)
+            reply = f"{reply.rstrip()} {sentence}"
     with st.locked_state(cfg) as s:
         s.chat.append(pricing.priced({
             "at": st.now_iso(),

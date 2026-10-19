@@ -78,6 +78,10 @@ soon as its first sentence is written. Voice replies are one short sentence:
 > "Done with the report, what's next?"
 > *"Done. Next is the email to Sam."*
 
+"Next is …" is only added when the change moved the top of your list, so
+adding or finishing something further down gets a plain confirmation
+("Marked pre-emergent done.").
+
 After each reply a soft chime means it's still listening for 5 seconds:
 speak again and it's another turn, with no button or wake word. Say nothing
 and it stops. The coach is the same one as [phone chat](phone.md#chat): it

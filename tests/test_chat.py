@@ -32,7 +32,8 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     )
     reply = chat.run(cfg, "finished the spec", client=client)
 
-    assert reply == "Marked the spec done. Email Sam next."
+    # The top moved, so the code names what is next.
+    assert reply == "Marked the spec done. Email Sam next. Next is Email Sam."
     with st.locked_state(cfg) as s:
         assert s.priorities[0].done
         assert s.chat[-1]["user"] == "finished the spec"
@@ -51,16 +52,62 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
     assert replayed["tool_calls"][0]["function"]["name"] == "complete_priority"
     assert result["role"] == "tool" and result["tool_call_id"] == "call_1"
     assert "[done] Write spec" in result["content"]
-    assert "Next open: Email Sam (changed)" in result["content"]
 
 
-def test_tool_result_says_when_the_next_item_did_not_change(cfg):
+@pytest.mark.parametrize("reply, replayed", [
+    ("All set, pre‑emergent added; next is Car inspection.", "All set, pre‑emergent added."),
+    ("Done. Next is Car inspection.", "Done."),
+    ("Marked it done. Next up: the report", "Marked it done."),
+    ("Next is Car inspection.", "Next is Car inspection."),   # nothing else to keep
+    ("Start with the parser.", "Start with the parser."),
+])
+def test_replayed_replies_lose_their_closing_next_item(reply, replayed):
+    assert chat._without_next(reply) == replayed
+
+
+@pytest.mark.parametrize("text, first", [
+    ("Car inspection marked done.Done.", "Car inspection marked done."),
+    ("Marked done.All good.Let me know what's next.", "Marked done."),
+    ("Done. Next is the report.", "Done. Next is the report."),
+    ("Ship it to the U.S. office.", "Ship it to the U.S. office."),
+])
+def test_a_glued_on_second_message_is_dropped(text, first):
+    assert chat._first_part(text) == first
+    for size in (1, 3, 7):   # the same, streamed in pieces of any size
+        sent = []
+        stream = chat._FirstPartFilter(sent.append)
+        for i in range(0, len(text), size):
+            stream.feed(text[i:i + size])
+        assert "".join(sent) == first
+
+
+def test_next_item_is_not_added_twice(cfg):
     with st.locked_state(cfg) as s:
         actions.add_priority(s, "Car inspection")
+        actions.add_priority(s, "Call the dentist")
+    client, _ = scripted(
+        completion(tool_calls=[tool_call("complete_priority", {"id": 1})]),
+        completion("Car inspection done; next is Call the dentist."),
+    )
+    assert chat.run(cfg, "car inspection done", client=client) == "Car inspection done; next is Call the dentist."
 
-    text, is_error = chat._run_tool(cfg, "add_priority", json.dumps({"text": "Lawn pre-emergent"}))
-    assert not is_error
-    assert "Next open: Car inspection (unchanged)" in text
+
+def test_next_item_is_named_only_when_the_top_changed(cfg):
+    with st.locked_state(cfg) as s:
+        actions.add_priority(s, "Car inspection")
+        actions.add_priority(s, "Lawn pre-emergent")
+
+    client, _ = scripted(
+        completion(tool_calls=[tool_call("complete_priority", {"id": 2})]),
+        completion("Marked pre-emergent done."),
+        completion(tool_calls=[tool_call("complete_priority", {"id": 1})]),
+        completion("Car inspection is done."),
+    )
+    assert chat.run(cfg, "pre-emergent is done", client=client) == "Marked pre-emergent done."
+    assert chat.run(cfg, "car inspection done", client=client) == \
+        "Car inspection is done. That's everything on your list."
+    with st.locked_state(cfg) as s:
+        assert s.chat[-1]["reply"].endswith("That's everything on your list.")
 
 
 def test_chat_model_defaults_to_the_check_in_model(cfg, monkeypatch):
@@ -98,7 +145,10 @@ def test_streamed_tool_calls_are_put_back_together(cfg):
     def handler(request):
         return httpx.Response(200, text=bodies.pop(0), headers={"content-type": "text/event-stream"})
 
-    assert chat.run(cfg, "done", client=client_for(handler), on_text=lambda _: None) == "Done."
+    pieces = []
+    reply = chat.run(cfg, "done", client=client_for(handler), on_text=pieces.append)
+    # The code's own "what is next" sentence is streamed to the speaker too.
+    assert reply == "".join(pieces) == "Done. That's everything on your list."
     with st.locked_state(cfg) as s:
         assert s.priorities[0].done
 
