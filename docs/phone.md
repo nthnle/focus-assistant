@@ -54,6 +54,10 @@ weekdays), taking the phone off its charger for more than 30 seconds logs a
 it was gone. Quick glances are ignored. The coach sees these at the next
 check-in, and the status page counts the pickups.
 
+Outside focus blocks nothing is counted, but the service still notes every
+report in `charger.json`, so presence and the status page know where the
+phone is at any hour, including when it left before the day began.
+
 There's no sensor: the **iPhone reports it**, through a Shortcuts
 automation that runs when it connects to or disconnects from power. It works
 with wireless chargers, and anything else on the same charger (a watch, for
@@ -175,8 +179,9 @@ So the coach doesn't talk to an empty desk: you count as **away** when the
 phone has been off its charger for 10 minutes **and** the desk has been quiet
 for 15 (no typing, chair or voice heard by the [voice service's
 microphone](voice.md#2-voice-commands)). Only the time of the last sound is
-stored, in `presence.json`; never audio. Without the voice service, the charger
-reports decide alone.
+stored, in `presence.json`; never audio. The phone's side comes from
+`charger.json`, which the dock service keeps up to date at all hours. Without
+the voice service, the charger reports decide alone.
 
 While you're away:
 

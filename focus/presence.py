@@ -3,7 +3,9 @@
 You count as away only when both say so:
 
 - the phone has been off the dock for FOCUS_AWAY_PHONE_MIN minutes (10),
-  going by the dock's PHONE_OUT / PHONE_IN events, and
+  going by charger.json, which the dock service rewrites on every charger
+  report at any hour (the PHONE_OUT / PHONE_IN events only cover focus
+  blocks, and start empty each day), and
 - the desk has been quiet for FOCUS_AWAY_QUIET_MIN minutes (15), going by the
   last time the voice service's microphone heard typing, a chair or a voice.
   Only that time is kept (presence.json), never audio. Without the voice
@@ -37,8 +39,41 @@ def sound_path(cfg: Config) -> Path:
     return cfg.state_dir / "presence.json"
 
 
-def phone_out_since(state: State) -> datetime | None:
-    """When the phone left the dock, if its last dock event says it is out."""
+def charger_path(cfg: Config) -> Path:
+    return cfg.state_dir / "charger.json"
+
+
+def charger(cfg: Config) -> tuple[bool, datetime] | None:
+    """(on the charger, since when), or None if the dock has never reported."""
+    try:
+        data = json.loads(charger_path(cfg).read_text())
+        return bool(data["on"]), datetime.fromisoformat(data["since"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def record_charger(cfg: Config, on: bool, at: datetime) -> None:
+    """Note a charger report; a repeat of the same report keeps the first time."""
+    known = charger(cfg)
+    if known is not None and known[0] == on:
+        return
+    path = charger_path(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".charger-", suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        json.dump({"on": on, "since": at.astimezone().isoformat(timespec="seconds")}, f)
+    os.replace(tmp, path)
+
+
+def phone_out_since(state: State, cfg: Config | None = None) -> datetime | None:
+    """When the phone left the dock, if it is off it now.
+
+    charger.json says, when there is one; otherwise today's dock events.
+    """
+    known = charger(cfg) if cfg is not None else None
+    if known is not None:
+        on, since = known
+        return None if on else since
     for event in reversed(state.events):
         if event["kind"] == PHONE_IN:
             return None
@@ -56,7 +91,7 @@ def last_sound(cfg: Config) -> datetime | None:
 
 def away(cfg: Config, state: State, now: datetime) -> bool:
     """`now` must be timezone-aware, like the timestamps in state."""
-    out = phone_out_since(state)
+    out = phone_out_since(state, cfg)
     if out is None or now - out < _minutes("FOCUS_AWAY_PHONE_MIN", 10):
         return False
     heard = last_sound(cfg)

@@ -32,7 +32,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from typing import Callable
 
-from .. import actions, blocks as focus_blocks, config, display, state as st
+from .. import actions, blocks as focus_blocks, config, display, presence, state as st
 from ..blocks import DEFAULT_BLOCKS, Block, in_block, parse_blocks  # noqa: F401  (tests use these here)
 from ..config import Config
 from . import _web
@@ -68,6 +68,8 @@ class Dock:
 
     def phone_out(self, now: datetime) -> None:
         with self._lock:
+            # At any hour, so presence and the status page always know where the phone is.
+            presence.record_charger(self.cfg, False, now)
             if self._out_at is not None:
                 log.info("Charger: out (already out, ignored)")
                 return
@@ -90,6 +92,7 @@ class Dock:
 
     def phone_in(self, now: datetime) -> None:
         with self._lock:
+            presence.record_charger(self.cfg, True, now)
             if self._pending is not None:
                 self._pending.cancel()
                 self._pending = None

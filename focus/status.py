@@ -85,7 +85,7 @@ def report(cfg: Config, s: State, now: datetime,
     focus_blocks = blocks.from_env()
     current = next((f"{a:%H:%M}-{b:%H:%M}" for a, b in focus_blocks
                     if blocks.in_block(now, [(a, b)])), None)
-    out = presence.phone_out_since(s)
+    out = presence.phone_out_since(s, cfg)
     heard = presence.last_sound(cfg)
     reminders = [e for e in s.events if e["kind"] == stretch.STRETCH]
     by_coach = sum(1 for e in reminders if e.get("detail") == "coach")

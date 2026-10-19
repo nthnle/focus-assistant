@@ -53,6 +53,18 @@ def test_not_away_when_the_phone_is_docked_or_only_just_left(cfg):
     assert not presence.away(cfg, state_with((st.PHONE_OUT, ago(30)), (st.PHONE_IN, ago(1))), NOW)
 
 
+def test_the_charger_file_knows_the_phone_left_before_the_day_began(cfg):
+    # Off the charger since 07:30, before any focus block: no event today.
+    presence.record_charger(cfg, False, NOW.replace(hour=7, minute=30))
+    assert presence.phone_out_since(state_with(), cfg) == NOW.replace(hour=7, minute=30)
+    assert presence.away(cfg, state_with(), NOW)
+    presence.record_charger(cfg, False, NOW)             # a repeat keeps the first time
+    assert presence.charger(cfg) == (False, NOW.replace(hour=7, minute=30))
+    presence.record_charger(cfg, True, NOW)
+    assert presence.phone_out_since(state_with(), cfg) is None
+    assert not presence.away(cfg, state_with(), NOW)
+
+
 def test_thresholds_come_from_the_environment(cfg, monkeypatch):
     monkeypatch.setenv("FOCUS_AWAY_PHONE_MIN", "3")
     assert presence.away(cfg, state_with((st.PHONE_OUT, ago(4))), NOW)

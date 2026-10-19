@@ -117,6 +117,17 @@ def test_outside_blocks_logs_nothing(cfg, d, timers):
     assert events(cfg) == []
 
 
+def test_charger_is_tracked_at_any_hour(cfg, d, timers):
+    from focus import presence
+    early = MONDAY_10.replace(hour=7, minute=30)
+    d.phone_out(early)                                   # before the first block: no event
+    assert events(cfg) == []
+    assert presence.charger(cfg) == (False, early.astimezone())
+    assert presence.phone_out_since(st.State(date="2026-10-12"), cfg) == early.astimezone()
+    d.phone_in(at(5))
+    assert presence.charger(cfg) == (True, at(5).astimezone())
+
+
 def test_return_after_block_still_closes_the_out(cfg, d, timers):
     d.phone_out(MONDAY_10.replace(hour=11, minute=50))
     timers.fire()

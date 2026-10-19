@@ -153,9 +153,10 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     focus_blocks = blocks.from_env() if focus_blocks is None else focus_blocks
     chips = where_in_day(now, focus_blocks)
 
-    out = presence.phone_out_since(state)
+    out = presence.phone_out_since(state, cfg)
     if out:
-        chips.append(("Phone", f"Off since {_hm(out)}", ALERT))
+        when = _hm(out) if out.date() == now.date() else f"{out:%a} {_hm(out)}"
+        chips.append(("Phone", f"Off since {when}", ALERT))
     elif blocks.in_block(now, focus_blocks):
         chips.append(("Phone", "On charger", GOOD))
 
@@ -274,7 +275,8 @@ class Page:
 
     def get(self, now: str) -> tuple[str, str]:
         """(version, html) at `now`, an ISO timestamp with its offset."""
-        key = (self._stamp(self.cfg.state_path), self._stamp(presence.sound_path(self.cfg)), now[:16])
+        key = (self._stamp(self.cfg.state_path), self._stamp(presence.sound_path(self.cfg)),
+               self._stamp(presence.charger_path(self.cfg)), now[:16])
         with self._lock:
             if key != self._key:
                 self._page = render(st.peek(self.cfg), now, self.cfg, self.focus_blocks)
