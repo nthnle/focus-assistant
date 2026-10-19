@@ -27,6 +27,8 @@ def usage_today(cfg: Config, s: State) -> list[tuple[str, int, int, int, float |
         t = c.get("tokens")
         if t is not None:  # an offline check-in made no call
             groups["check-ins"].append((c.get("model", cfg.model), t.get("in", 0), t.get("out", 0), c.get("usd")))
+        for r in c.get("rewrites", []):  # the check-in rewritten after the list changed
+            groups["check-ins"].append((r["model"], r["tokens"]["in"], r["tokens"]["out"], r.get("usd")))
     for c in s.chat:
         t = c.get("tokens", {})
         groups["chat"].append((c.get("model", cfg.chat_model), t.get("in", 0), t.get("out", 0), c.get("usd")))

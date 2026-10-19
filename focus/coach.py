@@ -75,6 +75,10 @@ has the current settings. End the week on something they did well.
 - a weekly_review at a morning check-in (late is true) means Friday's \
 wrap-up was missed: look back at last week in two or three sentences, \
 suggest the routine change, then name the one priority to start with.
+- rewrite_of is present: this check-in already ran at \
+rewrite_of.written_at, and since then the list changed (done_since was \
+marked done). Write it again for the list as it is now, at the same \
+length, acknowledging what got done. Don't say it is an update.
 
 facts.weekday says what day it is. Check-ins only run by themselves on \
 weekdays; on a Saturday or Sunday they asked for one, so keep it to two \

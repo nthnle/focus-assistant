@@ -13,6 +13,7 @@ the internet; the dock does neither.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -20,7 +21,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler
 
-from .. import chat, config
+from .. import chat, checkin, config
 from ..coach import CoachError
 from ..config import Config
 from . import _web
@@ -86,7 +87,10 @@ def main() -> int:
     token = _web.token_from_env("FOCUS_CHAT_TOKEN")
     if token is None:
         return 1
-    handler = make_handler(config.load(), token, int(os.environ.get("FOCUS_CHAT_DAILY_LIMIT", "50")))
+    cfg = config.load()
+    # Marking something done rewrites the check-in on the screen to match.
+    run = functools.partial(chat.run, on_done_change=checkin.Refresher(cfg))
+    handler = make_handler(cfg, token, int(os.environ.get("FOCUS_CHAT_DAILY_LIMIT", "50")), run=run)
     _web.serve(handler, os.environ.get("FOCUS_CHAT_HOST", "0.0.0.0"),
                int(os.environ.get("FOCUS_CHAT_PORT", DEFAULT_PORT)))
     return 0

@@ -149,6 +149,14 @@ phone pickups and breaks. It's read-only, and live: it updates within two
 seconds of any change, whether from voice, chat, the CLI, a charger report or a
 check-in.
 
+When you mark something done after a check-in, a red line under the reply
+says so straight away ("Since 16:20: done Mow the lawn"). If you marked it
+by voice, phone chat or the call button, the coach then rewrites that
+check-in for the list as it is now, about ten seconds later. The rewrite is
+only shown, never spoken, and its cost counts with the check-ins in
+`focus status`. Friday's weekly review is never rewritten, and `focus done`
+from the CLI only gets the line, because the CLI can't read the API key.
+
 `focus-dock` serves it, so enable that first. Then open:
 
 ```

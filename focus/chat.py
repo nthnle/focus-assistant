@@ -265,9 +265,10 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
 
 def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         daily_limit: int = 50, on_text: Callable[[str], None] | None = None,
-        voice: bool = False) -> str:
+        voice: bool = False, on_done_change: Callable[[], None] | None = None) -> str:
     """Answer one message. `on_text` receives the reply as it streams in;
-    `voice` asks for the short replies that suit being read aloud."""
+    `voice` asks for the short replies that suit being read aloud;
+    `on_done_change` is called when a priority was marked done or reopened."""
     message = message.strip()
     if not message:
         raise CoachError("Empty message")
@@ -340,4 +341,6 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
             "tokens": {"in": tokens_in, "out": tokens_out},
         }, cfg.chat_model, tokens_in, tokens_out))
     feedback.record(cfg, "voice" if voice else "chat", {**payload, "message": message}, reply, cfg.chat_model)
+    if on_done_change and {"complete_priority", "reopen_priority"} & set(changed):
+        on_done_change()
     return reply

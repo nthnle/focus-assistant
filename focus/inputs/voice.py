@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import array
 import contextlib
+import functools
 import io
 import logging
 import math
@@ -52,7 +53,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import actions, chat, config, pause, presence, state as st
+from .. import actions, chat, checkin, config, pause, presence, state as st
 from ..coach import CoachError
 from ..config import Config
 
@@ -676,7 +677,10 @@ def main() -> int:
         return record(mic.read, endpointer, stop)
 
     cfg = config.load()
+    # Marking something done rewrites the check-in on the screen to match.
+    refresh = checkin.Refresher(cfg)
     voice = Voice(cfg, speak=spoken.say, stream=spoken.stream, play=spoken.play,
+                  ask=functools.partial(chat.run, on_done_change=refresh),
                   listen=listen, transcribe=transcribe, hint=lambda: vocabulary(cfg),
                   followup_s=float(os.environ.get("FOCUS_VOICE_FOLLOWUP", "5")))
     tracker = presence.SoundTracker(cfg)
@@ -699,8 +703,8 @@ def main() -> int:
                 log.warning("Can't read %s; install.sh adds the udev rule that allows it", hidraw)
         log.info("Ready: %s, then speak", " or ".join(ways))
         run(voice, mic, presses, wake, calls=calls,
-            on_call=lambda: spoken.say(mark_top_done(cfg)),
-            on_double_call=lambda: spoken.say(undo_last_done(cfg)), **extras)
+            on_call=lambda: (spoken.say(mark_top_done(cfg)), refresh()),
+            on_double_call=lambda: (spoken.say(undo_last_done(cfg)), refresh()), **extras)
     return 0
 
 

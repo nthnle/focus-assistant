@@ -68,6 +68,9 @@ _PAGE = """<!doctype html>
   hr {{ border: 0; border-top: 2px solid var(--ink); margin: 1.3cqi 0 2.5cqi; }}
   .reply {{ flex: 1; overflow: hidden; font-size: clamp(13px, 3.4cqi, 22px); line-height: 1.3;
             display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }}
+  .since {{ margin-top: 1.5cqi; color: var(--red); font-weight: 700; font-size: clamp(12px, 3cqi, 19px);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  .since:empty {{ display: none; }}
   .strip {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;
            margin-top: 12px; }}
   .chip {{ background: var(--chip); color: var(--chip-ink); border: 1px solid var(--line);
@@ -88,6 +91,7 @@ _PAGE = """<!doctype html>
   <ol>{priorities}</ol>
   <hr>
   <p class="reply">{reply}</p>
+  <p class="since">{since}</p>
 </div>
 <section class="strip">{chips}</section>
 <footer>Updated {updated} · live</footer>
@@ -168,6 +172,19 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     return chips
 
 
+def since_note(state: State) -> str:
+    """What was marked done after the latest check-in was written, so the
+    reply never reads as out of date ("Since 16:20: done Mow the lawn").
+    Empty once the coach has rewritten the check-in to include it."""
+    if not state.checkins:
+        return ""
+    last = state.checkins[-1]
+    written = datetime.fromisoformat(last.get("updated_at") or last["at"])
+    done = [p.text for p in state.today_list
+            if p.done_at and datetime.fromisoformat(p.done_at) > written]
+    return f"Since {written:%H:%M}: done {'; '.join(done)}" if done else ""
+
+
 def _content(state: State, now: str, cfg: Config | None,
              focus_blocks: list[blocks.Block] | None) -> dict[str, str]:
     """What the page shows, without the clock in its footer."""
@@ -191,6 +208,7 @@ def _content(state: State, now: str, cfg: Config | None,
         "day": date.fromisoformat(state.date).strftime("%a %d %b"),
         "priorities": "".join(rows),
         "reply": escape(reply),
+        "since": escape(since_note(state)),
         "chips": chips,
     }
 

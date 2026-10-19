@@ -99,7 +99,8 @@ focus/
   config.py       settings from FOCUS_* environment variables
   coach.py        check-in prompt, payload, and the shared API call
   chat.py         chat: prompt, tools, tool loop, daily limit
-  checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs
+  checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs;
+                  plus its quiet rewrite (screen only) after something is marked done
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback)
   presence.py     away or not, from charger events and desk sound
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
