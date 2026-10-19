@@ -88,6 +88,7 @@ The **check-in times** are set in the systemd timer, not here; see
 |---|---|---|
 | `FOCUS_AWAY_PHONE_MIN` | `10` | Minutes off the charger before you can count as away. |
 | `FOCUS_AWAY_QUIET_MIN` | `15` | ...and minutes of desk silence. |
+| `FOCUS_AWAY_QUIET_DOCKED_MIN` | `30` | Minutes of desk silence that count as away even with the phone on its charger. `0` turns it off. |
 
 ## E-ink display
 

@@ -1,6 +1,6 @@
 """Is anyone at the desk? A best guess from the phone dock and desk sound.
 
-You count as away only when both say so:
+You count as away when both say so:
 
 - the phone has been off the dock for FOCUS_AWAY_PHONE_MIN minutes (10),
   going by charger.json, which the dock service rewrites on every charger
@@ -11,9 +11,13 @@ You count as away only when both say so:
   Only that time is kept (presence.json), never audio. Without the voice
   service there is no sound reading, and the dock decides alone.
 
-Leaving the phone on the dock when you walk off still counts as present; a
-presence sensor would fix that. Away means stretch reminders are skipped and
-a spoken check-in is held and said when you come back.
+or when the desk has been quiet for FOCUS_AWAY_QUIET_DOCKED_MIN minutes (30)
+whatever the phone is doing, for when you walk off and leave it charging
+(0 turns that off). Sitting silently that long counts as away too, but a
+held check-in is said as soon as the microphone hears you again.
+
+Away means stretch reminders are skipped and a spoken check-in is held and
+said when you come back.
 """
 
 from __future__ import annotations
@@ -91,11 +95,13 @@ def last_sound(cfg: Config) -> datetime | None:
 
 def away(cfg: Config, state: State, now: datetime) -> bool:
     """`now` must be timezone-aware, like the timestamps in state."""
-    out = phone_out_since(state, cfg)
-    if out is None or now - out < _minutes("FOCUS_AWAY_PHONE_MIN", 10):
-        return False
     heard = last_sound(cfg)
-    return heard is None or now - heard >= _minutes("FOCUS_AWAY_QUIET_MIN", 15)
+    out = phone_out_since(state, cfg)
+    if out is not None and now - out >= _minutes("FOCUS_AWAY_PHONE_MIN", 10):
+        return heard is None or now - heard >= _minutes("FOCUS_AWAY_QUIET_MIN", 15)
+    # The phone is charging (or only just left): the microphone alone, after longer.
+    docked = _minutes("FOCUS_AWAY_QUIET_DOCKED_MIN", 30)
+    return heard is not None and docked > timedelta(0) and now - heard >= docked
 
 
 class SoundTracker:

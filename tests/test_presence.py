@@ -65,6 +65,18 @@ def test_the_charger_file_knows_the_phone_left_before_the_day_began(cfg):
     assert not presence.away(cfg, state_with(), NOW)
 
 
+def test_a_long_quiet_counts_as_away_even_with_the_phone_charging(cfg, monkeypatch):
+    docked = state_with()                                       # no phone out
+    assert not presence.away(cfg, docked, NOW)                  # no sound reading: can't tell
+    heard_sound(cfg, 20)
+    assert not presence.away(cfg, docked, NOW)                  # quiet, but not for 30 min
+    heard_sound(cfg, 31)
+    assert presence.away(cfg, docked, NOW)
+    assert presence.away(cfg, state_with((st.PHONE_OUT, ago(4))), NOW)  # only just left
+    monkeypatch.setenv("FOCUS_AWAY_QUIET_DOCKED_MIN", "0")
+    assert not presence.away(cfg, docked, NOW)                  # turned off
+
+
 def test_thresholds_come_from_the_environment(cfg, monkeypatch):
     monkeypatch.setenv("FOCUS_AWAY_PHONE_MIN", "3")
     assert presence.away(cfg, state_with((st.PHONE_OUT, ago(4))), NOW)

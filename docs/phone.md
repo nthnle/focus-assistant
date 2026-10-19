@@ -183,6 +183,12 @@ stored, in `presence.json`; never audio. The phone's side comes from
 `charger.json`, which the dock service keeps up to date at all hours. Without
 the voice service, the charger reports decide alone.
 
+You also count as away when the desk has been quiet for **30 minutes**,
+even with the phone on its charger, so walking off and leaving it there
+still counts. The catch: sit in total silence for half an hour (reading,
+say) and it thinks you've gone. Nothing is lost when that happens: a held
+check-in is said as soon as the microphone hears you again.
+
 While you're away:
 
 - **stretch reminders are skipped** (you're already up)
@@ -195,12 +201,14 @@ The same happens while you're paused (`focus pause 11:00`, or "quiet until
 pause ends. See [Pausing](../README.md#using-it).
 
 **Its blind spots:** leave your phone on the charger and walk off, and it
-still thinks you're there. And it only knows when charging starts or stops:
+takes 30 quiet minutes, not 15, to notice. Noise at an empty desk (people
+nearby, a TV) still counts as you being there. And it only knows when
+charging starts or stops:
 on a cable you can use the phone without unplugging it, and that isn't
 counted as a pickup. A wireless pad, where using the phone means lifting it,
 gives the truest count.
 
-Tune it with `FOCUS_AWAY_PHONE_MIN` and
-`FOCUS_AWAY_QUIET_MIN`;
+Tune it with `FOCUS_AWAY_PHONE_MIN`, `FOCUS_AWAY_QUIET_MIN` and
+`FOCUS_AWAY_QUIET_DOCKED_MIN`;
 `journalctl -u focus-stretch -u focus-checkin -u focus-voice | grep -i away`
 shows its decisions.
