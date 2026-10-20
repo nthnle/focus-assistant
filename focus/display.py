@@ -21,7 +21,7 @@ import threading
 from datetime import date, datetime, timedelta
 from html import escape
 
-from . import blocks, pause, presence
+from . import blocks, layout, pause, presence
 from .config import Config
 from . import state as st
 from .state import PHONE_OUT, STRETCH_REMINDER, State
@@ -51,25 +51,32 @@ _PAGE = """<!doctype html>
   }}
   * {{ box-sizing: border-box; margin: 0; }}
   body {{ background: var(--page); min-height: 100vh; display: grid; place-content: center;
-         grid-template-columns: minmax(0, 640px);
+         grid-template-columns: minmax(0, 600px);
          padding: 16px; font-family: "DejaVu Sans", "Segoe UI", system-ui, sans-serif; }}
-  .panel {{ width: 100%; aspect-ratio: 8 / 5; background: var(--paper); color: var(--ink);
-           padding: clamp(14px, 3.75%, 24px); display: flex; flex-direction: column;
+  /* The upper panel is the e-ink panel: the same layout numbers (focus/layout.py)
+     in panel pixels, --u, scaled to the page's width. */
+  .panel {{ width: 100%; aspect-ratio: {panel_w} / {panel_h}; background: var(--paper); color: var(--ink);
            box-shadow: 0 2px 12px rgba(0,0,0,.25); container-type: inline-size; }}
-  header {{ display: flex; justify-content: space-between; font-weight: 700;
-            font-size: clamp(11px, 2.8cqi, 18px); }}
-  .slot {{ color: var(--red); letter-spacing: .02em; }}
-  ol {{ list-style: none; padding: 0; margin-top: 3cqi; font-size: clamp(12px, 3.3cqi, 20px);
-        line-height: 1.35; }}
-  li {{ display: flex; align-items: baseline; gap: 2cqi; font-weight: 700; }}
-  li .n {{ color: var(--red); }}
+  .face {{ --u: calc(100cqi / {panel_w}); height: 100%; padding: calc(var(--u) * {margin});
+          display: flex; flex-direction: column; }}
+  header {{ flex: none; display: flex; justify-content: space-between; font-weight: 700; line-height: 1;
+            font-size: calc(var(--u) * {header_size}); height: calc(var(--u) * {header_height}); }}
+  .slot {{ color: var(--red); }}
+  ul {{ flex: none; list-style: none; padding: 0; font-weight: 700;
+        font-size: calc(var(--u) * var(--is)); line-height: calc(var(--u) * var(--il)); }}
+  li {{ display: flex; align-items: center; }}
+  li .d {{ flex: none; width: calc(var(--u) * var(--dot)); height: calc(var(--u) * var(--dot));
+          border-radius: 50%; background: var(--red); margin-right: calc(var(--u) * var(--is) * .6); }}
   li .t {{ flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-  li .c {{ color: var(--red); font-size: .7em; }}
-  li.none {{ font-weight: 700; }}
-  li.more {{ font-weight: 400; color: var(--red); padding-left: calc(2cqi + .6em); }}
-  hr {{ border: 0; border-top: 2px solid var(--ink); margin: 1.3cqi 0 2.5cqi; }}
-  .reply {{ flex: 1; min-height: 0; overflow: hidden; font-size: clamp(11px, 2.85cqi, 18px); line-height: 1.28; }}
-  .since {{ margin-top: 1.5cqi; color: var(--red); font-weight: 700; font-size: clamp(12px, 3cqi, 19px);
+  li .c {{ flex: none; color: var(--red); font-size: calc(var(--u) * {tag_size}); margin-left: calc(var(--u) * 12); }}
+  li.more {{ font-weight: 400; color: var(--red); padding-left: calc(var(--u) * (var(--dot) + var(--is) * .6)); }}
+  hr {{ flex: none; border: 0; border-top: calc(var(--u) * {rule}) solid var(--ink);
+        margin: calc(var(--u) * {rule_above}) 0 calc(var(--u) * {rule_below}); }}
+  /* Starts at the largest size the panel allows and shrinks to fit, like the panel. */
+  .reply {{ flex: 1; min-height: 0; overflow: hidden; line-height: {reply_line};
+            font-size: calc(var(--u) * var(--rs, {reply_min})); }}
+  .since {{ flex: none; height: calc(var(--u) * {note_line}); padding-top: calc(var(--u) * 6); color: var(--red);
+            font-weight: 700; font-size: calc(var(--u) * {note_size}); line-height: 1;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
   .since:empty {{ display: none; }}
   .strip {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;
@@ -87,17 +94,27 @@ _PAGE = """<!doctype html>
 </head>
 <body>
 <main>
-<div class="panel">
+<div class="panel"><div class="face" style="--is: {item_size}; --il: {item_line}; --dot: {dot}">
   <header><span class="slot">{slot}</span><span>{day}</span></header>
-  <ol>{priorities}</ol>
+  <ul>{priorities}</ul>
   <hr>
-  <p class="reply">{reply}</p>
+  <p class="reply" data-max="{reply_max}">{reply}</p>
   <p class="since">{since}</p>
-</div>
+</div></div>
 <section class="strip">{chips}</section>
 <footer>Updated {updated} · live</footer>
 </main>
 <script>
+function fit() {{
+  const r = document.querySelector(".reply");
+  if (!r) return;
+  for (let s = +r.dataset.max; s >= {reply_min}; s--) {{
+    r.style.setProperty("--rs", s);
+    if (r.scrollHeight <= r.clientHeight + 1) return;
+  }}
+}}
+fit();
+addEventListener("resize", fit);
 let version = "{version}";
 async function check() {{
   if (document.hidden) return;
@@ -111,6 +128,7 @@ async function check() {{
       return;
     }}
     document.querySelector("main").replaceWith(doc.querySelector("main"));
+    fit();
     version = (r.headers.get("ETag") || "").replaceAll('"', "");
   }} catch (e) {{}}
 }}
@@ -120,6 +138,16 @@ document.addEventListener("visibilitychange", check);
 </body>
 </html>
 """
+
+
+# The panel's fixed numbers, for the page's styles.
+_LAYOUT = dict(
+    panel_w=layout.SIZE[0], panel_h=layout.SIZE[1], margin=layout.MARGIN,
+    header_size=layout.HEADER_SIZE, header_height=layout.HEADER_HEIGHT, tag_size=layout.TAG_SIZE,
+    rule=layout.RULE, rule_above=layout.RULE_ABOVE, rule_below=layout.RULE_BELOW,
+    reply_line=layout.REPLY_LINE, reply_min=layout.REPLY_MIN_SIZE,
+    note_size=layout.NOTE_SIZE, note_line=layout.NOTE_LINE,
+)
 
 
 def _hm(t) -> str:
@@ -210,9 +238,10 @@ def _content(state: State, now: str, cfg: Config | None,
 
     rows = []
     items, more = shown(state)
+    size, line = layout.item_size(max(1, len(items) + (1 if more else 0)))
     for p in items:
         carried = f'<span class="c">{p.carried_days}d</span>' if p.carried_days else ""
-        rows.append(f'<li><span class="n">&bull;</span><span class="t">{escape(p.text)}</span>{carried}</li>')
+        rows.append(f'<li><span class="d"></span><span class="t">{escape(p.text)}</span>{carried}</li>')
     if more:
         rows.append(f'<li class="more">+{more} more</li>')
     if not rows:
@@ -229,6 +258,10 @@ def _content(state: State, now: str, cfg: Config | None,
         "reply": escape(reply),
         "since": escape(since_note(state)),
         "chips": chips,
+        "item_size": str(size),
+        "item_line": str(line),
+        "dot": str(layout.dot_size(size)),
+        "reply_max": str(min(layout.REPLY_MAX_SIZE, size)),
     }
 
 
@@ -242,6 +275,7 @@ def render(state: State, now: str, cfg: Config | None = None,
     return version, _PAGE.format(
         refresh=REFRESH_SECONDS,
         poll_ms=POLL_SECONDS * 1000,
+        **_LAYOUT,
         version=version,
         updated=escape(now[11:16]),
         **content,

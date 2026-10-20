@@ -29,7 +29,7 @@ def test_a_long_list_ends_in_more(n, listed, more):
     items, extra = display.shown(s)
     assert (len(items), extra) == (listed, more)
     page = display.render_html(s, "2026-10-16T09:05:00-05:00")
-    assert page.count("&bull;") == listed
+    assert page.count('<span class="d">') == listed
     assert (f"+{more} more" in page) == bool(more)
 
 

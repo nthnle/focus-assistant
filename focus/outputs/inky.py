@@ -31,23 +31,16 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .. import config, state as st
 from ..display import shown, since_note
+from ..layout import (HEADER_HEIGHT, HEADER_SIZE, MARGIN, NOTE_LINE, NOTE_SIZE, REPLY_LINE,
+                      REPLY_MAX_SIZE, REPLY_MIN_SIZE, RULE, RULE_ABOVE, RULE_BELOW, SIZE,
+                      TAG_SIZE, bullet_width, dot_size, item_size)
 from ..state import State
 
 log = logging.getLogger(__name__)
 
-SIZE = (600, 400)  # the 4.0" Spectra 6; the panel's own size is used when it is attached
-MARGIN = 24
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)  # one accent; both panels have a clean red
-
-HEADER_SIZE = 18
-# (rows up to, font size, line height): a short list gets bigger text; six
-# rows of the smallest still leave the reply about six lines.
-ITEM_SIZES = ((3, 26, 36), (4, 23, 32), (6, 19, 26))
-REPLY_MAX_SIZE = 24  # and never larger than the list's text
-REPLY_MIN_SIZE = 16
-NOTE_LINE = 26
 
 POLL_S = 5
 QUIET_S = 30  # no change for this long before a redraw, so a burst of changes is one refresh
@@ -109,14 +102,6 @@ def _wrap(text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
     return lines
 
 
-def item_size(rows: int) -> tuple[int, int]:
-    """(font size, line height) for a list of this many rows."""
-    for most, size, line in ITEM_SIZES:
-        if rows <= most:
-            return size, line
-    return ITEM_SIZES[-1][1:]
-
-
 def fit_reply(
     text: str, width: float, height: float, max_size: int = REPLY_MAX_SIZE
 ) -> tuple[ImageFont.FreeTypeFont, list[str], int, bool]:
@@ -126,7 +111,7 @@ def fit_reply(
     """
     for size in range(max_size, REPLY_MIN_SIZE - 1, -1):
         font = _font(size)
-        line_height = round(size * 1.3)
+        line_height = round(size * REPLY_LINE)
         lines = _wrap(text, font, width)
         if len(lines) * line_height <= height:
             return font, lines, line_height, False
@@ -156,15 +141,15 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
     draw.text((MARGIN, y), f"{slot.upper()} CHECK-IN" if slot else "NO CHECK-IN YET", font=header, fill=RED)
     day = date.fromisoformat(state.date).strftime("%a %d %b")
     draw.text((right, y), day, font=header, fill=BLACK, anchor="ra")
-    y += 40
+    y += HEADER_HEIGHT
 
     items, more = shown(state)
     size, line = item_size(max(1, len(items) + (1 if more else 0)))
     pfont = _font(size, bold=True)
-    tag_font = _font(HEADER_SIZE - 3, bold=True)
+    tag_font = _font(TAG_SIZE, bold=True)
     # A drawn dot, not a "•" glyph: not every font has one.
-    dot = max(4, size // 4)
-    bullet_w = dot + size * 0.6
+    dot = dot_size(size)
+    bullet_w = bullet_width(size)
     rows = 0
     if not items:
         draw.text((MARGIN, y), "Nothing open on the list", font=pfont, fill=BLACK)
@@ -184,10 +169,10 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
     if more:
         draw.text((MARGIN + bullet_w, y + rows * line), f"+{more} more", font=_font(size), fill=RED)
         rows += 1
-    y += rows * line + 8
+    y += rows * line + RULE_ABOVE
 
-    draw.line((MARGIN, y, right, y), fill=BLACK, width=2)
-    y += 16
+    draw.line((MARGIN, y, right, y), fill=BLACK, width=RULE)
+    y += RULE_BELOW
 
     reply_bottom = bottom - (NOTE_LINE if since else 0)
     font, lines, line_height, truncated = fit_reply(reply, width, reply_bottom - y,
@@ -199,7 +184,7 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
         y += line_height
 
     if since:
-        note = _font(HEADER_SIZE - 1, bold=True)
+        note = _font(NOTE_SIZE, bold=True)
         draw.text((MARGIN, bottom - NOTE_LINE + 6), _ellipsize(since, note, width), font=note, fill=RED)
 
     return img
