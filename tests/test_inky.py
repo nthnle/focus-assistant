@@ -45,6 +45,26 @@ def test_short_reply_uses_largest_font():
     assert not truncated
 
 
+@pytest.mark.parametrize("count, size", [(1, 26), (3, 26), (4, 23), (5, 19), (6, 19), (9, 19)])
+def test_a_short_list_gets_bigger_text(count, size):
+    items, more = inky.shown(make_state(*[f"Item {i}" for i in range(count)]))
+    assert inky.item_size(len(items) + (1 if more else 0))[0] == size
+
+
+def test_the_reply_is_never_bigger_than_the_list(monkeypatch):
+    sizes = []
+    real = inky.fit_reply
+
+    def spy(*a, **k):
+        font, *rest = real(*a, **k)
+        sizes.append(font.size)
+        return (font, *rest)
+
+    monkeypatch.setattr(inky, "fit_reply", spy)
+    inky.render(make_state(*[f"Item {i}" for i in range(6)]), "morning", "Go.")
+    assert sizes == [19]   # a short reply would fit at 24, but the list is at 19
+
+
 def test_overlong_reply_is_truncated_at_smallest_font():
     font, lines, line_height, truncated = inky.fit_reply("word " * 500, 552, 170)
     assert truncated

@@ -42,9 +42,10 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)  # one accent; both panels have a clean red
 
 HEADER_SIZE = 18
-ITEM_SIZE = 19   # six rows of these leave the reply about six lines
-ITEM_LINE = 26
-REPLY_MAX_SIZE = 24
+# (rows up to, font size, line height): a short list gets bigger text; six
+# rows of the smallest still leave the reply about six lines.
+ITEM_SIZES = ((3, 26, 36), (4, 23, 32), (6, 19, 26))
+REPLY_MAX_SIZE = 24  # and never larger than the list's text
 REPLY_MIN_SIZE = 16
 NOTE_LINE = 26
 
@@ -97,14 +98,22 @@ def _wrap(text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
     return lines
 
 
+def item_size(rows: int) -> tuple[int, int]:
+    """(font size, line height) for a list of this many rows."""
+    for most, size, line in ITEM_SIZES:
+        if rows <= most:
+            return size, line
+    return ITEM_SIZES[-1][1:]
+
+
 def fit_reply(
-    text: str, width: float, height: float
+    text: str, width: float, height: float, max_size: int = REPLY_MAX_SIZE
 ) -> tuple[ImageFont.FreeTypeFont, list[str], int, bool]:
     """Largest font whose wrapped lines fit the box; truncate at the smallest.
 
     Returns (font, lines, line_height, truncated).
     """
-    for size in range(REPLY_MAX_SIZE, REPLY_MIN_SIZE - 1, -1):
+    for size in range(max_size, REPLY_MIN_SIZE - 1, -1):
         font = _font(size)
         line_height = round(size * 1.3)
         lines = _wrap(text, font, width)
@@ -138,9 +147,10 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
     draw.text((right, y), day, font=header, fill=BLACK, anchor="ra")
     y += 40
 
-    pfont = _font(ITEM_SIZE, bold=True)
-    tag_font = _font(HEADER_SIZE - 3, bold=True)
     items, more = shown(state)
+    size, line = item_size(max(1, len(items) + (1 if more else 0)))
+    pfont = _font(size, bold=True)
+    tag_font = _font(HEADER_SIZE - 3, bold=True)
     bullet = "\u2022  "
     bullet_w = pfont.getlength(bullet)
     rows = 0
@@ -148,25 +158,27 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
         draw.text((MARGIN, y), "Nothing open on the list", font=pfont, fill=BLACK)
         rows = 1
     for p in items:
-        row = y + rows * ITEM_LINE
+        row = y + rows * line
         tag = f"{p.carried_days}d" if p.carried_days else ""
         tag_w = tag_font.getlength(tag) + 12 if tag else 0
-        draw.text((MARGIN, row), bullet, font=pfont, fill=RED)
+        baseline = row + size  # item and tag share it, whatever their sizes
+        draw.text((MARGIN, baseline), bullet, font=pfont, fill=RED, anchor="ls")
         text = _ellipsize(p.text, pfont, width - bullet_w - tag_w)
-        draw.text((MARGIN + bullet_w, row), text, font=pfont, fill=BLACK)
+        draw.text((MARGIN + bullet_w, baseline), text, font=pfont, fill=BLACK, anchor="ls")
         if tag:
-            draw.text((right, row + 4), tag, font=tag_font, fill=RED, anchor="ra")
+            draw.text((right, baseline), tag, font=tag_font, fill=RED, anchor="rs")
         rows += 1
     if more:
-        draw.text((MARGIN + bullet_w, y + rows * ITEM_LINE), f"+{more} more", font=_font(ITEM_SIZE), fill=RED)
+        draw.text((MARGIN + bullet_w, y + rows * line), f"+{more} more", font=_font(size), fill=RED)
         rows += 1
-    y += rows * ITEM_LINE + 8
+    y += rows * line + 8
 
     draw.line((MARGIN, y, right, y), fill=BLACK, width=2)
     y += 16
 
     reply_bottom = bottom - (NOTE_LINE if since else 0)
-    font, lines, line_height, truncated = fit_reply(reply, width, reply_bottom - y)
+    font, lines, line_height, truncated = fit_reply(reply, width, reply_bottom - y,
+                                                    max_size=min(REPLY_MAX_SIZE, size))
     if truncated:
         log.warning("Reply too long for the display; truncated to %d lines", len(lines))
     for line in lines:
