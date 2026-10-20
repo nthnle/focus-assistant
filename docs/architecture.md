@@ -101,7 +101,7 @@ focus/
   chat.py         chat: prompt, tools, tool loop, daily limit
   checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs;
                   plus its quiet rewrite (screen only) after something is marked done
-  stretch.py      the :50 stretch reminder (coach-written, fixed fallback)
+  stretch.py      the :50 stretch reminder (coach-written, fixed fallback), :00 back to work
   presence.py     away or not, from charger events and desk sound
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
   days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later priorities
@@ -134,6 +134,7 @@ root only; systemd reads it and passes it to the services that need it.
 |---|---|---|---|---|
 | `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
+| `focus-back` | timer: :00 each weekday hour, after a reminder | **no** | none | sound cards |
 | `focus-dock` | always (charger reports from the iPhone + the status page, a browser preview of the e-ink display) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes, capped by a daily limit | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |

@@ -1,0 +1,10 @@
+[Unit]
+Description=Focus assistant back-to-work line (:00 each weekday hour; only after a break reminder played)
+
+[Timer]
+OnCalendar=Mon..Fri 10..17:00
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

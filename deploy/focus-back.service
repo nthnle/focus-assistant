@@ -1,0 +1,34 @@
+[Unit]
+Description=Focus assistant back-to-work line (:00 after a break reminder)
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@USER@
+SupplementaryGroups=audio
+EnvironmentFile=/etc/focus-assistant/focus.env
+# A fixed line, never a model call: no key, no network.
+UnsetEnvironment=FOCUS_LLM_API_KEY
+Environment=FOCUS_STATE_DIR=@STATE_DIR@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/focus-assistant/venv/bin/python -m focus.stretch --back
+TimeoutStartSec=2min
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=tmpfs
+BindPaths=@STATE_DIR@
+PrivateTmp=yes
+DevicePolicy=closed
+DeviceAllow=char-alsa rw
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077

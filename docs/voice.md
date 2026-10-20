@@ -198,12 +198,21 @@ If it doesn't answer within 5 seconds, or the network is down, a fixed
 phrase plays instead, so a reminder is never late. They're skipped when
 you're [away](phone.md#presence).
 
+At **:00**, when the break is over, it says so: "Break's over. Back to it.
+3 things on your list." Only after a reminder that played at :50, and not
+when you're away or paused, or when the hour starts outside a focus block
+(12:00 is lunch). It's a fixed line, so it costs nothing and needs no
+network.
+
 Needs the speaker setup (section 1). Then:
 
 ```bash
-sudo systemctl enable --now focus-stretch.timer
-systemctl list-timers focus-stretch.timer --no-pager
+sudo systemctl enable --now focus-stretch.timer focus-back.timer
+systemctl list-timers focus-stretch.timer focus-back.timer --no-pager
 ```
+
+(`install.sh` turns the back-to-work timer on for you whenever the stretch
+timer is on. Not wanted? `sudo systemctl disable --now focus-back.timer`.)
 
 To try one immediately with the service's settings:
 

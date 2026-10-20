@@ -94,3 +94,48 @@ def test_compose_falls_back_when_the_coach_fails(cfg):
 def test_compose_without_a_key_falls_back(cfg, monkeypatch):
     monkeypatch.delenv("FOCUS_LLM_API_KEY", raising=False)
     assert stretch.compose(cfg, at(10)) is None
+
+
+def reminded_at(cfg, when):
+    stretch.run(cfg, when, lambda text: None, BLOCKS, write=NO_COACH)
+
+
+def test_back_to_work_after_a_break(cfg):
+    said = []
+    with st.locked_state(cfg, today=at(10).date()) as s:
+        actions.add_priority(s, "Write the spec")
+        actions.add_priority(s, "Email Sam")
+    reminded_at(cfg, at(10))
+    assert stretch.back(cfg, at(11, 0), said.append, BLOCKS)
+    assert said == ["Break's over. Back to it. 2 things on your list."]
+
+
+def test_no_back_to_work_without_a_reminder_at_50(cfg):
+    said = []
+    assert not stretch.back(cfg, at(11, 0), said.append, BLOCKS)       # none played
+    reminded_at(cfg, at(9))
+    assert not stretch.back(cfg, at(11, 0), said.append, BLOCKS)       # too long ago
+    assert said == []
+
+
+def test_no_back_to_work_at_lunch(cfg):
+    said = []
+    reminded_at(cfg, at(11))                                          # 11:50 in the block
+    assert not stretch.back(cfg, at(12, 0), said.append, BLOCKS)       # 12:00 is lunch
+    assert said == []
+
+
+def test_no_back_to_work_while_paused(cfg):
+    said = []
+    reminded_at(cfg, at(10))
+    with st.locked_state(cfg, today=at(10).date()) as s:
+        actions.pause(s, at(12, 0).astimezone())
+    assert not stretch.back(cfg, at(11, 0), said.append, BLOCKS)
+    assert said == []
+
+
+def test_back_line_counts_what_is_left():
+    s = st.State(date="2026-10-12")
+    assert stretch.back_line(s).endswith("Your list is clear.")
+    actions.add_priority(s, "Write the spec")
+    assert stretch.back_line(s).endswith("One thing on your list.")

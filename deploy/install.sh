@@ -42,6 +42,7 @@ udevadm trigger --subsystem-match=hidraw
 echo "==> systemd units"
 for unit in focus-checkin.service focus-checkin.timer focus-dock.service focus-chat.service \
             focus-voice.service focus-stretch.service focus-stretch.timer \
+            focus-back.service focus-back.timer \
             focus-voice-sleep.service focus-voice-sleep.timer \
             focus-voice-wake.service focus-voice-wake.timer; do
     sed -e "s|@USER@|$USER_NAME|g" -e "s|@STATE_DIR@|$STATE_DIR|g" \
@@ -55,6 +56,10 @@ systemctl enable --now focus-voice-sleep.timer focus-voice-wake.timer
 # are enabled by hand (see README); restart them if they run. The stretch timer
 # picks up a changed unit on the daemon-reload above.
 systemctl try-restart focus-dock.service focus-chat.service focus-voice.service
+# The back-to-work line follows the stretch reminders: on when they are.
+if systemctl is-enabled -q focus-stretch.timer; then
+    systemctl enable --now focus-back.timer
+fi
 
 echo
 if [ "${NEED_KEY:-0}" = 1 ]; then

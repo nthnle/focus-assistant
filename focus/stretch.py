@@ -10,8 +10,14 @@ If it hasn't answered within a few seconds, or there is no network, one of
 the fixed phrases below is said instead: a reminder always plays at :50.
 Each reminder is logged as an event, so the next check-in can see them.
 
-    python -m focus.stretch          what the timer runs
+At :00 the focus-back timer says the break is over ("Break's over. Back to
+it."), but only after a reminder that actually played at :50, inside a
+focus block, and not while you're away or paused. It's a fixed line, so it
+needs no model, key or network.
+
+    python -m focus.stretch          what the stretch timer runs
     python -m focus.stretch --now    say one regardless of the time (to try it)
+    python -m focus.stretch --back   what the back timer runs
 """
 
 from __future__ import annotations
@@ -19,7 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable
 
 import openai
@@ -31,6 +37,8 @@ log = logging.getLogger(__name__)
 
 STRETCH = st.STRETCH_REMINDER
 COACH_TIMEOUT = 5.0
+# How recent a reminder must be for :00 to count as the end of its break.
+BACK_AFTER = timedelta(minutes=15)
 
 SYSTEM_PROMPT = """\
 You are the user's focus coach on a small device on their desk. They work \
@@ -103,10 +111,41 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None],
     text = written["text"] if written else phrase_for(now)
     say(text)
     with st.locked_state(cfg, today=now.date()) as s:
-        event = actions.log_event(s, STRETCH, "coach" if written else "fixed")
+        event = actions.log_event(s, STRETCH, "coach" if written else "fixed", at=now)
         if written:
             event["usage"] = written["usage"]
     log.info("Reminded: %s", text)
+    return True
+
+
+def back_line(s: st.State) -> str:
+    n = len(s.open_priorities)
+    left = {0: "Your list is clear.", 1: "One thing on your list."}.get(n, f"{n} things on your list.")
+    return f"Break's over. Back to it. {left}"
+
+
+def back(cfg: Config, now: datetime, say: Callable[[str], None],
+         focus_blocks: list[blocks.Block]) -> bool:
+    """At :00, after a break reminder that played, say it's time to start again."""
+    if not blocks.in_block(now, focus_blocks):
+        log.info("Not in a focus block; no back-to-work line")
+        return False
+    aware = now.astimezone()
+    s = st.peek(cfg, today=now.date())
+    if not any(e["kind"] == STRETCH and aware - datetime.fromisoformat(e["at"]) <= BACK_AFTER
+               for e in s.events):
+        log.info("No break reminder played at :50; nothing to come back from")
+        return False
+    quiet = pause.describe(s, aware)
+    if quiet:
+        log.info("Paused %s; no back-to-work line", quiet)
+        return False
+    if presence.away(cfg, s, aware):
+        log.info("Away from the desk; no back-to-work line")
+        return False
+    text = back_line(s)
+    say(text)
+    log.info("Back: %s", text)
     return True
 
 
@@ -118,6 +157,9 @@ def main(argv: list[str] | None = None) -> int:
     force = "--now" in argv
     now = datetime.now()
     focus_blocks = blocks.from_env()
+    if "--back" in argv:
+        back(config.load(), now, lambda text: speech.create().say(text), focus_blocks)
+        return 0
     if not force and not blocks.in_block(now, focus_blocks):
         log.info("Not in a focus block; no reminder")
         return 0
