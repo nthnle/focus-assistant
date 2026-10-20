@@ -54,6 +54,7 @@ The **check-in times** are set in the systemd timer, not here; see
 | `FOCUS_VOICE_MODEL` | `base.en` | Speech recognition: `moonshine/base` (recommended on a Pi), `moonshine/tiny`, or a Whisper model such as `tiny.en` or `base.en`. See [voice.md](voice.md#choosing-a-speech-model). |
 | `FOCUS_VOICE_MODELS` | `/opt/focus-assistant/models` | Where speech models are downloaded. |
 | `FOCUS_VOICE_FOLLOWUP` | `5` | Seconds to keep listening after a reply, with no wake word needed. `0` turns it off. |
+| `FOCUS_VOICE_TALK_FOLLOWUP` | `10` | The same in talk mode ("let's talk"). |
 | `FOCUS_VOICE_LEVEL` | (automatic) | A fixed loudness threshold for "you're speaking", if the automatic one cuts you off or waits too long. Try `800`. |
 | `FOCUS_VOICE_BUTTON` | `PowerConf Consumer Control` | Part of the name of the input device with the talk button (`sudo evtest` lists them). |
 | `FOCUS_VOICE_KEY` | `164` | The talk button's key code (`164` is `KEY_PLAYPAUSE`). |

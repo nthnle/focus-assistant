@@ -28,6 +28,7 @@ release right after the press, so it is press-to-talk, not hold-to-talk.
     FOCUS_VOICE_WAKE_FRAMES     80 ms frames in a row above it to fire, default 3
     FOCUS_VOICE_WAKE_VAD        speech-detector threshold, default 0.5; 0 turns it off
     FOCUS_VOICE_FOLLOWUP  seconds to keep listening after a reply, no wake word needed
+    FOCUS_VOICE_TALK_FOLLOWUP  the same in talk mode ("let's talk"), default 10
                           (default 5; 0 = one trigger per turn)
 
     python -m focus.inputs.voice    the service (what focus-voice runs)
@@ -43,6 +44,7 @@ import logging
 import math
 import os
 import queue
+import re
 import struct
 import subprocess
 import sys
@@ -416,13 +418,23 @@ FOLLOW_UP = tone([(880, 0.06)], volume=0.15)  # soft: "still listening, no wake 
 PHANTOMS = {"you", "thank you", "thanks", "bye", "thank you for watching", "thanks for watching"}
 
 
+# Talk mode: "let's talk" allows longer replies and a longer follow-up window,
+# until "that's all" or a quiet window ends it.
+TALK_START = re.compile(r"\b(let'?s|let us|can we|could we) (talk|chat)\b|\btalk mode\b")
+TALK_END = re.compile(r"\b(that'?s all|that is all|stop talking|end (the )?(talk|chat)|"
+                      r"back to work|goodbye|that'?s it for now)\b")
+# "Let's talk" alone is just the switch; with more words it's also the first message.
+TALK_SWITCH_WORDS = 4
+
+
 # --- the loop -----------------------------------------------------------
 
 class Voice:
     def __init__(self, cfg: Config, speak, stream, play: Callable[[bytes], None],
                  listen: Callable[..., bytes | None],
                  transcribe: Callable[..., str], ask=chat.run,
-                 hint: Callable[[], str | None] = lambda: None, followup_s: float = 0.0):
+                 hint: Callable[[], str | None] = lambda: None, followup_s: float = 0.0,
+                 talk_followup_s: float = 10.0):
         self.cfg = cfg
         self.speak = speak          # text -> spoken (focus.outputs.speech.Speech.say)
         self.stream = stream        # () -> SentenceStream, for speaking as the reply arrives
@@ -432,24 +444,53 @@ class Voice:
         self.ask = ask
         self.hint = hint            # () -> vocabulary for the recogniser, or None
         self.followup_s = followup_s  # after a reply, listen this long without a wake word
+        self.talk_followup_s = talk_followup_s  # the same in talk mode
+        self.talking = False          # talk mode: longer replies and windows, until it ends
 
     def turn(self, pressed_again: Callable[[], bool]) -> None:
         """One turn: listen, understand, answer out loud, then stay open for a follow-up.
 
         After each reply a soft chime opens a FOCUS_VOICE_FOLLOWUP-second window:
         speak and it's another turn, no wake word needed; stay quiet and it ends.
+        In talk mode the window is FOCUS_VOICE_TALK_FOLLOWUP seconds, and when
+        the turn ends, talk mode ends with it.
         """
-        self.play(LISTENING)
-        audio = self.listen(pressed_again)
-        if audio is None:
-            self.play(NOTHING)
-            return
-        while self.answer(audio, pressed_again) and self.followup_s > 0:
-            self.play(FOLLOW_UP)
-            audio = self.listen(pressed_again, start_timeout_s=self.followup_s)
+        try:
+            self.play(LISTENING)
+            audio = self.listen(pressed_again)
             if audio is None:
-                log.info("No follow-up")
+                self.play(NOTHING)
                 return
+            while self.answer(audio, pressed_again) and (window := self._window()) > 0:
+                self.play(FOLLOW_UP)
+                audio = self.listen(pressed_again, start_timeout_s=window)
+                if audio is None:
+                    log.info("No follow-up")
+                    return
+        finally:
+            if self.talking:
+                log.info("Talk mode off")
+            self.talking = False
+
+    def _window(self) -> float:
+        return self.talk_followup_s if self.talking else self.followup_s
+
+    def _talk_switch(self, text: str) -> bool | None:
+        """Handle "let's talk" / "that's all". True or False: handled, and
+        whether to stay open for a follow-up; None: an ordinary message."""
+        said = text.lower()
+        if self.talking and TALK_END.search(said):
+            self.talking = False
+            log.info("Talk mode off")
+            self.speak("Okay, back to it.")
+            return False
+        if not self.talking and TALK_START.search(said):
+            self.talking = True
+            log.info("Talk mode on")
+            if len(said.split()) <= TALK_SWITCH_WORDS:
+                self.speak("Sure. What's on your mind?")
+                return True
+        return None
 
     def answer(self, audio: bytes, pressed_again: Callable[[], bool] = lambda: False) -> bool:
         """Understand one utterance and speak the coach's reply.
@@ -472,10 +513,14 @@ class Voice:
             self.play(NOTHING)
             return False
         log.info("Heard: %s", config.words(text))
+        switched = self._talk_switch(text)
+        if switched is not None:
+            return switched
         out = self.stream()
         replied = True
         try:
-            self.ask(self.cfg, text, on_text=out.feed, voice=True)
+            # talk= only when on, so an `ask` without it still works for short turns.
+            self.ask(self.cfg, text, on_text=out.feed, voice=True, **({"talk": True} if self.talking else {}))
         except CoachError as exc:
             log.warning("Voice chat failed: %s", exc)
             replied = False
@@ -685,7 +730,8 @@ def main() -> int:
     voice = Voice(cfg, speak=spoken.say, stream=spoken.stream, play=spoken.play,
                   ask=functools.partial(chat.run, on_done_change=refresh),
                   listen=listen, transcribe=transcribe, hint=lambda: vocabulary(cfg),
-                  followup_s=float(os.environ.get("FOCUS_VOICE_FOLLOWUP", "5")))
+                  followup_s=float(os.environ.get("FOCUS_VOICE_FOLLOWUP", "5")),
+                  talk_followup_s=float(os.environ.get("FOCUS_VOICE_TALK_FOLLOWUP", "10")))
     tracker = presence.SoundTracker(cfg)
     extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)),
                   idle=lambda: replay_missed(cfg, spoken.say, datetime.now().astimezone()))

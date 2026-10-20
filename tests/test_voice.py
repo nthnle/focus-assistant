@@ -379,6 +379,48 @@ def test_no_follow_up_after_a_mis_hearing_or_failure(cfg):
     assert log["asked"] == ["add x"] and voice.FOLLOW_UP not in log["played"]
 
 
+def talk_voice(cfg, heard, listens):
+    log = {"listen": [], "asked": [], "spoken": []}
+    queue, heard_queue = list(listens), list(heard)
+
+    def listen(stop, start_timeout_s=None):
+        log["listen"].append(start_timeout_s)
+        return queue.pop(0)
+
+    def ask(_cfg, text, on_text, voice, talk=False):
+        log["asked"].append((text, talk))
+        on_text("Okay.")
+
+    v = voice.Voice(cfg, speak=log["spoken"].append, stream=lambda: FakeStream(log["spoken"]),
+                    play=lambda wav: None, listen=listen,
+                    transcribe=lambda a, hint: heard_queue.pop(0), ask=ask,
+                    followup_s=5, talk_followup_s=10)
+    return v, log
+
+
+def test_talk_mode_has_longer_replies_and_windows_until_thats_all(cfg):
+    audio = b"\x00\x00" * 100
+    v, log = talk_voice(cfg, ["Let's talk.", "I can't decide what to start with", "That's all, thanks"],
+                        [audio, audio, audio])
+    v.turn(lambda: False)
+    assert log["spoken"][0] == "Sure. What's on your mind?"   # the switch alone isn't sent
+    assert log["asked"] == [("I can't decide what to start with", True)]
+    assert log["listen"] == [None, 10, 10]                    # talk-mode windows
+    assert log["spoken"][-1] == "Okay, back to it."
+    assert not v.talking
+
+
+def test_talk_mode_ends_with_a_quiet_window(cfg):
+    audio = b"\x00\x00" * 100
+    v, log = talk_voice(cfg, ["let's talk about the exam plan", "add x"], [audio, None, audio, None])
+    v.turn(lambda: False)
+    assert log["asked"] == [("let's talk about the exam plan", True)]  # more than the switch: sent
+    assert not v.talking
+    v.turn(lambda: False)                                     # the next wake word: short again
+    assert log["asked"][-1] == ("add x", False)
+    assert log["listen"][-1] == 5
+
+
 def test_follow_up_off_with_zero(cfg):
     audio = b"\x00\x00" * 100
     v, log = followup_voice(cfg, ["add x"], [audio])

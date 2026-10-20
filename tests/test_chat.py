@@ -267,6 +267,12 @@ def test_http_chat(server):
     assert calls == ["hello", "fail"]
 
 
+def test_talk_mode_asks_for_conversational_replies(cfg):
+    client, sent = scripted(completion("Fair. What's making it hard to start?"))
+    chat.run(cfg, "I can't decide what to start with", client=client, voice=True, talk=True)
+    assert sent[0]["messages"][0]["content"] == chat.SYSTEM_PROMPT + chat.TALK_RULES
+
+
 def test_voice_messages_ask_for_short_replies(cfg):
     client, sent = scripted(completion("Done. Next is Email Sam."))
     chat.run(cfg, "done with the spec", client=client, voice=True)

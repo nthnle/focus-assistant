@@ -64,6 +64,10 @@ Answer in one short sentence, at most 15 words, unless they asked a question \
 that needs more. After a change, confirm it by naming the item, like this: \
 Added lawn pre-emergent."""
 
+TALK_RULES = """
+
+This is a spoken conversation at the desk, and your reply will be read aloud. They asked to talk, so talk naturally, like a coach sitting beside them: two or three short sentences, at most 50 words. Ask one question back when it would help them think it through. After a change, confirm it by naming the item. No lists, no markdown."""
+
 
 def _tool(name: str, description: str, properties: dict) -> dict:
     return {
@@ -257,7 +261,8 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
 
 def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         daily_limit: int = 50, on_text: Callable[[str], None] | None = None,
-        voice: bool = False, on_done_change: Callable[[], None] | None = None) -> str:
+        voice: bool = False, on_done_change: Callable[[], None] | None = None,
+        talk: bool = False) -> str:
     """Answer one message. `on_text` receives the reply as it streams in;
     `voice` asks for the short replies that suit being read aloud;
     `on_done_change` is called when a priority was marked done or reopened."""
@@ -294,7 +299,7 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
     stream = _FirstPartFilter(on_text).feed if on_text else None
     for _ in range(MAX_STEPS):
         response = coach.create(cfg, client, model=cfg.chat_model, on_text=stream,
-                                system=SYSTEM_PROMPT + (VOICE_RULES if voice else ""),
+                                system=SYSTEM_PROMPT + (TALK_RULES if talk else VOICE_RULES if voice else ""),
                                 tools=TOOLS, messages=messages)
         tokens_in += response.usage.input_tokens
         tokens_out += response.usage.output_tokens

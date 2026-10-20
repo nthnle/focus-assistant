@@ -89,7 +89,16 @@ speak again and it's another turn, with no button or wake word. Say nothing
 and it stops. The coach is the same one as [phone chat](phone.md#chat): it
 can add, rename, schedule, complete, reopen and drop items, set
 week goals, log how a block is going, and pause ("quiet until 11", "I'm off
-until Monday"). It's built for quick commands, not long conversations.
+until Monday"). It's built for quick commands.
+
+**Talk mode,** for thinking something through out loud: say **"let's talk"**
+(or "can we chat", or "let's talk about the exam plan" to start right in).
+Replies grow to two or three sentences, the coach may ask you a question
+back, and the listening window after each reply is 10 seconds
+(`FOCUS_VOICE_TALK_FOLLOWUP`). Say **"that's all"** (or "back to work") to
+end it, or just stop talking: a quiet window ends it too, and the next wake
+word starts short again. Every turn counts toward the same 50-a-day limit
+as chat.
 
 Install the voice extras and a speech model:
 
