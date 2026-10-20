@@ -150,9 +150,9 @@ def test_turn_with_nothing_understood(cfg):
 
 
 def test_turn_speaks_coach_errors(cfg):
-    r = Recorder(cfg, fail="Daily chat limit (50) reached")
+    r = Recorder(cfg, fail="The coach took too many steps")
     r.voice.turn(lambda: False)
-    assert r.spoken == ["Sorry, that didn't work. Daily chat limit (50) reached"]
+    assert r.spoken == ["Sorry, that didn't work. The coach took too many steps"]
 
 
 SILENCE = b"\x00\x00" * voice.CHUNK_SAMPLES
