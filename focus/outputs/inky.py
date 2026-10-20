@@ -70,7 +70,18 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     for path in candidates:
         if Path(path).is_file():
             return ImageFont.truetype(path, size)
+    _warn_fallback()
     return ImageFont.load_default(size)
+
+
+_warned = False
+
+
+def _warn_fallback() -> None:
+    global _warned
+    if not _warned:
+        log.warning("No DejaVu font (sudo apt install fonts-dejavu-core); using Pillow's, without bold")
+        _warned = True
 
 
 def _ellipsize(text: str, font: ImageFont.FreeTypeFont, width: float) -> str:
@@ -151,8 +162,9 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
     size, line = item_size(max(1, len(items) + (1 if more else 0)))
     pfont = _font(size, bold=True)
     tag_font = _font(HEADER_SIZE - 3, bold=True)
-    bullet = "\u2022  "
-    bullet_w = pfont.getlength(bullet)
+    # A drawn dot, not a "•" glyph: not every font has one.
+    dot = max(4, size // 4)
+    bullet_w = dot + size * 0.6
     rows = 0
     if not items:
         draw.text((MARGIN, y), "Nothing open on the list", font=pfont, fill=BLACK)
@@ -162,7 +174,8 @@ def render(state: State, slot: str | None, reply: str, since: str = "",
         tag = f"{p.carried_days}d" if p.carried_days else ""
         tag_w = tag_font.getlength(tag) + 12 if tag else 0
         baseline = row + size  # item and tag share it, whatever their sizes
-        draw.text((MARGIN, baseline), bullet, font=pfont, fill=RED, anchor="ls")
+        middle = baseline - size * 0.36   # about the middle of a lowercase letter
+        draw.ellipse((MARGIN, middle - dot / 2, MARGIN + dot, middle + dot / 2), fill=RED)
         text = _ellipsize(p.text, pfont, width - bullet_w - tag_w)
         draw.text((MARGIN + bullet_w, baseline), text, font=pfont, fill=BLACK, anchor="ls")
         if tag:

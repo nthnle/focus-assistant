@@ -205,7 +205,7 @@ sudo raspi-config nonint do_spi 0
 sudo raspi-config nonint do_i2c 0
 echo "dtoverlay=spi0-0cs" | sudo tee -a /boot/firmware/config.txt   # the Impression drives chip-select itself
 sudo reboot
-sudo apt install -y python3-dev            # spidev builds from source on Python 3.13
+sudo apt install -y python3-dev fonts-dejavu-core   # spidev builds from source on Python 3.13; Pi OS Lite has no DejaVu
 cd ~/focus-assistant
 sudo /opt/focus-assistant/venv/bin/pip install ".[display]"
 sudo deploy/install.sh
