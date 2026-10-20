@@ -138,6 +138,7 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-dock` | always (charger reports from the iPhone + the status page, a browser preview of the e-ink display) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
+| `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |
 
 Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.
@@ -178,22 +179,46 @@ token check and server loop that the dock and chat use.
 
 ## E-ink display
 
-`outputs/inky.py` draws the check-in for a Pimoroni **Inky Impression 4"**
-(640x400, 7 colours): the slot and date, today's open items (up to six,
-then "+N more"; a red tag shows days carried) and the reply, shrinking from
-24 px to 16 px to fit. It redraws only when something changed, since a full refresh takes
-about 30 seconds. **It hasn't been tested on a real panel yet.**
+`outputs/inky.py` draws on a Pimoroni **Inky Impression 4.0" Spectra 6**
+(600x400), or the older 4" model (640x400); it draws at whatever size the
+attached panel reports. It shows the same as the status page's upper panel:
+the slot and date, today's open items (up to six, then "+N more"; a red tag
+shows days carried), the reply, shrinking from 24 px to 16 px to fit, and
+the red "Since 16:20: done ..." line.
+
+The `focus-display` service runs it as a watcher. It reads state.json every
+5 seconds and redraws once changes have settled for 30 seconds, so marking
+three things done is one refresh, not three. A refresh takes about 20
+seconds and flashes, and the panel keeps its picture without power. The
+service has SPI, I2C and GPIO access and nothing else: no network, no key.
 
 Preview it on any machine, without the panel or an API call:
 
 ```bash
-.venv/bin/python -m focus.outputs.inky preview.png     # redraws the last check-in
+.venv/bin/python -m focus.outputs.inky preview.png     # what the panel would show now
 ```
 
-To use the panel: `sudo raspi-config nonint do_spi 0`, install the
-`display` extra, set `FOCUS_OUTPUTS=console,inky`, and give the check-in
-unit access to SPI and GPIO (see the comment in
-[`deploy/focus-checkin.service`](../deploy/focus-checkin.service)).
+Set it up on the Pi:
+
+```bash
+sudo raspi-config nonint do_spi 0
+sudo raspi-config nonint do_i2c 0
+echo "dtoverlay=spi0-0cs" | sudo tee -a /boot/firmware/config.txt   # the Impression drives chip-select itself
+sudo reboot
+sudo apt install -y python3-dev            # spidev builds from source on Python 3.13
+cd ~/focus-assistant
+sudo /opt/focus-assistant/venv/bin/pip install ".[display]"
+sudo deploy/install.sh
+sudo systemctl enable --now focus-display
+journalctl -u focus-display -f             # "Found a ... panel", then "Redrawing the panel"
+```
+
+Seat the panel directly on the Pi's GPIO header. Through a 40-pin ribbon
+and a HAT Hack3r, the panel's ID chip was read (I2C) but refreshes timed
+out after 40 s, so the faster SPI and busy lines didn't make it.
+
+Leave `inky` out of `FOCUS_OUTPUTS`: the service already redraws after every
+check-in, and only one process may drive the panel.
 
 ## Development
 

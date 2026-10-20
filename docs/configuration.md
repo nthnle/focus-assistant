@@ -20,7 +20,7 @@ point that `install.sh` copies.
 | `FOCUS_CHAT_MODEL` | `FOCUS_MODEL` | Model for chat, voice commands and stretch reminders. A smaller, faster model makes voice feel quicker. |
 | `FOCUS_MODEL_PRICE`, `FOCUS_CHAT_MODEL_PRICE` | (unset) | US$ per million tokens in and out, e.g. `0.59,0.79`, from the host's price list. Each call's cost is saved with it, so `focus status` can show it. Calls made before a price was set show `$?`. |
 | `FOCUS_EFFORT` | (unset) | Sent as `reasoning_effort` (`low`, `medium`, `high`). Only reasoning models accept it; leave it unset for the rest, or requests fail. |
-| `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. |
+| `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. With the `focus-display` service running, leave out `inky`: the service redraws the panel on every change. |
 | `FOCUS_HISTORY_DAYS` | `14` | Days of daily summaries kept for the coach's context. |
 | `FOCUS_STATE_DIR` | `~/.local/state/focus-assistant` | Where `state.json` lives. The systemd units set this; you normally don't. |
 | `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. Used by phone pickups, stretch reminders, presence and the status page. |
@@ -94,5 +94,5 @@ The **check-in times** are set in the systemd timer, not here; see
 
 | Setting | Default | |
 |---|---|---|
-| `FOCUS_INKY_PNG` | (unset) | Save the display image to this PNG instead of drawing on the panel. |
+| `FOCUS_INKY_PNG` | (unset) | Save the display image to this PNG instead of drawing on the panel (600x400). |
 | `FOCUS_INKY_FONT` | (DejaVu Sans) | A TrueType font file to use instead. |

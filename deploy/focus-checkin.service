@@ -23,8 +23,8 @@ ProtectSystem=strict
 ProtectHome=tmpfs
 BindPaths=@STATE_DIR@
 PrivateTmp=yes
-# Sound cards only, for the speech output. The inky output will also need
-# DeviceAllow=/dev/spidev0.0 rw and /dev/gpiochip0 rw plus the spi and gpio groups.
+# Sound cards only, for the speech output. The e-ink panel is drawn by
+# focus-display, which has the SPI, I2C and GPIO access this unit lacks.
 DevicePolicy=closed
 DeviceAllow=char-alsa rw
 SupplementaryGroups=audio
