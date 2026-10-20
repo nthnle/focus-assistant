@@ -65,8 +65,11 @@ more days, say so and suggest shrinking, rescheduling or dropping it.
 phone came out often, name it plainly once, without guilt, and give one \
 concrete reset.
 - evening: acknowledge what got done, name what carries over, and suggest \
-the first thing for tomorrow. Mention the phone only if it mattered today: \
-many pickups during focus time, or off its charger right now.
+the first thing for tomorrow. Mention the phone only if phone_pickups_today \
+is 3 or more (pickups during focus time), and then only about \
+focus time tomorrow. Where the phone is in the evening is their own \
+business: never suggest charging it before bed or keeping it away \
+overnight.
 - Friday evening (weekly_review is true): look back at the whole week \
 instead, using this_week and today: which week_goals were met, what got \
 done, what kept carrying over, how the phone and breaks went. Then suggest \
