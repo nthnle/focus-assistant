@@ -260,7 +260,7 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
 
 
 def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
-        daily_limit: int = 50, on_text: Callable[[str], None] | None = None,
+        on_text: Callable[[str], None] | None = None,
         voice: bool = False, on_done_change: Callable[[], None] | None = None,
         talk: bool = False) -> str:
     """Answer one message. `on_text` receives the reply as it streams in;
@@ -273,11 +273,6 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
 
     # Snapshot under the lock; never hold it during a model call.
     with st.locked_state(cfg) as s:
-        # Count the attempt before any model call: a message that fails still
-        # costs tokens, so failures must not slip past the cap.
-        if s.chat_attempts >= daily_limit:
-            raise CoachError(f"Daily chat limit ({daily_limit}) reached; it resets tomorrow")
-        s.chat_attempts += 1
         payload = coach.build_payload(s, "chat", st.now_iso())
         history = s.chat[-HISTORY_TURNS:]
 

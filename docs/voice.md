@@ -97,8 +97,7 @@ Replies grow to two or three sentences, the coach may ask you a question
 back, and the listening window after each reply is 10 seconds
 (`FOCUS_VOICE_TALK_FOLLOWUP`). Say **"that's all"** (or "back to work") to
 end it, or just stop talking: a quiet window ends it too, and the next wake
-word starts short again. Every turn counts toward the same 50-a-day limit
-as chat.
+word starts short again.
 
 Install the voice extras and a speech model:
 

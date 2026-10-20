@@ -98,7 +98,7 @@ focus/
   actions.py      every state change; all inputs call these
   config.py       settings from FOCUS_* environment variables
   coach.py        check-in prompt, payload, and the shared API call
-  chat.py         chat: prompt, tools, tool loop, daily limit
+  chat.py         chat: prompt, tools, tool loop
   checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs;
                   plus its quiet rewrite (screen only) after something is marked done
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback), :00 back to work
@@ -136,7 +136,7 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each weekday hour, after a reminder | **no** | none | sound cards |
 | `focus-dock` | always (charger reports from the iPhone + the status page, a browser preview of the e-ink display) | **no** | home network only, inbound | none |
-| `focus-chat` | always | yes, capped by a daily limit | home network inbound, API outbound | none |
+| `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 
 Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as

@@ -79,7 +79,6 @@ The **check-in times** are set in the systemd timer, not here; see
 | Setting | Default | |
 |---|---|---|
 | `FOCUS_CHAT_TOKEN` | (generated) | Token the phone's Coach shortcut sends. |
-| `FOCUS_CHAT_DAILY_LIMIT` | `50` | Chat and voice messages allowed per day, answered or failed: a cost cap. |
 | `FOCUS_CHAT_PORT` | `8766` | Port for chat. |
 | `FOCUS_CHAT_HOST` | `0.0.0.0` | Address to listen on. |
 

@@ -115,9 +115,9 @@ or two changes from your last week, each tied to a pattern it saw. Today's
 conversation is kept, so follow-ups work, and the next check-in sees it.
 
 Because this service holds the API key, a leaked chat token could spend
-money. `FOCUS_CHAT_DAILY_LIMIT` caps it at 50 messages a day, counting
-failed ones too, and each message is at most six model calls. Set a
-spend limit at your model host, if it offers one, as the final backstop.
+money. There's no daily message limit: each message is at most six model
+calls, and the token is the protection, so keep it to your own phone. Set a
+spend limit at your model host, if it offers one, as the backstop.
 
 **On the Pi:**
 
@@ -137,7 +137,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -d '{"text": "what should I do
 3. **Show Result** with **Contents of URL**.
 
 "Hey Siri, Coach" then asks what's up, takes your dictation and reads the
-reply aloud. Errors (no network, daily limit) come back as a sentence.
+reply aloud. Errors (no network, say) come back as a sentence.
 `journalctl -u focus-chat -f` shows each message (its length, or the
 words with `FOCUS_LOG_WORDS=1`).
 

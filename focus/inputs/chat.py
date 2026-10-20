@@ -32,8 +32,7 @@ DEFAULT_PORT = 8766
 MAX_BODY = 8192
 
 
-def make_handler(cfg: Config, token: str, daily_limit: int,
-                 run=chat.run) -> type[BaseHTTPRequestHandler]:
+def make_handler(cfg: Config, token: str, run=chat.run) -> type[BaseHTTPRequestHandler]:
     one_at_a_time = threading.Lock()  # keeps the day's chat history in order
 
     class Handler(BaseHTTPRequestHandler):
@@ -68,7 +67,7 @@ def make_handler(cfg: Config, token: str, daily_limit: int,
             log.info("Chat: %s", config.words(text[:80]))
             with one_at_a_time:
                 try:
-                    reply = run(cfg, text, daily_limit=daily_limit)
+                    reply = run(cfg, text)
                 except CoachError as exc:
                     log.warning("Chat failed: %s", exc)
                     # 200 so the Shortcut shows the reason instead of a generic error.
@@ -90,7 +89,7 @@ def main() -> int:
     cfg = config.load()
     # Marking something done rewrites the check-in on the screen to match.
     run = functools.partial(chat.run, on_done_change=checkin.Refresher(cfg))
-    handler = make_handler(cfg, token, int(os.environ.get("FOCUS_CHAT_DAILY_LIMIT", "50")), run=run)
+    handler = make_handler(cfg, token, run=run)
     _web.serve(handler, os.environ.get("FOCUS_CHAT_HOST", "0.0.0.0"),
                int(os.environ.get("FOCUS_CHAT_PORT", DEFAULT_PORT)))
     return 0

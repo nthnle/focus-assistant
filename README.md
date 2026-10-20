@@ -150,8 +150,8 @@ the host's price. Hosted open models are cheap for replies this short: with
 three check-ins a day and a handful of voice commands, usually **well under
 a dollar a month**. You can give chat, voice and stretch reminders a smaller,
 faster model (`FOCUS_CHAT_MODEL`). Set the prices in `focus.env` and
-`focus status` shows the day's cost from the token counts it records; phone
-chat has a daily cap (50 messages by default). If the host can't be reached,
+`focus status` shows the day's cost from the token counts it records; set a
+spend limit at your model host if it offers one. If the host can't be reached,
 check-ins fall back to a fixed nudge built from your priorities.
 
 ## Privacy

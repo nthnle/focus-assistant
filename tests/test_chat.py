@@ -191,32 +191,17 @@ def test_runaway_tool_loop_stops(cfg):
         assert s.chat == []
 
 
-def test_daily_limit(cfg):
-    client, _ = scripted(completion("ok"))
-    chat.run(cfg, "one", client=client, daily_limit=1)
-    with pytest.raises(CoachError, match="limit"):
-        chat.run(cfg, "two", client=client, daily_limit=1)
-
-
-def test_failed_messages_count_toward_the_daily_limit(cfg):
+def test_failed_messages_are_not_kept(cfg):
     client = client_for(lambda r: httpx.Response(500, json={"error": {"message": "boom"}}))
     with pytest.raises(CoachError, match="500"):
-        chat.run(cfg, "one", client=client, daily_limit=1)
-    with pytest.raises(CoachError, match="limit"):
-        chat.run(cfg, "two", client=client, daily_limit=1)
+        chat.run(cfg, "one", client=client)
     with st.locked_state(cfg) as s:
-        assert s.chat == [] and s.chat_attempts == 1
+        assert s.chat == []
 
 
-def test_attempts_reset_at_rollover_and_default_from_old_state(cfg):
-    from datetime import date
-    old = st.State.from_dict({"version": st.SCHEMA_VERSION, "date": "2026-10-14",
-                              "chat": [{"at": "x", "user": "hi", "reply": "hey"}]})
-    assert old.chat_attempts == 1  # a state file from before the counter existed
-    with st.locked_state(cfg, today=date(2026, 10, 14)) as s:
-        s.chat_attempts = 7
-    with st.locked_state(cfg, today=date(2026, 10, 15)) as s:
-        assert s.chat_attempts == 0
+def test_state_from_before_the_limit_was_removed_still_loads():
+    old = st.State.from_dict({"version": st.SCHEMA_VERSION, "date": "2026-10-14", "chat_attempts": 7})
+    assert "chat_attempts" not in old.to_dict()
 
 
 def test_chat_clears_at_rollover(cfg):
@@ -232,13 +217,13 @@ def test_chat_clears_at_rollover(cfg):
 def server(cfg):
     calls = []
 
-    def fake_run(_cfg, text, daily_limit, on_text=None):
+    def fake_run(_cfg, text, on_text=None):
         calls.append(text)
         if text == "fail":
             raise CoachError("The coach is offline: can't reach the model provider")
         return f"You said: {text}"
 
-    handler = chat_service.make_handler(cfg, TOKEN, 50, run=fake_run)
+    handler = chat_service.make_handler(cfg, TOKEN, run=fake_run)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}", calls

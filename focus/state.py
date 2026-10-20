@@ -83,8 +83,6 @@ class State:
     checkins: list[dict] = field(default_factory=list)
     events: list[dict] = field(default_factory=list)
     chat: list[dict] = field(default_factory=list)
-    # Every chat or voice message today, answered or not: the daily cost cap.
-    chat_attempts: int = 0
     history: list[dict] = field(default_factory=list)
     # Check-ins and stretch reminders wait until then (focus.pause). Unlike
     # the rest of the day, it survives rollover: a pause can last for days.
@@ -173,7 +171,6 @@ class State:
             checkins=data.get("checkins", []),
             events=data.get("events", []),
             chat=data.get("chat", []),
-            chat_attempts=data.get("chat_attempts", len(data.get("chat", []))),
             history=data.get("history", []),
             paused_until=data.get("paused_until"),
             goals=data.get("goals", []),
@@ -274,7 +271,6 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     state.checkins = []
     state.events = []
     state.chat = []
-    state.chat_attempts = 0
     state.date = today.isoformat()
     return True
 
