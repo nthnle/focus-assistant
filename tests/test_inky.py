@@ -130,10 +130,11 @@ def test_watch_draws_once_changes_settle(cfg):
     assert len(panel.drawn) == 1
     assert (cfg.state_dir / "inky.last").is_file()
 
-    # Nothing changed: a restarted watcher leaves the panel alone.
-    again = Script(*[None] * 10)
+    # A restarted watcher draws once even with nothing changed: something
+    # else (a test pattern) may be on the panel now. Then it stays quiet.
+    again = Script(*[None] * 20)
     inky.watch(cfg, panel, quiet_s=30, poll_s=5, clock=again.clock, sleep=again.sleep, running=again.running)
-    assert len(panel.drawn) == 1
+    assert len(panel.drawn) == 2
 
 
 def test_watch_waits_out_a_steady_stream_of_changes(cfg):

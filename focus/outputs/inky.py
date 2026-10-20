@@ -250,10 +250,11 @@ def watch(cfg: config.Config, panel: Panel, *, quiet_s: float = QUIET_S, poll_s:
           clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
           running: Callable[[], bool] = lambda: True) -> None:
     """Redraw the panel whenever what it shows changes, once changes have
-    settled for `quiet_s`. What is on the panel survives restarts: its
-    fingerprint is kept in state_dir/inky.last."""
+    settled for `quiet_s`. It always draws once after starting: something
+    else may have drawn on the panel meanwhile (a test, the `inky` output),
+    so a remembered fingerprint can't be trusted."""
     marker = cfg.state_dir / "inky.last"
-    drawn = marker.read_text() if marker.is_file() else None
+    drawn = None
     pending, since_change = None, 0.0
     while running():
         try:
