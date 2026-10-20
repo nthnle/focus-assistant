@@ -213,9 +213,10 @@ sudo systemctl enable --now focus-display
 journalctl -u focus-display -f             # "Found a ... panel", then "Redrawing the panel"
 ```
 
-Seat the panel directly on the Pi's GPIO header. Through a 40-pin ribbon
-and a HAT Hack3r, the panel's ID chip was read (I2C) but refreshes timed
-out after 40 s, so the faster SPI and busy lines didn't make it.
+The panel can sit directly on the Pi, or away from it on a 40-pin ribbon
+and a Pimoroni Mini Black HAT Hack3r. On the Hack3r, seat the panel on the
+**top** header, the HAT connector; on the second, labelled header the
+panel's ID chip is still read but every refresh times out after 40 s.
 
 Leave `inky` out of `FOCUS_OUTPUTS`: the service already redraws after every
 check-in, and only one process may drive the panel.

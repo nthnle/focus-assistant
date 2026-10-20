@@ -35,7 +35,7 @@ More diagrams, including a weekday timeline, are in
 | **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
 | **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | phone pickups (and the speakerphone, for desk sound) |
-| An **e-ink display** that redraws when your list or the coach's reply changes | a Pimoroni Inky Impression 4.0" (Spectra 6), seated directly on the Pi |
+| An **e-ink display** that redraws when your list or the coach's reply changes | a Pimoroni Inky Impression 4.0" (Spectra 6), on the Pi or on a ribbon |
 
 It runs on a Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), and should
 run on any Debian-based Linux machine. The voice features are tuned for an
@@ -178,9 +178,8 @@ check-ins fall back to a fixed nudge built from your priorities.
 ## Status
 
 A personal project, shared as is. It's used daily on a Raspberry Pi 4 with
-an Anker PowerConf speakerphone and an iPhone. Other hardware is untested,
-and the e-ink display code hasn't met a real panel yet. Issues and pull
-requests are welcome.
+an Anker PowerConf speakerphone, an Inky Impression 4.0" Spectra 6 and an
+iPhone. Other hardware is untested. Issues and pull requests are welcome.
 
 ## Development
 
