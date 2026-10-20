@@ -16,7 +16,7 @@ your phone.**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone (with an ordinary charger), the Pi's shared core and five services, the speakerphone, the planned e-ink display, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
+  <img alt="At a glance: the iPhone (with an ordinary charger), the Pi's shared core and seven services, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
 </picture>
 
 More diagrams, including a weekday timeline, are in
