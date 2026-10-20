@@ -95,7 +95,7 @@ def test_ask_returns_the_suggested_item():
     ("midday", ["Ship the parser", "Email Sam"], "2 items open on today's list."),
     ("midday", [], "Everything on today's list is done."),
     ("evening", ["Email Sam"], "1 done today, 1 still open."),
-    ("evening", [], "1 done today. Put the phone away"),
+    ("evening", [], "1 done today."),
 ])
 def test_offline_reply_uses_the_data(slot, open_, expected):
     s = State(date="2026-10-12", priorities=[Priority(1, "Write spec", done_at="2026-10-12T10:00:00")]

@@ -65,7 +65,8 @@ more days, say so and suggest shrinking, rescheduling or dropping it.
 phone came out often, name it plainly once, without guilt, and give one \
 concrete reset.
 - evening: acknowledge what got done, name what carries over, and suggest \
-the first thing for tomorrow. Encourage putting the phone away for the night.
+the first thing for tomorrow. Mention the phone only if it mattered today: \
+many pickups during focus time, or off its charger right now.
 - Friday evening (weekly_review is true): look back at the whole week \
 instead, using this_week and today: which week_goals were met, what got \
 done, what kept carrying over, how the phone and breaks went. Then suggest \
@@ -420,4 +421,4 @@ def offline_reply(s: State, slot: str) -> str:
         return "The coach is offline. Everything on today's list is done."
     done = len([p for p in s.today_list if p.done])
     left = f", {open_} still open." if open_ else "."
-    return f"The coach is offline. {done} done today{left} Put the phone away for the night."
+    return f"The coach is offline. {done} done today{left}"

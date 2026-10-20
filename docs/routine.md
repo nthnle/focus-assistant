@@ -20,7 +20,7 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 | Focus time | Leave the phone on the charger. Stand up when the :50 reminder says so. Finished something? Say "done with the report", or, if it's the one the check-in suggested, press the speakerphone's **Call** button. |
 | A meeting or call | "Quiet until 11", or `focus pause 11:00`. Check-ins wait until it ends; stretch reminders are skipped. |
 | 13:00 | Midday check-in. If you drifted, take the one reset it gives you. |
-| 17:30 | Evening check-in. Add tomorrow's first thing now (it won't count as slipping). Phone away for the night. |
+| 17:30 | Evening check-in. Add tomorrow's first thing now (it won't count as slipping). |
 
 ## Every week
 
