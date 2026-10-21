@@ -12,10 +12,8 @@ like it is slipping. Each day's summary also keeps the patterns the coach
 needs to suggest changes to your routine: when the phone came out, when
 things got done, when check-ins ran.
 
-Weekly goals live alongside: each belongs to a week (one set on a Saturday
-or Sunday is for the week ahead), and at the first rollover of a new week
-the old week's goals move into `last_week`, with Friday's review, for
-Monday's check-in to pick up.
+At the first rollover of a new week, Friday's review moves into
+`last_week` for Monday's check-in to pick up.
 """
 
 from __future__ import annotations
@@ -35,7 +33,7 @@ except ImportError:  # Windows dev machines; the Pi always has fcntl
     fcntl = None
 
 from .config import Config
-from .days import goal_week, monday_of
+from .days import monday_of
 
 SCHEMA_VERSION = 1
 
@@ -87,10 +85,7 @@ class State:
     # Check-ins and stretch reminders wait until then (focus.pause). Unlike
     # the rest of the day, it survives rollover: a pause can last for days.
     paused_until: str | None = None
-    # One to three goals a week: {"id", "text", "done_at", "week"}, week being
-    # its Monday. On a weekend there may also be some for the week ahead.
-    goals: list[dict] = field(default_factory=list)
-    # The week before: {"week", "goals", "review", "opened"}, set at the first
+    # The week before: {"week", "review", "opened"}, set at the first
     # rollover of a new week. `opened` once Monday's check-in has used it.
     last_week: dict | None = None
     # Friday's wrap-up, once it has run: {"week", "text"}.
@@ -135,22 +130,6 @@ class State:
     def done_priorities(self) -> list[Priority]:
         return [p for p in self.priorities if p.done]
 
-    @property
-    def this_weeks_goals(self) -> list[dict]:
-        monday = monday_of(date.fromisoformat(self.date)).isoformat()
-        return [g for g in self.goals if g.get("week", monday) <= monday]
-
-    @property
-    def next_weeks_goals(self) -> list[dict]:
-        monday = monday_of(date.fromisoformat(self.date)).isoformat()
-        return [g for g in self.goals if g.get("week", monday) > monday]
-
-    def find_goal(self, goal_id: int) -> dict:
-        for g in self.goals:
-            if g["id"] == goal_id:
-                return g
-        raise StateError(f"No goal with id {goal_id}")
-
     def find(self, priority_id: int) -> Priority:
         for p in self.priorities:
             if p.id == priority_id:
@@ -173,8 +152,8 @@ class State:
             chat=data.get("chat", []),
             history=data.get("history", []),
             paused_until=data.get("paused_until"),
-            goals=data.get("goals", []),
-            last_week=data.get("last_week"),
+            # Files from when there were weekly goals keep loading; the goals are dropped.
+            last_week={k: v for k, v in data["last_week"].items() if k != "goals"} if data.get("last_week") else None,
             week_review=data.get("week_review"),
         )
 
@@ -250,22 +229,14 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
             p.carried_days += 1
     state.priorities = [p for p in state.priorities if not p.done]
 
-    old_day = date.fromisoformat(state.date)
-    old_week = monday_of(old_day)
-    new_week = monday_of(today)
-    if new_week != old_week:
+    old_week = monday_of(date.fromisoformat(state.date))
+    if monday_of(today) != old_week:
         review = state.week_review if state.week_review and state.week_review.get("week") == old_week.isoformat() else None
-        # Goals saved before goals had a week: count them for the week of the
-        # day they were last seen (a weekend counts toward the week ahead).
-        week_of = {id(g): g.get("week") or goal_week(old_day).isoformat() for g in state.goals}
         state.last_week = {
             "week": old_week.isoformat(),
-            "goals": [g for g in state.goals if week_of[id(g)] < new_week.isoformat()],
             "review": review["text"] if review else None,
             "opened": False,
         }
-        state.goals = [dict(g, week=week_of[id(g)]) for g in state.goals
-                       if week_of[id(g)] >= new_week.isoformat()]
         state.week_review = None
 
     state.checkins = []

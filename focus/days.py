@@ -33,7 +33,3 @@ def parse_day(text: str, today: date) -> date | None:
 def monday_of(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
-
-def goal_week(day: date) -> date:
-    """The Monday of the week a goal set on `day` is for: a weekend plans ahead."""
-    return monday_of(day) + timedelta(days=7 if day.weekday() >= 5 else 0)

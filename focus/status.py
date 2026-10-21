@@ -78,8 +78,6 @@ def report(cfg: Config, s: State, now: datetime,
     """`now` must be timezone-aware, like the timestamps in state."""
     open_ = len(s.open_priorities)
     done = len([p for p in s.today_list if p.done])
-    goals = s.this_weeks_goals
-    goals_done = sum(1 for g in goals if g.get("done_at"))
     checkins = ", ".join(f"{c['slot']} {_hm(c['at'])}" + (" (held, away)" if c.get("unheard") else "")
                          for c in s.checkins) or "none yet"
     focus_blocks = blocks.from_env()
@@ -97,8 +95,6 @@ def report(cfg: Config, s: State, now: datetime,
         "",
         "Today",
         f"  Priorities   {open_} open, {done} done" + (f", {len(s.later)} later" if s.later else ""),
-        f"  Week goals   {f'{goals_done} of {len(goals)} done' if goals else 'none set'}"
-        + (f", {len(s.next_weeks_goals)} set for next week" if s.next_weeks_goals else ""),
         f"  Check-ins    {checkins}",
         f"  Focus block  {'yes, ' + current if current else 'no'}",
         f"  Phone        {'off the charger since ' + out.strftime('%H:%M') if out else 'on the charger (or no charger reports today)'}",

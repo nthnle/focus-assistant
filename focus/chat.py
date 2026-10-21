@@ -38,8 +38,7 @@ data. If a request is ambiguous, ask one short question instead of \
 guessing. To change an item's wording, rename it; drop an item only when \
 they clearly ask for it to be removed. If they want quiet for a while (a \
 meeting, a call, a day off), use pause; resume ends a pause early. For \
-another day, add the item and then schedule it. Week goals are one to \
-three outcomes for this week, set with add_goal, usually on Monday. If \
+another day, add the item and then schedule it. If \
 they ask how to improve their routine, suggest one or two concrete changes \
 (focus block times, breaks, where the phone lives, how long the list is), \
 each tied to a pattern you can point to in recent_days, and say that focus \
@@ -104,10 +103,6 @@ TOOLS = [
     _tool("schedule_priority", "Move a priority to another day, to 'later' (no date yet), or back to 'today'.",
           {"id": _ID, "on": {"type": "string", "description": "today, later, tomorrow, a weekday like "
                                                               "wednesday, or a date like 2026-10-24"}}),
-    _tool("add_goal", "Add one of this week's goals (one to three a week); on a weekend it is for next week.",
-          {"text": {"type": "string", "description": "An outcome for the week, e.g. 'Ship the beta'"}}),
-    _tool("complete_goal", "Mark a week goal met.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
-    _tool("drop_goal", "Remove a week goal.", {"id": {"type": "integer", "description": "Goal id from week_goals"}}),
     _tool("rate_reply", "Record feedback on the coach's previous reply (a check-in or an earlier answer) "
                         "when the user says it was wrong, unhelpful, or spot on.",
           {"value": {"type": "string", "enum": ["good", "bad"]},
@@ -137,9 +132,6 @@ _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "pause": lambda s, a: actions.pause(s, pause.parse_until(a["until"], datetime.now().astimezone())),
     "resume": lambda s, a: actions.resume(s),
     "schedule_priority": lambda s, a: actions.schedule_priority(s, a["id"], _day(s, a["on"])),
-    "add_goal": lambda s, a: actions.add_goal(s, a["text"]),
-    "complete_goal": lambda s, a: actions.complete_goal(s, a["id"]),
-    "drop_goal": lambda s, a: actions.drop_goal(s, a["id"]),
 }
 
 
@@ -151,9 +143,7 @@ def _priorities_text(s: State) -> str:
             f"{i}. id={p.id} {'[done] ' if p.done else ''}{f'[on {p.on}] ' if p.on and not p.due(s.date) else ''}{p.text}"
             for i, p in enumerate(s.ordered, 1)
         ]
-    goals = [f"goal id={g['id']} {'[met] ' if g.get('done_at') else ''}{g['text']}" for g in s.this_weeks_goals]
-    goals += [f"goal id={g['id']} [next week] {g['text']}" for g in s.next_weeks_goals]
-    return "\n".join(lines + (["Week goals:"] + goals if goals else []))
+    return "\n".join(lines)
 
 
 _ENDS_WITH_NEXT = re.compile(r"[\s;,.]*\bnext (is|up)\b[^.!?]*[.!?]?\s*$", re.I)

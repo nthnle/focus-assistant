@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 import pytest
@@ -65,31 +66,17 @@ def test_numbers_follow_the_shown_order(cfg, capsys):
     assert cli.main(["add", "--on", "someday-ish", "X"]) == 1
 
 
-# --- weekly goals and the week's handover ----------------------------------
+# --- the week's handover ----------------------------------------------------
 
-def test_goals_are_capped_and_numbered(cfg, capsys):
-    for text in ("Ship the beta", "Hire a designer", "Run twice"):
-        cli.main(["goal", "add", text])
-    assert cli.main(["goal", "add", "One more"]) == 1
-    capsys.readouterr()
-    cli.main(["goal", "done", "2"])
-    assert "  [x] 2. Hire a designer" in capsys.readouterr().out
-    cli.main(["goal", "drop", "1"])
-    with st.locked_state(cfg) as s:
-        assert [g["text"] for g in s.goals] == ["Hire a designer", "Run twice"]
-
-
-def test_friday_review_and_goals_reach_monday(cfg):
-    with day(cfg, MON) as s:
-        actions.add_goal(s, "Ship the beta")
+def test_fridays_review_reaches_monday(cfg):
     with day(cfg, FRI) as s:
         checked_in(s)
         payload = coach.build_payload(s, "evening", "2026-10-16T17:30:00-05:00")
-        assert payload["weekly_review"] and payload["week_goals"][0]["text"] == "Ship the beta"
+        assert payload["weekly_review"]
         assert payload["routine"]["focus_blocks"] == ["09:00-12:00", "13:00-17:30"]
         checkin._remember_the_week(s, payload, "Good week. Next week, try a break at 15:00.")
     with day(cfg, NEXT_MON) as s:
-        assert s.goals == [] and s.last_week["goals"][0]["text"] == "Ship the beta"
+        assert set(s.last_week) == {"week", "review", "opened"}
         payload = coach.build_payload(s, "morning", "2026-10-19T09:00:00-05:00")
         assert payload["week_start"]
         assert payload["last_week"]["review"] == "Good week. Next week, try a break at 15:00."
@@ -136,50 +123,38 @@ def test_chat_gets_routine_settings_and_can_plan(cfg):
     with st.locked_state(cfg) as s:
         actions.add_priority(s, "Book dentist")
     client, sent = scripted(
-        completion(tool_calls=[tool_call("schedule_priority", {"id": 1, "on": "later"}),
-                               tool_call("add_goal", {"text": "Ship the beta"}, id_="call_2")]),
-        completion("Moved the dentist to later and set the goal."),
+        completion(tool_calls=[tool_call("schedule_priority", {"id": 1, "on": "later"})]),
+        completion("Moved the dentist to later."),
     )
-    chat.run(cfg, "dentist can wait; this week I want to ship the beta", client=client)
+    chat.run(cfg, "the dentist can wait", client=client)
     assert "routine" in sent[0]["messages"][-1]["content"]
-    assert "[on later] Book dentist" in sent[1]["messages"][-2]["content"]
+    assert "[on later] Book dentist" in sent[1]["messages"][-1]["content"]
     with st.locked_state(cfg) as s:
-        assert s.open_priorities == [] and s.goals[0]["text"] == "Ship the beta"
+        assert s.open_priorities == []
 
 
-# --- goals set on a weekend ------------------------------------------------
+# --- weekly goals are gone ---------------------------------------------------
 
 SUN = date(2026, 10, 18)
 
 
-def test_a_goal_set_on_the_weekend_is_for_the_week_ahead(cfg):
-    with day(cfg, WED) as s:
-        actions.add_goal(s, "Ship the beta")
+def test_a_state_file_with_weekly_goals_still_loads(cfg):
+    """Files saved while there were weekly goals: the goals are dropped quietly."""
+    cfg.state_dir.mkdir(parents=True, exist_ok=True)
+    cfg.state_path.write_text(json.dumps({
+        "version": st.SCHEMA_VERSION, "date": "2026-10-18",
+        "goals": [{"id": 1, "text": "GEIR", "done_at": None, "week": "2026-10-19"}],
+        "last_week": {"week": "2026-10-05", "goals": [{"id": 1, "text": "Old"}], "review": "Try 15:00.", "opened": True},
+    }))
     with day(cfg, SUN) as s:
-        actions.add_goal(s, "Hire a designer")
-        assert [g["text"] for g in s.this_weeks_goals] == ["Ship the beta"]
-        assert [g["text"] for g in s.next_weeks_goals] == ["Hire a designer"]
+        assert "goals" not in s.to_dict()
+        assert s.last_week == {"week": "2026-10-05", "review": "Try 15:00.", "opened": True}
         payload = coach.build_payload(s, "evening", "2026-10-18T16:20:00-05:00")
         assert payload["facts"]["weekday"] == "Sunday"
-        assert payload["next_week_goals"][0]["text"] == "Hire a designer"
-    with day(cfg, NEXT_MON) as s:
-        assert [g["text"] for g in s.goals] == ["Hire a designer"]
-        assert [g["text"] for g in s.last_week["goals"]] == ["Ship the beta"]
+        assert not any("goal" in key for key in payload)
 
 
-def test_a_goal_saved_before_goals_had_a_week_survives_a_sunday(cfg):
-    with day(cfg, SUN) as s:
-        s.goals = [{"id": 1, "text": "GEIR", "done_at": None}]   # as an older version saved it
-    with day(cfg, NEXT_MON) as s:
-        assert [(g["text"], g["week"]) for g in s.goals] == [("GEIR", "2026-10-19")]
-
-
-def test_the_three_goal_cap_counts_one_week(cfg):
-    with day(cfg, FRI) as s:
-        for text in ("A", "B", "C"):
-            actions.add_goal(s, text)
-    with day(cfg, SUN) as s:
-        for text in ("D", "E", "F"):
-            actions.add_goal(s, text)          # next week's, so allowed
-        with pytest.raises(st.StateError):
-            actions.add_goal(s, "G")
+def test_there_are_no_goal_commands_or_tools(cfg):
+    assert not any("goal" in t["function"]["name"] for t in chat.TOOLS)
+    with pytest.raises(SystemExit):
+        cli.main(["goal", "add", "Ship the beta"])

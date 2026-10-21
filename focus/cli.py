@@ -16,15 +16,6 @@ def _show(s: st.State) -> None:
     quiet = pause.describe(s, datetime.now().astimezone())
     if quiet:
         print(f"Paused {quiet}. Resume with: focus resume")
-    if s.goals:
-        n = 0
-        for title, goals in (("This week:", s.this_weeks_goals), ("Next week:", s.next_weeks_goals)):
-            if goals:
-                print(title)
-            for g in goals:
-                n += 1
-                print(f"  [{'x' if g.get('done_at') else ' '}] {n}. {g['text']}")
-        print()
     if not s.priorities:
         print("Nothing on the list yet. Add something with: focus add \"...\"")
         return
@@ -50,13 +41,6 @@ def _at(s: st.State, number: int) -> st.Priority:
     if not 1 <= number <= len(order):
         raise st.StateError(f"No item {number}; `focus show` lists them")
     return order[number - 1]
-
-
-def _goal_at(s: st.State, number: int) -> dict:
-    goals = s.this_weeks_goals + s.next_weeks_goals  # as `focus show` numbers them
-    if not 1 <= number <= len(goals):
-        raise st.StateError(f"No goal {number}; `focus goals` lists them")
-    return goals[number - 1]
 
 
 def _day(s: st.State, words: list[str] | None) -> date | str:
@@ -86,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("checkin", help="run a coach check-in (what the timer calls)")
     p.add_argument("--slot", choices=checkin.SLOTS, help="default: from the time of day")
 
-    sub.add_parser("show", help="list this week's goals, today's list and later items")
+    sub.add_parser("show", help="list today's items and later ones")
     sub.add_parser("last", help="print the latest check-in reply")
     sub.add_parser("status", help="services, today, presence and API cost at a glance")
     p = sub.add_parser("add", help="add an item to the list")
@@ -97,10 +81,6 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("day", nargs="*", help="tomorrow, wed, 2026-10-24 (default: someday)")
     p = sub.add_parser("now", help="bring a later item back to today")
     p.add_argument("number", type=int)
-    sub.add_parser("goals", help="this week's goals (and next week's, on a weekend)")
-    p = sub.add_parser("goal", help="week goals: add, done or drop one; on a weekend, add sets next week's")
-    p.add_argument("action", choices=["add", "done", "drop"])
-    p.add_argument("what", nargs="+", help="the goal's text (add) or its number (done, drop)")
     for name, help_ in [("done", "mark done"), ("undo", "mark not done"), ("drop", "remove")]:
         p = sub.add_parser(name, help=f"{help_} an item (its number in `focus show`)")
         p.add_argument("number", type=int)
@@ -152,16 +132,6 @@ def main(argv: list[str] | None = None) -> int:
                 actions.schedule_priority(s, _at(s, args.number).id, _day(s, args.day))
             elif args.cmd == "now":
                 actions.schedule_priority(s, _at(s, args.number).id, None)
-            elif args.cmd == "goals":
-                pass
-            elif args.cmd == "goal":
-                if args.action == "add":
-                    actions.add_goal(s, " ".join(args.what))
-                else:
-                    if len(args.what) != 1 or not args.what[0].isdigit():
-                        raise st.StateError(f"focus goal {args.action} takes a goal number")
-                    goal = _goal_at(s, int(args.what[0]))
-                    (actions.complete_goal if args.action == "done" else actions.drop_goal)(s, goal["id"])
             elif args.cmd == "done":
                 actions.complete_priority(s, _at(s, args.number).id)
             elif args.cmd == "undo":

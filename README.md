@@ -33,7 +33,7 @@ More diagrams, including a weekday timeline, are in
 
 | | Needs |
 |---|---|
-| **Check-ins** at 09:00, 13:00 and 17:30 on weekdays; **weekly goals**, a **weekly wrap-up** on Friday evening with a suggested change to your routine, and a Monday check-in that opens the week | a Pi and a key for a hosted open model |
+| **Check-ins** at 09:00, 13:00 and 17:30 on weekdays; a **weekly wrap-up** on Friday evening with a suggested change to your routine, and a Monday check-in that opens the week | a Pi and a key for a hosted open model |
 | A **to-do list** (not ranked) from the command line: `focus add`, `focus done`, `focus later` ... unfinished items carry over, each check-in suggests one to start with, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
@@ -96,8 +96,6 @@ focus resume
 focus add --on wed Book the dentist    # off today's list until Wednesday (or tomorrow, a date, later)
 focus later 3 friday  # move #3 to Friday; without a day, to "someday"
 focus now 5           # bring a later one back to today
-focus goal add Ship the beta           # one to three goals for the week
-focus goal done 1     # also: focus goal drop 1, focus goals
 focus rate bad it ignored the weekend   # or good: feedback on the coach's latest reply
 focus feedback        # replies rated bad or failing a check, last 14 days
 focus last            # the latest check-in
@@ -108,8 +106,9 @@ Each morning, unfinished priorities carry over with a "days carried" count,
 and finished ones go into a 14-day history the coach uses for context. A
 day counts only if a check-in ran on it, and only for priorities that were
 on the list by its last check-in: weekends, days off and tomorrow's plan
-added in the evening don't make anything look like it slipped. Keep to
-about three: the coach pushes back when you have more.
+added in the evening don't make anything look like it slipped. After
+three days carried, the coach suggests shrinking, rescheduling or dropping
+the item.
 
 **Pausing.** `focus pause` (or telling the coach "quiet until 11" or "I'm
 off until Monday", by chat or voice) holds stretch reminders and spoken
@@ -118,14 +117,11 @@ screen; it's spoken once the pause ends. On days you're paused through,
 check-ins are skipped entirely, so a holiday costs nothing and doesn't count
 toward carried days.
 
-**Weeks.** Set one to three goals for the week (`focus goal add`, or tell
-the coach on Monday; goals set on a Saturday or Sunday are for the week
-ahead). The coach ties the day's priorities to them, and on
-Friday evening the check-in becomes a wrap-up: which goals were met, what
-kept slipping, and one concrete change to your routine, grounded in a
-pattern from the week (pickups bunching after lunch, things getting done
-late). Monday's first check-in recalls that suggestion and asks for the new
-week's goals. If Friday's wrap-up didn't happen (a day off, the Pi was
+**Weeks.** On Friday evening the check-in becomes a wrap-up: what got
+done, what kept slipping, and one concrete change to your routine, grounded
+in a pattern from the week (pickups bunching after lunch, things getting
+done late). Monday's first check-in recalls that suggestion. If Friday's
+wrap-up didn't happen (a day off, the Pi was
 off), Monday morning does a short version first. You can also ask for
 routine suggestions any time, by chat or voice.
 

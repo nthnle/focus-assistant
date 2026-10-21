@@ -26,10 +26,10 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 
 | When | Do |
 |---|---|
-| Monday | Set one to three goals for the week: `focus goal add Ship the beta`, or tell the coach. Goals set on a Saturday or Sunday count for the week ahead. |
+| Monday | The first check-in opens the week and recalls Friday's tip. |
 | Something not for today | `focus add --on wed Book the dentist`, or `focus later 3` (to "someday"). `focus now 3` brings it back. |
 | A day off | "Off until Monday", or `focus pause monday`. No check-ins, no cost, nothing counts as slipping. |
-| Friday 17:30 | The wrap-up: which goals were met, what slipped, and one routine tip. Try the tip the next week; to move focus blocks, edit `FOCUS_BLOCKS` in `/etc/focus-assistant/focus.env`. Ask for more any time: "how could I improve my routine?" |
+| Friday 17:30 | The wrap-up: what got done, what slipped, and one routine tip. Try the tip the next week; to move focus blocks, edit `FOCUS_BLOCKS` in `/etc/focus-assistant/focus.env`. Ask for more any time: "how could I improve my routine?" |
 
 ## Now and then
 
@@ -48,5 +48,5 @@ focus last            # the latest check-in
 focus done 2          # by its number in `focus show`
 focus edit 2 Email Sam the budget
 focus resume          # end a pause
-focus status          # services, today, goals, pauses, replies, cost
+focus status          # services, today, pauses, replies, cost
 ```

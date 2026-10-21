@@ -1,7 +1,7 @@
 # Backing up state.json
 
 Everything the assistant knows is in one file on the Pi:
-`~/.local/state/focus-assistant/state.json` (priorities, goals, today, and
+`~/.local/state/focus-assistant/state.json` (the list, today, and
 14 days of history). A microSD card can fail, so copy it off the Pi once a
 day. This guide sets up a desktop PC to copy it at 18:00 over SSH, with a
 key that can do nothing but read that one file.

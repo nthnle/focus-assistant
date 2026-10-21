@@ -43,10 +43,8 @@ whether they have paused. Use those numbers as given; never work them out \
 again from the events. The phone belongs on its charger during focus time, \
 so phone_out means it was picked up.
 
-week_goals are the one to three goals they set for this week. When an \
-item clearly serves one, you may say so in a few words. next_week_goals, \
-if present, are already set for the week ahead. `later` holds \
-items scheduled for another day: leave them alone unless asked.
+`later` holds items scheduled for another day: leave them alone unless \
+asked.
 
 The reply may be shown on a small e-ink screen or spoken aloud, so write \
 plain sentences: no markdown, no lists, no emoji, at most 70 words (100 for \
@@ -54,12 +52,11 @@ a weekly review).
 
 By check-in:
 - first morning of the week (week_start is true): open the week. If \
-last_week.review suggested something to try, recall it in a few words. If \
-week_goals is empty, ask them to set one to three goals for the week. Then \
-carry on as a normal morning.
+last_week.review suggested something to try, recall it in a few words. \
+Then carry on as a normal morning.
 - morning: suggest one item to start with and why. The list is not ranked, \
-so pick by what is due, what unblocks other items, what serves a week goal, \
-or a quick win to get going. If something has carried over for three or \
+so pick by what is due, what unblocks other items, or a quick win to get \
+going. If something has carried over for three or \
 more days, say so and suggest shrinking, rescheduling or dropping it.
 - midday: compare progress against the morning plan. If they drifted or the \
 phone came out often, name it plainly once, without guilt, and give one \
@@ -71,8 +68,8 @@ focus time tomorrow. Where the phone is in the evening is their own \
 business: never suggest charging it before bed or keeping it away \
 overnight.
 - Friday evening (weekly_review is true): look back at the whole week \
-instead, using this_week and today: which week_goals were met, what got \
-done, what kept carrying over, how the phone and breaks went. Then suggest \
+instead, using this_week and today: what got done, what kept carrying \
+over, how the phone and breaks went. Then suggest \
 one concrete change to their routine, grounded in a pattern you can point \
 to in this_week (pickups bunching at one hour, things getting done late in \
 the day, check-ins missed): a different focus block, a break at another \
@@ -168,10 +165,6 @@ def facts(s: State, now: str) -> dict:
     }
 
 
-def _goals(goals: list[dict]) -> list[dict]:
-    return [{"id": g["id"], "text": g["text"], "done": bool(g.get("done_at"))} for g in goals]
-
-
 def routine() -> dict:
     """The settings a routine suggestion would change."""
     return {
@@ -197,7 +190,6 @@ def build_payload(s: State, slot: str, now: str) -> dict:
             for p in s.today_list
         ],
         "later": [{"id": p.id, "text": p.text, "on": p.on} for p in s.later],
-        "week_goals": _goals(s.this_weeks_goals),
         "earlier_checkins_today": [
             {"slot": c["slot"], "at": c["at"], "reply": c.get("reply")} for c in s.checkins
         ],
@@ -208,8 +200,6 @@ def build_payload(s: State, slot: str, now: str) -> dict:
     }
     today = date.fromisoformat(s.date)
     monday = monday_of(today)
-    if s.next_weeks_goals:
-        payload["next_week_goals"] = _goals(s.next_weeks_goals)
     if slot == "chat":
         payload["routine"] = routine()
     if slot == "evening" and today.weekday() == 4:
@@ -221,7 +211,7 @@ def build_payload(s: State, slot: str, now: str) -> dict:
         # The first morning of a new week.
         last = s.last_week
         payload["week_start"] = True
-        payload["last_week"] = {"goals": _goals(last.get("goals", [])), "review": last.get("review")}
+        payload["last_week"] = {"review": last.get("review")}
         days = [h for h in s.history if last["week"] <= h["date"] < monday.isoformat()]
         if last.get("review") is None and any(h.get("checkins") for h in days):
             # Friday's wrap-up didn't happen (a day off, the Pi was off): do it now, briefly.

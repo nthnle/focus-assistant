@@ -108,7 +108,7 @@ Message the coach from your phone: "I finished the spec", "add email Sam",
 "what should I do now?", "I'm drifting". It sees the same data as a
 check-in, and it can change your to-do list through a fixed set of tools:
 add, rename, schedule for another day, complete, reopen, drop,
-report, pause, resume, add, complete or drop a week goal, and rate the
+report, pause, resume, and rate the
 previous reply when you tell it that one was wrong or spot on. It can't do
 anything else. Ask it "how could I improve my routine?" and it suggests one
 or two changes from your last week, each tied to a pattern it saw. Today's

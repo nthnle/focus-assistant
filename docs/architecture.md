@@ -26,7 +26,7 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/week-simple-dark.png">
-  <img alt="A week at a glance: Monday opens the week with goals and last Friday's tip, a later priority shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
+  <img alt="A week at a glance: Monday opens the week with last Friday's tip, a later priority shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
 </picture>
 
 <picture>
@@ -78,10 +78,10 @@ a desktop PC that copies `state.json` at 18:00.
   (with the patterns routine suggestions need: check-in times, when things
   got done, phone pickups by hour), and the day's check-ins, events and chat
   are cleared. Priorities scheduled for another day wait in the same list
-  until their day. At the first rollover of a new week, the week's goals and
-  Friday's review move into `last_week` for Monday's check-in.
+  until their day. At the first rollover of a new week, Friday's review
+  moves into `last_week` for Monday's check-in.
 - **`focus.actions`** is every state change (add, rename, schedule,
-  complete, reopen, drop, goals, pause, resume, log an event). The
+  complete, reopen, drop, pause, resume, log an event). The
   CLI, chat tools, voice and buttons all call it, so behaviour is the same
   whichever input you use.
 - **The coach** (`coach.py`) is a single chat-completions call per check-in,
