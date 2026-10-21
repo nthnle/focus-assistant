@@ -5,8 +5,8 @@ Three services that talk to your phone or browser over your home network:
 - **[phone pickups](#phone-pickups)**, which notices when you take your
   phone off its charger during focus time
 - **[chat](#chat)** with the coach from your phone, typed or through Siri
-- the **[status page](#status-page)**, a browser preview of the e-ink display,
-  used during development
+- the **[status page](#status-page)**, the e-ink panel's layout in a browser,
+  with a status strip under it
 
 and **[presence](#presence)**, which uses the charger reports to tell whether you're
 at the desk.
@@ -143,10 +143,9 @@ words with `FOCUS_LOG_WORDS=1`).
 
 ## Status page
 
-A development page: it previews the [e-ink display](architecture.md#e-ink-display)
-in a browser so the screen can be tested before the panel arrives, and it
-stays while development goes on. A live page for any browser on your network: the latest check-in, your top
-three open priorities, and a status strip: where you are in the day (focus
+The [e-ink panel](architecture.md#e-ink-display)'s own layout, as a live page
+for any browser on your network: the latest check-in's slot and reply and
+today's open items, and under them a status strip the panel doesn't have: where you are in the day (focus
 until 12:00, break till 11:00, next block), the next break, the phone,
 whether you're away or have a check-in waiting, and today's done count,
 phone pickups and breaks. It's read-only, and live: it updates within two

@@ -5,6 +5,13 @@ add your own inputs and outputs.
 
 ## Overview
 
+What it does:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/what-it-does-dark.png">
+  <img alt="What Focus Assistant does: you tell it by voice, iPhone, the Call button or the command line; it keeps one short list on the e-ink panel; it checks in at 09:00, 13:00 and 17:30, suggests a break at :50, and thinks in weeks" src="diagrams/what-it-does.png">
+</picture>
+
 At a glance:
 
 <picture>
@@ -14,7 +21,7 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-simple-dark.png">
-  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone pickups as icons on You, Pi and Groq lanes, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
+  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone pickups as icons on You, Pi and Groq lanes, a mark wherever the e-ink panel redraws, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
 </picture>
 
 <picture>
@@ -31,12 +38,12 @@ In detail:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-dark.png">
-  <img alt="Architecture: the phone, the Pi's five sandboxed services, the shared core, the speakerphone and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
+  <img alt="Architecture: the phone, the Pi's seven sandboxed services, the shared core, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-dark.png">
-  <img alt="One weekday: check-ins, stretch reminders, phone charger events, voice and chat across You, Pi and model host lanes, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
+  <img alt="One weekday: check-ins, stretch reminders, phone charger events, voice and chat across You, Pi and model host lanes, marking each change the e-ink panel redraws for, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
 </picture>
 
 The sources are the HTML files in [`diagrams/`](diagrams/) (1600x1000, light
@@ -135,7 +142,7 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each weekday hour, after a reminder | **no** | none | sound cards |
-| `focus-dock` | always (charger reports from the iPhone + the status page, a browser preview of the e-ink display) | **no** | home network only, inbound | none |
+| `focus-dock` | always (charger reports from the iPhone + the status page: the e-ink panel's layout in a browser) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |

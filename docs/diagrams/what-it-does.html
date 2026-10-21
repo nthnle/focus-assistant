@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What Focus Assistant does</title>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#f3f0e8}
+@media (prefers-color-scheme: dark){body{background:#181715}}
+a{color:#1f4f9c}a:hover{color:#191815}
+.t-light,.t-auto{--bg:#f3f0e8;--panel:#e9e4d9;--card:#fbfaf6;--ink:#191815;--muted:#59554c;--line:#847d70;--border:#d2cabb;--host:#b0261c;--host-bg:#f8e4de;--host-line:#c0392b;--phone:#1f4f9c;--phone-bg:#e3eaf6;--chip:#191815;--chip-ink:#fbfaf6;--nokey:#2e6d3c;--boundary:#b08a10;--focus:rgba(25,24,21,0.05);--night:rgba(25,24,21,0.09)}
+.t-dark{--bg:#181715;--panel:#211f1c;--card:#2a2825;--ink:#ece7dc;--muted:#aba496;--line:#8f887b;--border:#46423b;--host:#ee7b63;--host-bg:#3a221c;--host-line:#e0634c;--phone:#8db2ec;--phone-bg:#1c2740;--chip:#ece7dc;--chip-ink:#181715;--nokey:#82c28d;--boundary:#d8b13c;--focus:rgba(255,250,240,0.05);--night:rgba(0,0,0,0.3)}
+@media (prefers-color-scheme: dark){.t-auto{--bg:#181715;--panel:#211f1c;--card:#2a2825;--ink:#ece7dc;--muted:#aba496;--line:#8f887b;--border:#46423b;--host:#ee7b63;--host-bg:#3a221c;--host-line:#e0634c;--phone:#8db2ec;--phone-bg:#1c2740;--chip:#ece7dc;--chip-ink:#181715;--nokey:#82c28d;--boundary:#d8b13c;--focus:rgba(255,250,240,0.05);--night:rgba(0,0,0,0.3)}}
+.s{color:var(--muted)}
+.nk{color:var(--nokey);font-weight:600}
+.box{position:absolute;box-sizing:border-box;border-radius:16px}
+.h{display:flex;align-items:center;gap:8px;font-size:13px;line-height:16px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.row{display:flex;align-items:center;gap:14px;font-size:16px;line-height:21px}
+.ic{flex:none;width:44px;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--card);border:1.5px solid var(--border)}
+.ic.ph{background:var(--phone-bg);border-color:var(--phone);color:var(--phone)}
+.ic.nk{background:var(--card);border-color:var(--nokey);color:var(--nokey)}
+.ic.ho{background:var(--host-bg);border-color:var(--host-line);color:var(--host)}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.step{flex:1;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:20px}
+.step b{font-size:16px}
+.when{font:600 14px/18px 'IBM Plex Mono',ui-monospace,monospace;color:var(--muted)}
+.ink{background:#f4f1ea;color:#1b1b1b;font-family:'IBM Plex Sans',sans-serif}
+</style>
+<div class="t-auto" style="position: relative; width: 1600px; height: 1000px; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif">
+
+<!-- title -->
+<div style="position: absolute; left: 40px; top: 32px; font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.01em">What Focus Assistant does</div>
+<div style="position: absolute; left: 40px; top: 78px; width: 1400px; font-size: 18px; line-height: 26px; color: var(--muted)">A small coach on your desk. It keeps today’s few priorities in front of you, checks in three times a day, and keeps quiet the rest of the time.</div>
+
+<!-- arrows -->
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" style="position: absolute; left: 0; top: 0; overflow: visible; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round" aria-hidden="true">
+<defs><marker id="wd-head" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#847d70" stroke="none" style="stroke: none; fill: #847d70; fill: context-stroke"/></marker></defs>
+<path d="M 452 400 L 532 400" stroke="var(--line)" marker-end="url(#wd-head)"/>
+<path d="M 1068 400 L 1148 400" stroke="var(--line)" marker-end="url(#wd-head)"/>
+</svg>
+
+<!-- you tell it -->
+<div class="box" style="left: 40px; top: 152px; width: 404px; height: 496px; background: var(--panel); border: 1.5px solid var(--border); padding: 22px 24px; display: flex; flex-direction: column; gap: 18px">
+<div class="h">YOU TELL IT</div>
+<div style="font-size: 20px; line-height: 26px; font-weight: 600; margin-top: -8px">what matters today, any way you like</div>
+<div class="row"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></span><span><b>Say it</b><br><span class="s">“Hey Jarvis, add Email Sam.” “Done with the spec.”</span></span></div>
+<div class="row"><span class="ic ph"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"></rect><path d="M11 18h2"></path></svg></span><span><b>Ask from your iPhone</b><br><span class="s">Siri › Coach, on home Wi-Fi: plan, move to Friday, pause.</span></span></div>
+<div class="row"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg></span><span><b>Press Call</b><br><span class="s">on the speakerphone: marks the suggested item done.</span></span></div>
+<div class="row"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9l3 3-3 3M12 15h5"></path></svg></span><span><b>Type it</b><br><span class="s mono" style="font-size: 15px">focus add · done 2 · later 3 fri</span></span></div>
+</div>
+
+<!-- it keeps -->
+<div class="box" style="left: 544px; top: 152px; width: 512px; height: 496px; background: var(--card); border: 2px solid var(--ink); padding: 22px 24px; display: flex; flex-direction: column; gap: 16px">
+<div class="h">IT KEEPS YOUR DAY</div>
+<div style="font-size: 20px; line-height: 26px; font-weight: 600; margin-top: -6px">one short list, on the panel by your desk</div>
+<!-- the panel, as it looks -->
+<div style="align-self: center; width: 384px; height: 256px; box-sizing: border-box; padding: 10px; border-radius: 10px; background: #2b2a28; border: 1.5px solid var(--line)">
+<div class="ink" style="width: 100%; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 20px">
+<div style="display: flex; justify-content: space-between; font-weight: 700; letter-spacing: .06em; font-size: 13px"><span>MIDDAY</span><span style="font-weight: 500; letter-spacing: 0">Wed 21 Oct</span></div>
+<div>☐ Write the spec <b style="color: #c0392b; font-size: 13px">2 DAYS</b></div>
+<div>☐ Email Sam</div>
+<div>☐ Review the slides</div>
+<div style="border-top: 1.5px solid #1b1b1b; margin-top: 4px; padding-top: 8px; font-size: 17px; line-height: 23px">Two hours left before lunch. Start the spec; the email can wait.</div>
+<div style="color: #c0392b; font-size: 14px">Since 09:00: done Book the dentist</div>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; font-size: 15px; line-height: 20px">
+<div><b>Today</b><br><span class="s">what’s left carries over, counted in days</span></div>
+<div><b>This week</b><br><span class="s">up to three goals</span></div>
+<div><b>Later</b><br><span class="s">waits for its day, or someday</span></div>
+</div>
+</div>
+
+<!-- it tells you -->
+<div class="box" style="left: 1156px; top: 152px; width: 404px; height: 496px; background: var(--panel); border: 1.5px solid var(--border); padding: 22px 24px; display: flex; flex-direction: column; gap: 18px">
+<div class="h">IT CHECKS IN</div>
+<div style="font-size: 20px; line-height: 26px; font-weight: 600; margin-top: -8px">a sentence or two, then quiet</div>
+<div class="row"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span><span><b>09:00 · 13:00 · 17:30</b><br><span class="s">plan the morning, a midday nudge, an evening wrap-up</span></span></div>
+<div class="row"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="4.5" r="1.8"></circle><path d="M5 9h14M12 9v6M8.5 21l3.5-6 3.5 6"></path></svg></span><span><b>A break at :50</b><br><span class="s">stand and stretch; “back to it” at :00</span></span></div>
+<div class="row"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="13" rx="9" ry="5"></ellipse><circle cx="12" cy="13" r="1.5"></circle><path d="M7 7.5h10"></path></svg></span><span><b>Out loud</b><br><span class="s">through the speakerphone, unless you’re away or paused</span></span></div>
+<div class="row"><span class="ic nk"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="1.5"></rect><path d="M7 9.5h6M7 13h10"></path></svg></span><span><b>On the panel</b><br><span class="s">redrawn after any change, not just at check-ins</span></span></div>
+</div>
+
+<!-- a week -->
+<div class="box" style="left: 40px; top: 680px; width: 1520px; height: 176px; border: 1.5px solid var(--border); padding: 20px 24px; display: flex; flex-direction: column; gap: 14px">
+<div class="h">AND IT THINKS IN WEEKS <span style="font-weight: 400; letter-spacing: 0">· it notices patterns: when you finish things, when you pick up the phone</span></div>
+<div style="display: flex; gap: 28px">
+<div class="step"><span class="when">MONDAY 09:00</span><b>Opens the week</b><span class="s">with your goals and last Friday’s tip</span></div>
+<div class="step"><span class="when">EVERY DAY</span><b>Keeps the list honest</b><span class="s">names what keeps carrying over</span></div>
+<div class="step"><span class="when">PHONE OFF THE CHARGER</span><b>Notices pickups</b><span class="s">and mentions them, kindly, at the next check-in</span></div>
+<div class="step"><span class="when">FRIDAY 17:30</span><b>Wraps up the week</b><span class="s">with one tip for your routine</span></div>
+<div class="step"><span class="when">DAYS OFF</span><b>Stays quiet</b><span class="s">“pause until Monday” and it waits</span></div>
+</div>
+</div>
+
+<!-- footer -->
+<div style="position: absolute; left: 40px; top: 900px; width: 1520px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 40px; font-size: 16px; line-height: 22px">
+<div><b>Your voice stays home.</b> <span class="s">Speech is turned into text on the Pi.</span></div>
+<div><b style="color: var(--host)">Only text goes out</b> <span class="s">to the model, which keeps none of it.</span></div>
+<div><b>No connection?</b> <span class="s">Check-ins become a fixed nudge from your list.</span></div>
+</div>
+
+</div>
+</body>
+</html>

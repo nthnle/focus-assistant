@@ -10,5 +10,5 @@
   diagrams in `docs/diagrams/` (edit the HTML, then re-export with
   `python docs/diagrams/render.py`; see docs/diagrams/README.md).
 - In docs and diagrams the "dock" is just the phone's charger; `focus-dock`
-  is the Pi service that logs what the iPhone reports. The status page is a
-  development preview of the planned e-ink display.
+  is the Pi service that logs what the iPhone reports. The status page is the
+  e-ink panel's layout in a browser.

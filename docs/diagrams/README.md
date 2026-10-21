@@ -2,7 +2,8 @@
 
 | File | Shows |
 |---|---|
-| `architecture-simple.html` | The parts at a glance: phone, charger, the Pi's services, speakerphone, model host |
+| `what-it-does.html` | What Focus Assistant does: how you tell it, the list on the panel, the check-ins, the week |
+| `architecture-simple.html` | The parts at a glance: phone, charger, the Pi's seven services, speakerphone, e-ink panel, model host |
 | `workflow-simple.html` | A weekday at a glance, with a pause, one voice turn and the offline fallback |
 | `week-simple.html` | A week at a glance: goals, a day off, Friday's wrap-up and where the routine tip comes from |
 | `cheatsheet.html` | The desk card: what to do every workday, every week, and now and then (shown in docs/routine.md) |

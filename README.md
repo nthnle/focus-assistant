@@ -15,6 +15,13 @@ your phone.**
 ```
 
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/what-it-does-dark.png">
+  <img alt="What Focus Assistant does: you tell it by voice, iPhone, the Call button or the command line; it keeps one short list on the e-ink panel; it checks in at 09:00, 13:00 and 17:30, suggests a break at :50, and thinks in weeks" src="docs/diagrams/what-it-does.png">
+</picture>
+
+How the parts fit:
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-simple-dark.png">
   <img alt="At a glance: the iPhone (with an ordinary charger), the Pi's shared core and seven services, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
 </picture>
