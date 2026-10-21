@@ -26,7 +26,7 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/week-simple-dark.png">
-  <img alt="A week at a glance: Monday opens the week with last Friday's tip, a later priority shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
+  <img alt="A week at a glance: Monday opens the week with last Friday's tip, a later item shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
 </picture>
 
 <picture>
@@ -56,7 +56,7 @@ a desktop PC that copies `state.json` at 18:00.
 
 ```
                     ┌───────────────── state.json ─────────────────┐
-                    │ priorities · check-ins · events · chat ·     │
+                    │ the list · check-ins · events · chat ·       │
                     │ 14-day history          (file lock, atomic)  │
                     └───────▲──────────────▲───────────────▲───────┘
                             │              │               │
@@ -73,11 +73,11 @@ a desktop PC that copies `state.json` at 18:00.
   lock for the whole read-modify-write and saves atomically (write, then
   rename), so a power cut never leaves a half-written file.
 - **Day rollover** happens in code at the first use each day: unfinished
-  priorities carry over (`carried_days + 1`, if a check-in ran that day and
+  items carry over (`carried_days + 1`, if a check-in ran that day and
   they were on the list by then), a summary of the day goes into `history`
   (with the patterns routine suggestions need: check-in times, when things
   got done, phone pickups by hour), and the day's check-ins, events and chat
-  are cleared. Priorities scheduled for another day wait in the same list
+  are cleared. Items scheduled for another day wait in the same list
   until their day. At the first rollover of a new week, Friday's review
   moves into `last_week` for Monday's check-in.
 - **`focus.actions`** is every state change (add, rename, schedule,
@@ -86,13 +86,14 @@ a desktop PC that copies `state.json` at 18:00.
   whichever input you use.
 - **The coach** (`coach.py`) is a single chat-completions call per check-in,
   to an open model on any OpenAI-compatible host. It gets a JSON payload:
-  priorities, today's check-ins, events and chat, and the last five daily
+  the list, today's check-ins, events and chat, and the last five daily
   summaries. The lock is never held during a model call. `<think>` text from
   reasoning models is stripped, streamed or not. If the host can't be
   reached, the check-in is a fixed nudge built from the same data
   (`offline_reply`), recorded with model `offline`.
 - **Chat** (`chat.py`) adds a small tool loop: the model can change
-  priorities only through thirteen tools that call `focus.actions`, at most six
+  the list only through nine tools that call `focus.actions` (a tenth rates
+  a reply), at most six
   model calls per message. Open models don't always follow a tool schema,
   so every argument is checked (JSON, whole-number ids, known values,
   length) before anything changes. Earlier turns are replayed as plain text.
@@ -111,7 +112,7 @@ focus/
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback), :00 back to work
   presence.py     away or not, from charger events and desk sound
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
-  days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later priorities
+  days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later items
   feedback.py     replies.jsonl: every model reply with its payload, checks and ratings
   blocks.py       focus blocks (FOCUS_BLOCKS)
   display.py      the status page (HTML)

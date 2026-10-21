@@ -1,7 +1,7 @@
 # focus-assistant
 
 A focus coach that lives on your desk. A Raspberry Pi checks in three times
-each workday, looks at your priorities and what has happened since the last
+each workday, looks at your to-do list and what has happened since the last
 check-in, and asks an open language model for a short, specific nudge: what to start with,
 how the morning went, what carries over to tomorrow. Everything else is
 optional and built around one idea: **help you focus without picking up
@@ -102,9 +102,9 @@ focus last            # the latest check-in
 focus status          # services, next timers, today, presence and API cost
 ```
 
-Each morning, unfinished priorities carry over with a "days carried" count,
+Each morning, unfinished items carry over with a "days carried" count,
 and finished ones go into a 14-day history the coach uses for context. A
-day counts only if a check-in ran on it, and only for priorities that were
+day counts only if a check-in ran on it, and only for items that were
 on the list by its last check-in: weekends, days off and tomorrow's plan
 added in the evening don't make anything look like it slipped. After
 three days carried, the coach suggests shrinking, rescheduling or dropping
@@ -128,7 +128,7 @@ routine suggestions any time, by chat or voice.
 **Improving the coach.** Every reply the model writes is kept on the Pi for
 60 days in `replies.jsonl`, next to exactly what the coach was given, and
 checked against the rules code can verify (length, no markdown, a morning
-check-in that names a priority, short on weekends). Rate replies with
+check-in that suggests an item, short on weekends). Rate replies with
 `focus rate good|bad`, or tell the coach "that was wrong". `focus feedback`
 lists what was rated bad or failed a check: bring those to the next round
 of changes to the prompts or code. The loop is drawn in
@@ -155,13 +155,13 @@ a dollar a month**. You can give chat, voice and stretch reminders a smaller,
 faster model (`FOCUS_CHAT_MODEL`). Set the prices in `focus.env` and
 `focus status` shows the day's cost from the token counts it records; set a
 spend limit at your model host if it offers one. If the host can't be reached,
-check-ins fall back to a fixed nudge built from your priorities.
+check-ins fall back to a fixed nudge built from your list.
 
 ## Privacy
 
 - **Your data stays on the Pi**, in one JSON file (and a 60-day log of the
   coach's replies, for improving it), except what is sent to
-  the model host you chose, to write each reply: your priorities, today's
+  the model host you chose, to write each reply: your list, today's
   events and check-ins, and recent daily summaries. Check that host's data
   retention policy.
 - **Speech never leaves the Pi.** Speech recognition (faster-whisper or

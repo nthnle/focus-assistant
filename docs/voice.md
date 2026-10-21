@@ -134,7 +134,7 @@ Speech recognition is the slowest step on a Pi. Measured on a Pi 4 with a
 
 Whisper pads every clip to 30 seconds, so short commands cost almost as much
 as long ones; Moonshine's time scales with the clip. Whisper is given your
-open priorities as a hint, which helps it spell project names and jargon;
+open items as a hint, which helps it spell project names and jargon;
 Moonshine takes no hint. To use Whisper instead:
 
 ```bash

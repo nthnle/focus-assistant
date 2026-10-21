@@ -1,6 +1,6 @@
 # Install
 
-This gets the core running: priorities and three check-ins a day. Every
+This gets the core running: the to-do list and three check-ins a day. Every
 optional feature builds on it; see the other guides when you're ready.
 
 ## What you need
@@ -139,5 +139,5 @@ sudo systemctl disable --now focus-checkin.timer focus-stretch.timer \
 sudo rm /etc/systemd/system/focus-* /etc/udev/rules.d/70-focus-powerconf.rules
 sudo rm -r /opt/focus-assistant /etc/focus-assistant /usr/local/bin/focus
 sudo systemctl daemon-reload
-rm -r ~/.local/state/focus-assistant           # your priorities and history
+rm -r ~/.local/state/focus-assistant           # your list and history
 ```

@@ -167,7 +167,7 @@ http://focus.local:8765/display?k=<FOCUS_DISPLAY_TOKEN>
 ```
 
 The token goes in the URL because a browser bookmark can't send a header.
-Anyone with that link on your Wi-Fi can read your priorities. On an iPhone,
+Anyone with that link on your Wi-Fi can read your list. On an iPhone,
 Share > Add to Home Screen gives it an icon.
 
 The upper panel mirrors the e-ink display layout ([architecture.md](architecture.md#e-ink-display)).

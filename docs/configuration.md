@@ -27,7 +27,7 @@ point that `install.sh` copies.
 | `FOCUS_LOG_WORDS` | (off) | `1` writes what you say, type or mark done into the system journal. Off, the journal gets only the length (`<16 chars>`). Turn it on while tuning voice. |
 
 **When the host can't be reached** (or a setting is missing), check-ins
-use a fixed nudge from your priorities, stretch reminders use a fixed
+use a fixed nudge from your list, stretch reminders use a fixed
 phrase, and chat and voice answer that the coach is offline. Nothing else
 calls out, so there is no other fallback.
 
