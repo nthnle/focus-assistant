@@ -72,6 +72,28 @@ sudo systemctl start focus-checkin
 journalctl -u focus-checkin -n 20      # or: focus last
 ```
 
+The core is running: check-ins come at 09:00, 13:00 and 17:30 on their
+own. For how to use it day to day, see [routine.md](routine.md).
+
+## 4. What next
+
+Every feature below is optional, and each guide stands on its own. In
+this order, each one builds on the ones before it:
+
+| Feature | You need | Guide |
+|---|---|---|
+| Spoken check-ins and stretch reminders | a USB speaker or speakerphone | [voice.md, 1](voice.md#1-speaker-and-spoken-check-ins) and [5](voice.md#5-stretch-reminders) |
+| Voice commands, wake word, Call button | a USB speakerphone (Anker PowerConf tested) | [voice.md, 2 to 4](voice.md#2-voice-commands) |
+| The e-ink panel | a Pimoroni Inky Impression 4.0" | [architecture.md, E-ink display](architecture.md#e-ink-display) |
+| The status page: the panel's view in any browser | nothing extra | [phone.md, Status page](phone.md#status-page) |
+| Chat from your phone, typed or through Siri | an iPhone (one Shortcut) | [phone.md, Chat](phone.md#chat) |
+| Phone use, the phone nudge, and presence | a USB webcam, and a PC to train its model once | [camera.md](camera.md) |
+| A daily copy of your list on another computer | a PC or Mac that's on at 18:00 | [backup.md](backup.md) |
+
+The phone nudge and held check-ins are spoken, so the camera is most
+useful with a speaker set up first. Every setting is in
+[configuration.md](configuration.md).
+
 ## Schedule
 
 Check-ins run Monday to Friday at **09:00, 13:00 and 17:30**. Which kind of

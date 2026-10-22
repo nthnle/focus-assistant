@@ -16,7 +16,7 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="diagrams/architecture-simple.png">
+  <img alt="At a glance: the iPhone for chat, any browser for the status page, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="diagrams/architecture-simple.png">
 </picture>
 
 <picture>
@@ -49,7 +49,7 @@ In detail:
 The sources are the HTML files in [`diagrams/`](diagrams/) (1600x1000, light
 or dark from the browser's setting); [`diagrams/README.md`](diagrams/README.md)
 says how to re-export the PNGs after an edit. The drawings describe one setup: Groq
-running `openai/gpt-oss-120b`, an Anker PowerConf on a powered USB hub, and
+running `openai/gpt-oss-120b`, an Anker PowerConf and a USB webcam on a powered USB hub, and
 a desktop PC that copies `state.json` at 18:00.
 
 ```

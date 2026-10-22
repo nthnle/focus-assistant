@@ -23,7 +23,7 @@ How the parts fit:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
+  <img alt="At a glance: the iPhone for chat, any browser for the status page, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
 </picture>
 
 More diagrams, including a weekday timeline, are in
@@ -37,7 +37,7 @@ More diagrams, including a weekday timeline, are in
 | A **to-do list** (not ranked) from the command line: `focus add`, `focus done`, `focus later` ... unfinished items carry over, each check-in suggests one to start with, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
-| A **status page** that previews the e-ink display in a browser while the panel is on its way, for development: today's open items, the coach's last words, focus block, phone, breaks | nothing extra |
+| A **status page**: the e-ink panel's view in any browser on your network (laptop, desktop or phone), with a status strip under it: focus block, phone, breaks | nothing extra |
 | **Phone use**: a desk camera notices when you pick up your phone during focus time, and after 5 minutes on it the coach says so | a USB webcam, and a PC to train its model once on your own desk |
 | **Chat** with the coach from your phone, typed or through Siri | an iOS Shortcut |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
@@ -186,8 +186,8 @@ check-ins fall back to a fixed nudge built from your list.
 ## Status
 
 A personal project, shared as is. It's used daily on a Raspberry Pi 4 with
-an Anker PowerConf speakerphone, an Inky Impression 4.0" Spectra 6 and an
-iPhone. Other hardware is untested. Issues and pull requests are welcome.
+an Anker PowerConf speakerphone, an Inky Impression 4.0" Spectra 6, a Lenovo
+USB webcam and an iPhone. Other hardware is untested. Issues and pull requests are welcome.
 
 ## Development
 

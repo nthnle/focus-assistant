@@ -38,6 +38,7 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 | A reply misses | `focus rate bad "it's Sunday"`, or tell the coach "that was wrong". A good one: `focus rate good`. |
 | Every two weeks | `focus feedback`, then bring the output to a Claude Code session to improve the coach. |
 | Monthly | Update the Pi ([install.md, Updating](install.md#updating)). Check that new copies are arriving in `~/focus-backups` on the PC ([backup.md](backup.md)). `focus status` shows the day's API cost. |
+| The camera gets you wrong | A pickup you didn't make, or "away" while you're sitting there: record a few minutes of exactly that with `--collect` and retrain ([camera.md](camera.md#when-it-gets-things-wrong)). |
 | Something's off | `focus status`, then [Troubleshooting](install.md#troubleshooting). |
 
 ## Quick reference
