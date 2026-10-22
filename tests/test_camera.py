@@ -147,6 +147,7 @@ def run_watch(cfg, labels, times, sleeps=None):
         cams.append(FakeCamera())
         return cams[-1]
 
+    times = list(times[:1]) + list(times)   # watch() first reads the clock to tidy up
     with pytest.raises(Done):
         camera.watch(cfg, lambda frame: next(script), [P, W, A], open_camera, BLOCKS,
                      clock=Clock(times), sleep=(sleeps.append if sleeps is not None else lambda s: None))
@@ -248,6 +249,44 @@ def test_watch_closes_the_camera_when_the_window_ends(cfg):
     times = [end, end, end + timedelta(seconds=2)]
     cams = run_watch(cfg, [W], times)
     assert len(cams) == 1 and cams[0].closed
+
+
+def test_a_session_left_open_is_closed_at_start(cfg):
+    camera.record(cfg, [(st.PHONE_OUT, START, None)])
+    # The run that died last saw the phone at 10:06 ...
+    presence.record_camera(cfg, P, START, START + timedelta(minutes=6), sees_away=True)
+    camera.close_stale(cfg, START + timedelta(minutes=30))
+    events = st.peek(cfg, today=START.date()).events
+    assert events[-1] == {"at": "2026-10-12T10:06:00-05:00", "kind": st.PHONE_IN, "detail": "6 min"}
+    assert st.phone_in_use_since(events) is None
+    assert not presence.camera_path(cfg).exists()
+    camera.close_stale(cfg, START + timedelta(minutes=31))     # nothing left to close
+    assert len(st.peek(cfg, today=START.date()).events) == 2
+
+
+def test_a_stale_session_ends_when_the_camera_started_seeing_something_else(cfg):
+    camera.record(cfg, [(st.PHONE_OUT, START, None)])
+    presence.record_camera(cfg, W, START + timedelta(minutes=2), START + timedelta(minutes=20), sees_away=True)
+    camera.close_stale(cfg, START + timedelta(minutes=21))
+    assert st.peek(cfg, today=START.date()).events[-1]["detail"] == "2 min"
+
+
+def test_a_stale_session_without_a_trace_closes_where_it_began(cfg):
+    camera.record(cfg, [(st.PHONE_OUT, START, None)])
+    camera.close_stale(cfg, START + timedelta(minutes=21))
+    assert st.peek(cfg, today=START.date()).events[-1]["detail"] == "0 min"
+
+
+def test_sigterm_ends_the_service_through_its_cleanup(cfg, monkeypatch):
+    """systemd stops it with SIGTERM: that must become SystemExit, so
+    watch()'s finally closes the session instead of the process just dying."""
+    import signal
+    handlers = {}
+    monkeypatch.setattr(camera.signal, "signal", lambda sig, fn: handlers.__setitem__(sig, fn))
+    monkeypatch.setattr(camera.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    camera.main([])                                  # no model: returns early, handler already set
+    with pytest.raises(SystemExit):
+        handlers[signal.SIGTERM](signal.SIGTERM, None)
 
 
 def test_main_without_a_model_says_where_to_put_one(cfg, monkeypatch, caplog):

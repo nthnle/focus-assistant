@@ -34,6 +34,7 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -225,6 +226,25 @@ def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block]) -> str
     return "outside focus blocks"
 
 
+def close_stale(cfg: Config, now: datetime) -> None:
+    """A phone session left open by a run that died without closing it (a
+    crash, a power cut): close it when camera.json last saw the phone, or
+    when it started seeing something else; failing both, when it began."""
+    since = st.phone_in_use_since(st.peek(cfg, today=now.date()).events)
+    if since is None:
+        return
+    try:
+        data = json.loads(presence.camera_path(cfg).read_text())
+        last = datetime.fromisoformat(data["at"] if data["seen"] == PHONE else data["since"])
+    except (OSError, ValueError, KeyError, TypeError):
+        last = since
+    if not since <= last <= now:
+        last = since
+    log.info("Closing the phone session left open since %s", since.strftime("%H:%M"))
+    record(cfg, [(st.PHONE_IN, last, round((last - since).total_seconds() / 60))])
+    presence.clear_camera(cfg)
+
+
 def watch(cfg: Config, model: Callable[[bytes], str], labels: list[str],
           open_camera: Callable[[], Camera], focus_blocks: list[blocks.Block],
           clock: Callable[[], datetime] = lambda: datetime.now().astimezone(),
@@ -243,6 +263,7 @@ def watch(cfg: Config, model: Callable[[bytes], str], labels: list[str],
         presence.clear_camera(cfg)
         log.info("Camera off: %s", reason)
 
+    close_stale(cfg, clock())
     try:
         while True:
             off = why_off(cfg, clock(), focus_blocks)
@@ -391,6 +412,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.collect:
         return collect(device, Path(args.out).expanduser(), every)
 
+    # systemd stops the service with SIGTERM: exit through the finally blocks,
+    # so a phone session in progress is closed instead of left open.
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
     cfg = config.load()
     path = model_path(cfg)
     if not path.exists():
