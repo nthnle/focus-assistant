@@ -112,11 +112,8 @@ def test_page_renders_only_when_its_inputs_change(cfg, monkeypatch):
     assert len(renders) == 1
     p.get("2026-10-16T10:21:00-05:00")                   # the minute moved
     assert len(renders) == 2
-    presence.sound_path(cfg).write_text('{"sound_at": "2026-10-16T10:21:00-05:00"}')
-    p.get("2026-10-16T10:21:30-05:00")                   # presence.json changed
-    assert len(renders) == 3
     when = datetime.fromisoformat("2026-10-16T10:21:40-05:00")
     presence.record_camera(cfg, "work", when, when, sees_away=True)
     p.get("2026-10-16T10:21:45-05:00")                   # camera.json changed
-    assert len(renders) == 4
+    assert len(renders) == 3
     assert renders[-1][3] is BLOCKS                      # the service's own blocks

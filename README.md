@@ -41,7 +41,7 @@ More diagrams, including a weekday timeline, are in
 | **Phone use**: a desk camera notices when you pick up your phone during focus time, and after 5 minutes on it the coach says so | a USB webcam, and a PC to train its model once on your own desk |
 | **Chat** with the coach from your phone, typed or through Siri | an iOS Shortcut |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
-| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the desk camera, or the speakerphone (desk sound) |
+| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the desk camera |
 | An **e-ink display** that redraws when your list or the coach's reply changes | a Pimoroni Inky Impression 4.0" (Spectra 6), on the Pi or on a ribbon |
 
 It runs on a Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), and should
@@ -169,15 +169,15 @@ check-ins fall back to a fixed nudge built from your list.
   Moonshine), text-to-speech (Piper) and the wake word (openWakeWord) all run
   locally; only the transcribed text goes to the coach.
 - **Camera frames never leave the Pi and are never saved.** The desk
-  camera runs only in focus blocks; each frame is classified on the Pi
+  camera runs around focus blocks; each frame is classified on the Pi
   (phone, work or away) and thrown away. Only the times you picked up and
   put down the phone are kept. The frames you record to train it, and the
   model, stay on your own machines ([docs/camera.md](docs/camera.md#privacy)).
 - **With voice enabled, the microphone stream is always open**, but its
   audio is discarded unless you've pressed the button or said the wake
-  word. The only thing kept from it is the time the desk last made a sound,
-  used for presence. A speakerphone's mute button, or the nightly quiet
-  hours (voice off from 00:00 to 08:00), turn it off completely.
+  word. Nothing from it is kept. A speakerphone's mute button, or the
+  nightly quiet hours (voice off from 00:00 to 08:00), turn it off
+  completely.
 - **The network services listen on your home network only**, each behind
   its own token. Of the two, only chat holds the model key; the status page
   (`focus-page`) can't spend money. Every service runs sandboxed with only the access

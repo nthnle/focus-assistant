@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -27,18 +26,12 @@ def state_with(*events):
     return s
 
 
-def heard_sound(cfg, minutes_ago):
-    presence.sound_path(cfg).parent.mkdir(parents=True, exist_ok=True)
-    presence.sound_path(cfg).write_text(json.dumps({"sound_at": ago(minutes_ago)}))
-
-
 def camera_sees(cfg, label, minutes_ago, sees_away=True, written_ago=0):
     presence.record_camera(cfg, label, NOW - timedelta(minutes=minutes_ago),
                            NOW - timedelta(minutes=written_ago), sees_away)
 
 
-def test_the_camera_decides_while_it_runs(cfg):
-    heard_sound(cfg, 60)                                  # the microphone would say away
+def test_away_once_the_camera_has_seen_the_empty_desk_for_a_while(cfg):
     camera_sees(cfg, "work", 20)
     assert not presence.away(cfg, state_with(), NOW)
     camera_sees(cfg, "phone", 20)
@@ -47,11 +40,10 @@ def test_the_camera_decides_while_it_runs(cfg):
     assert not presence.away(cfg, state_with(), NOW)      # empty for 3 min: a quick errand
     camera_sees(cfg, "away", 6)
     assert presence.away(cfg, state_with(), NOW)
-    heard_sound(cfg, 0)
-    assert presence.away(cfg, state_with(), NOW)          # the camera wins over a noise
 
 
-def test_a_stopped_camera_is_ignored(cfg):
+def test_without_a_running_camera_you_count_as_here(cfg):
+    assert not presence.away(cfg, state_with(), NOW)      # no camera at all
     camera_sees(cfg, "away", 30, written_ago=2)           # last wrote 2 min ago: it stopped
     assert presence.camera_seen(cfg, NOW) is None
     assert not presence.away(cfg, state_with(), NOW)
@@ -59,42 +51,27 @@ def test_a_stopped_camera_is_ignored(cfg):
     assert presence.camera_seen(cfg, NOW) is None
 
 
-def test_a_model_without_away_leaves_it_to_the_microphone(cfg):
+def test_a_model_without_away_never_says_away(cfg):
     camera_sees(cfg, "work", 40, sees_away=False)
-    heard_sound(cfg, 31)
-    assert presence.away(cfg, state_with(), NOW)
+    assert not presence.away(cfg, state_with(), NOW)
+    assert presence.back(cfg, NOW)
 
 
-def test_without_the_camera_a_long_quiet_counts_as_away(cfg, monkeypatch):
-    assert not presence.away(cfg, state_with(), NOW)      # no reading at all: can't tell
-    heard_sound(cfg, 20)
-    assert not presence.away(cfg, state_with(), NOW)      # quiet, but not for 30 min
-    heard_sound(cfg, 31)
-    assert presence.away(cfg, state_with(), NOW)
-    monkeypatch.setenv("FOCUS_AWAY_QUIET_MIN", "0")
-    assert not presence.away(cfg, state_with(), NOW)      # turned off
+def test_back_needs_the_camera_to_see_you_once_there_is_one(cfg):
+    assert presence.back(cfg, NOW)                        # no camera set up: nothing to wait for
+    presence.model_path(cfg).parent.mkdir(parents=True)
+    presence.model_path(cfg).write_bytes(b"model")
+    assert not presence.back(cfg, NOW)                    # a camera that isn't running yet
+    camera_sees(cfg, "away", 1)
+    assert not presence.back(cfg, NOW)
+    camera_sees(cfg, "work", 0)
+    assert presence.back(cfg, NOW)
 
 
 def test_thresholds_come_from_the_environment(cfg, monkeypatch):
     camera_sees(cfg, "away", 3)
     monkeypatch.setenv("FOCUS_AWAY_CAMERA_MIN", "2")
     assert presence.away(cfg, state_with(), NOW)
-
-
-def test_sound_tracker_ignores_steady_noise_and_records_sounds(cfg):
-    clock = [NOW]
-    t = presence.SoundTracker(cfg, clock=lambda: clock[0])
-    for _ in range(50):
-        t.feed(150)                    # fan hum
-    assert presence.last_sound(cfg) is None
-    t.feed(3000)                       # a chair, a keyboard
-    assert presence.last_sound(cfg) == NOW
-    clock[0] = NOW + timedelta(seconds=10)
-    t.feed(3000)                       # written at most every 30 s
-    assert presence.last_sound(cfg) == NOW
-    clock[0] = NOW + timedelta(seconds=40)
-    t.feed(3000)
-    assert presence.last_sound(cfg) == NOW + timedelta(seconds=40)
 
 
 class FakeVoice:

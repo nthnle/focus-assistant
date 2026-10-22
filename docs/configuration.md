@@ -23,7 +23,7 @@ point that `install.sh` copies.
 | `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. With the `focus-display` service running, leave out `inky`: the service redraws the panel on every change. |
 | `FOCUS_HISTORY_DAYS` | `14` | Days of daily summaries kept for the coach's context. |
 | `FOCUS_STATE_DIR` | `~/.local/state/focus-assistant` | Where `state.json` lives. The systemd units set this; you normally don't. |
-| `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. The desk camera runs only in them; also used by stretch reminders, phone nudges, presence and the status page. |
+| `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. Phone use counts only in them, and the desk camera runs from 5 minutes before each to 5 after; also used by stretch reminders, phone nudges and the status page. |
 | `FOCUS_LOG_WORDS` | (off) | `1` writes what you say, type or mark done into the system journal. Off, the journal gets only the length (`<16 chars>`). Turn it on while tuning voice. |
 
 **When the host can't be reached** (or a setting is missing), check-ins
@@ -97,7 +97,6 @@ See [camera.md](camera.md).
 | Setting | Default | |
 |---|---|---|
 | `FOCUS_AWAY_CAMERA_MIN` | `5` | Minutes the desk camera must see the empty desk before you count as away. |
-| `FOCUS_AWAY_QUIET_MIN` | `30` | When the camera isn't running: minutes of desk silence that count as away. `0` turns it off. |
 
 ## E-ink display
 

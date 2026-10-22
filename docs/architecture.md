@@ -108,7 +108,7 @@ focus/
   checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs;
                   plus its quiet rewrite (screen only) after something is marked done
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback), :00 back to work
-  presence.py     away or not, from the desk camera and desk sound
+  presence.py     away or not, from the desk camera
   camera.py       the desk camera: phone use and an empty desk, in focus blocks
   nudge.py        "you've been on your phone 5 minutes", said by the voice service
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
@@ -148,7 +148,7 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |
-| `focus-camera` | always; the camera is open only in focus blocks | **no** | none | the webcam |
+| `focus-camera` | always; the camera is open around focus blocks, or while a held check-in waits | **no** | none | the webcam |
 
 Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.

@@ -5,10 +5,9 @@
     chat -> Piper speaks the reply through the speaker
 
 The microphone stream is always open while the service runs, but its audio
-is thrown away: it only goes through the wake-word model (if one is set)
-and a loudness check whose one result is the time the desk last made a
-sound (focus.presence). A turn's audio is kept only after the wake word or
-a press, until you stop talking. Speech never leaves the Pi (only the
+is thrown away: it only goes through the wake-word model (if one is set).
+A turn's audio is kept only after the wake word or a press, until you stop
+talking. Speech never leaves the Pi (only the
 transcribed text goes to the coach). Without a wake word, only the button
 starts a turn. Between turns it also says a check-in that was held while
 you were away, once you're back, and a nudge when the desk camera has seen
@@ -587,10 +586,10 @@ def second_call_follows(events: queue.Queue, window_s: float = DOUBLE_PRESS_S) -
 
 def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> bool:
     """Say the latest check-in that was held while you were away or paused,
-    once you're back and the pause is over."""
+    once the camera sees you back and the pause is over."""
     with st.locked_state(cfg, today=now.date()) as s:
         unheard = [c for c in s.checkins if c.get("unheard")]
-        if not unheard or presence.away(cfg, s, now) or pause.paused(s, now):
+        if not unheard or not presence.back(cfg, now) or pause.paused(s, now):
             return False
         for c in unheard:
             c["unheard"] = False
@@ -733,7 +732,6 @@ def main() -> int:
                   listen=listen, transcribe=transcribe, hint=lambda: vocabulary(cfg),
                   followup_s=float(os.environ.get("FOCUS_VOICE_FOLLOWUP", "5")),
                   talk_followup_s=float(os.environ.get("FOCUS_VOICE_TALK_FOLLOWUP", "10")))
-    tracker = presence.SoundTracker(cfg)
     focus_blocks = blocks.from_env()
 
     def idle() -> None:
@@ -741,7 +739,7 @@ def main() -> int:
         replay_missed(cfg, spoken.say, now)
         nudge.run(cfg, now, spoken.say, focus_blocks)
 
-    extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)), idle=idle)
+    extras = dict(idle=idle)
     key = int(os.environ.get("FOCUS_VOICE_KEY", KEY_PLAYPAUSE))
     ways = ([f'say "{wake_name.replace("_", " ")}"'] if wake else []) + ([f"press key {key}"] if button else [])
 

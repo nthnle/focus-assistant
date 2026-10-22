@@ -288,7 +288,7 @@ def render_html(state: State, now: str, cfg: Config | None = None,
 
 class Page:
     """The rendered page, cached until something it shows could have changed:
-    state.json, presence.json, camera.json, or the minute (the day chips move with time,
+    state.json, camera.json, or the minute (the day chips move with time,
     and the date in it also covers the midnight rollover)."""
 
     def __init__(self, cfg: Config, focus_blocks: list[blocks.Block]):
@@ -308,8 +308,7 @@ class Page:
 
     def get(self, now: str) -> tuple[str, str]:
         """(version, html) at `now`, an ISO timestamp with its offset."""
-        key = (self._stamp(self.cfg.state_path), self._stamp(presence.sound_path(self.cfg)),
-               self._stamp(presence.camera_path(self.cfg)), now[:16])
+        key = (self._stamp(self.cfg.state_path), self._stamp(presence.camera_path(self.cfg)), now[:16])
         with self._lock:
             if key != self._key:
                 self._page = render(st.peek(self.cfg), now, self.cfg, self.focus_blocks)

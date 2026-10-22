@@ -49,6 +49,8 @@ if [ -f /etc/systemd/system/focus-dock.service ]; then
     rm -f /etc/systemd/system/focus-dock.service
     rm -f "$STATE_DIR/charger.json"
 fi
+# Desk sound no longer counts for presence; the camera decides.
+rm -f "$STATE_DIR/presence.json"
 for unit in focus-checkin.service focus-checkin.timer focus-page.service focus-chat.service \
             focus-voice.service focus-display.service focus-camera.service \
             focus-stretch.service focus-stretch.timer \

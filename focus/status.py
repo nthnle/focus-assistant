@@ -1,7 +1,7 @@
 """`focus status`: everything worth checking during testing, in one screen.
 
 Services and timers (from systemd), today's priorities, check-ins, focus
-block, phone, camera, desk sound and presence, and what today's API calls cost,
+block, phone, camera and presence, and what today's API calls cost,
 from the token counts recorded in state.json.
 """
 
@@ -90,7 +90,6 @@ def report(cfg: Config, s: State, now: datetime,
     in_use = st.phone_in_use_since(s.events)
     seen = presence.camera_seen(cfg, now)
     nudges = sum(1 for e in s.events if e["kind"] == st.PHONE_NUDGE)
-    heard = presence.last_sound(cfg)
     reminders = [e for e in s.events if e["kind"] == stretch.STRETCH]
     by_coach = sum(1 for e in reminders if e.get("detail") == "coach")
     voice_chats = sum(1 for c in s.chat if c.get("voice"))
@@ -105,8 +104,7 @@ def report(cfg: Config, s: State, now: datetime,
         f"  Focus block  {'yes, ' + current if current else 'no'}",
         f"  Phone        {'in use since ' + in_use.strftime('%H:%M') if in_use else 'not in use'}"
         + (f", {nudges} nudge{'s' if nudges != 1 else ''}" if nudges else ""),
-        f"  Camera       {seen.label + ' since ' + seen.since.strftime('%H:%M') if seen else 'off (runs in focus blocks)'}",
-        f"  Desk sound   {'last heard ' + heard.strftime('%H:%M') if heard else 'no reading (voice service off?)'}",
+        f"  Camera       {seen.label + ' since ' + seen.since.strftime('%H:%M') if seen else 'off (runs around focus blocks)'}",
         f"  Presence     {'away' if presence.away(cfg, s, now) else 'at the desk'}",
         f"  Paused       {pause.describe(s, now) or 'no'}",
         f"  Stretch      {len(reminders)} reminders ({by_coach} by the coach, {len(reminders) - by_coach} fixed)",

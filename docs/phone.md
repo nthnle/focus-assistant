@@ -115,35 +115,28 @@ The upper panel mirrors the e-ink display layout ([architecture.md](architecture
 
 ## Presence
 
-So the coach doesn't talk to an empty desk, you count as **away**:
-
-- **in a focus block, with the [desk camera](camera.md):** once it has seen
-  the empty chair for 5 minutes
-- **otherwise** (before and between blocks, while paused, or without a
-  camera): once the desk has been quiet for 30 minutes, going by the [voice
-  service's microphone](voice.md#2-voice-commands) (no typing, chair or
-  voice). Only the time of the last sound is stored, in `presence.json`;
-  never audio.
-
-With neither, you always count as here.
+So the coach doesn't talk to an empty desk, you count as **away** once the
+[desk camera](camera.md) has seen the empty chair for 5 minutes. The camera
+runs from 5 minutes before each focus block to 5 minutes after it, so every
+check-in and stretch reminder gets its answer. Without a camera, you always
+count as here.
 
 While you're away:
 
 - **stretch reminders are skipped** (you're already up)
 - **a spoken check-in is held**, and the voice service says it within 30
-  seconds of your return ("You missed the midday check-in. It said: ...").
-  The status page shows it meanwhile.
+  seconds of the camera seeing you back ("You missed the midday check-in.
+  It said: ..."). The status page shows it meanwhile. For the 17:30
+  check-in, the camera stays on to watch for you for up to 2 hours; after
+  that it stays on the screen, unsaid.
 
 The same happens while you're paused (`focus pause 11:00`, or "quiet until
 11" to the coach): reminders are skipped, and a check-in is held until the
 pause ends. See [Pausing](../README.md#using-it).
 
-**Its blind spots:** without the camera, sitting in total silence for half
-an hour (reading, say) looks like you've gone; nothing is lost when that
-happens, as a held check-in is said as soon as you're noticed again. Noise
-at an empty desk (people nearby, a TV) counts as you being there. With the
-camera, someone else in your chair looks like you.
+**Its blind spots:** someone else in your chair looks like you, and so may
+you, standing at the desk.
 
-Tune it with `FOCUS_AWAY_CAMERA_MIN` and `FOCUS_AWAY_QUIET_MIN`;
+Tune it with `FOCUS_AWAY_CAMERA_MIN`;
 `journalctl -u focus-stretch -u focus-checkin -u focus-voice | grep -i away`
 shows its decisions.

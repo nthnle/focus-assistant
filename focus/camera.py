@@ -14,8 +14,13 @@ away: none is saved, sent or logged. What is kept:
 - camera.json: what it sees now and since when, for presence and the status
   page; rewritten when that changes, and every 30 s.
 
-It runs only in focus blocks (FOCUS_BLOCKS, weekdays) and not while paused;
-the rest of the time the camera is closed and its light is off.
+It runs from 5 minutes before each focus block (FOCUS_BLOCKS, weekdays) to
+5 minutes after it, so the check-ins at the edges of a block get its answer
+too; phone use counts only inside the block itself. When a spoken check-in
+is held because you're away, it stays on (or comes on) until it sees you
+back, for up to 2 hours; after that the check-in stays on the screen,
+unsaid. Never while paused. The rest of the time the camera is closed and
+its light is off.
 
     python -m focus.camera              the service (what focus-camera runs)
     python -m focus.camera --check      what the model sees in a few frames, and how fast
@@ -50,15 +55,15 @@ WINDOW = 5               # frames a label needs a majority of
 SETTLE = timedelta(seconds=30)
 END = timedelta(seconds=30)
 WRITE_EVERY = timedelta(seconds=30)
+MARGIN = timedelta(minutes=5)    # on this long before and after each focus block
+WAIT = timedelta(hours=2)        # how long a held check-in keeps it on
 OFF_POLL_S = 15.0
 EXIT_NO_MODEL = 2        # the unit doesn't restart for this one
 
 Change = tuple[str, datetime, "int | None"]   # (event kind, when, minutes for PHONE_IN)
 
 
-def model_path(cfg: Config) -> Path:
-    env = os.environ.get("FOCUS_CAMERA_MODEL")
-    return Path(env) if env else cfg.state_dir / "camera" / "model.onnx"
+model_path = presence.model_path
 
 
 class Tracker:
@@ -73,12 +78,15 @@ class Tracker:
         self._last_phone: datetime | None = None
         self._logged = False
 
-    def feed(self, label: str, at: datetime) -> list[Change]:
+    def feed(self, label: str, at: datetime, counts: bool = True) -> list[Change]:
+        """`counts`: whether phone use counts now (inside a focus block)."""
         self.recent.append(label)
         best, n = Counter(self.recent).most_common(1)[0]
         if self.seen is None or 2 * n > len(self.recent):   # no majority: no change
             if best != self.seen:
                 self.seen, self.since = best, at
+        if not counts:
+            return self._close() if self._phone_since is not None else []
         if self.seen == PHONE:
             if self._phone_since is None:
                 self._phone_since = at
@@ -183,13 +191,38 @@ class Model:
 
 # --- the service ----------------------------------------------------------
 
+def in_window(now: datetime, focus_blocks: list[blocks.Block], margin: timedelta = MARGIN) -> bool:
+    """A weekday, from `margin` before a focus block to `margin` after it."""
+    if now.weekday() >= 5:
+        return False
+    return any(datetime.combine(now.date(), start, now.tzinfo) - margin <= now
+               < datetime.combine(now.date(), end, now.tzinfo) + margin
+               for start, end in focus_blocks)
+
+
+def held(s: st.State, now: datetime, recent: bool = True) -> list[dict]:
+    """Spoken check-ins waiting for you: those under WAIT old, or (recent=False) the older ones."""
+    return [c for c in s.checkins
+            if c.get("unheard") and (now - datetime.fromisoformat(c["at"]) < WAIT) == recent]
+
+
 def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block]) -> str | None:
-    """Why the camera should be off at `now` (timezone-aware), or None to run it."""
-    if not blocks.in_block(now, focus_blocks):
-        return "outside focus blocks"
-    if pause.paused(st.peek(cfg, today=now.date()), now):
+    """Why the camera should be off at `now` (timezone-aware), or None to run it.
+
+    Outside its window, a check-in held more than WAIT is given up on here:
+    nothing else would ever turn the camera on for it again."""
+    s = st.peek(cfg, today=now.date())
+    if pause.paused(s, now):
         return "paused"
-    return None
+    if in_window(now, focus_blocks):
+        return None
+    if held(s, now, recent=False):
+        with st.locked_state(cfg, today=now.date()) as s:
+            given_up = actions.expire_held_checkins(s, now - WAIT)
+        log.info("Gave up waiting to say %d held check-in(s); they stay on the screen", given_up)
+    if held(s, now):
+        return None
+    return "outside focus blocks"
 
 
 def watch(cfg: Config, model: Callable[[bytes], str], labels: list[str],
@@ -223,7 +256,7 @@ def watch(cfg: Config, model: Callable[[bytes], str], labels: list[str],
                 log.info("Camera on")
             label = model(camera.read())
             now = clock()
-            record(cfg, tracker.feed(label, now))
+            record(cfg, tracker.feed(label, now, counts=blocks.in_block(now, focus_blocks)))
             if written is None or written[0] != tracker.seen or now - written[1] >= WRITE_EVERY:
                 presence.record_camera(cfg, tracker.seen, tracker.since, now, sees_away)
                 written = (tracker.seen, now)

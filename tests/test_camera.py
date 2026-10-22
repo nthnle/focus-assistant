@@ -186,8 +186,65 @@ def test_watch_keeps_the_camera_off_outside_blocks_and_while_paused(cfg):
     assert run_watch(cfg, [], [START], sleeps) == []
 
 
-def test_watch_closes_the_camera_when_the_block_ends(cfg):
-    end = START.replace(hour=11, minute=59, second=58)
+def test_the_camera_runs_from_five_minutes_before_a_block_to_five_after():
+    assert not camera.in_window(START.replace(hour=8, minute=54), BLOCKS)
+    assert camera.in_window(START.replace(hour=8, minute=55), BLOCKS)
+    assert camera.in_window(START.replace(hour=12, minute=4), BLOCKS)
+    assert not camera.in_window(START.replace(hour=12, minute=5), BLOCKS)
+    assert camera.in_window(START.replace(hour=17, minute=34), BLOCKS)
+    assert not camera.in_window(START.replace(day=17), BLOCKS)      # Saturday
+
+
+def test_phone_use_counts_only_inside_the_block():
+    def watched(tracker, start, n):
+        # As watch() does: phone use counts only while in a focus block.
+        times = [start + timedelta(seconds=2 * i) for i in range(n)]
+        return [c for at in times for c in tracker.feed(P, at, counts=blocks.in_block(at, BLOCKS))]
+
+    t = camera.Tracker()
+    changes = watched(t, START.replace(hour=8, minute=58, second=30), 80)   # 08:58:30-09:01:08
+    assert changes == [(st.PHONE_OUT, START.replace(hour=9), None)]          # counted from 09:00
+    t = camera.Tracker()
+    changes = feed(t, [P] * 30, start=START.replace(hour=11, minute=59))
+    changes += [c for i in range(5) for c in t.feed(P, START.replace(hour=12, second=2 * i), counts=False)]
+    assert [c[0] for c in changes] == [st.PHONE_OUT, st.PHONE_IN]  # closed when the block ends
+    assert t.seen == P                                          # it still sees what it sees
+
+
+def held_checkin(cfg, at):
+    with st.locked_state(cfg, today=at.date()) as s:
+        s.checkins.append({"slot": "evening", "at": at.isoformat(timespec="seconds"),
+                           "reply": "Good day.", "unheard": True})
+
+
+def test_a_held_checkin_keeps_the_camera_on_for_two_hours(cfg):
+    evening = START.replace(hour=17, minute=30)
+    assert camera.why_off(cfg, evening + timedelta(minutes=10), BLOCKS) == "outside focus blocks"
+    held_checkin(cfg, evening)
+    assert camera.why_off(cfg, evening + timedelta(minutes=10), BLOCKS) is None
+    assert camera.why_off(cfg, evening + timedelta(minutes=119), BLOCKS) is None
+    later = evening + timedelta(minutes=121)
+    assert camera.why_off(cfg, later, BLOCKS) == "outside focus blocks"
+    c = st.peek(cfg, today=START.date()).checkins[-1]
+    assert c["unheard"] is False and c["expired"] is True          # given up on, still on screen
+
+
+def test_a_held_checkin_waits_out_a_pause(cfg):
+    held_checkin(cfg, START.replace(hour=17, minute=30))
+    with st.locked_state(cfg, today=START.date()) as s:
+        actions.pause(s, START.replace(hour=18))
+    assert camera.why_off(cfg, START.replace(hour=17, minute=45), BLOCKS) == "paused"
+    assert camera.why_off(cfg, START.replace(hour=18, minute=1), BLOCKS) is None
+
+
+def test_inside_its_window_a_held_checkin_is_never_given_up(cfg):
+    held_checkin(cfg, START.replace(hour=9))
+    assert camera.why_off(cfg, START.replace(hour=11, minute=30), BLOCKS) is None
+    assert st.peek(cfg, today=START.date()).checkins[-1]["unheard"] is True
+
+
+def test_watch_closes_the_camera_when_the_window_ends(cfg):
+    end = START.replace(hour=12, minute=4, second=58)
     times = [end, end, end + timedelta(seconds=2)]
     cams = run_watch(cfg, [W], times)
     assert len(cams) == 1 and cams[0].closed

@@ -1,5 +1,5 @@
 [Unit]
-Description=Focus assistant desk camera (phone use and presence, focus blocks only)
+Description=Focus assistant desk camera (phone use and presence, around focus blocks)
 
 [Service]
 Type=simple

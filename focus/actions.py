@@ -88,6 +88,18 @@ def log_event(s: State, kind: str, detail: str | None = None,
     return event
 
 
+def expire_held_checkins(s: State, before: datetime) -> int:
+    """Stop waiting to say check-ins held since before `before`. They stay
+    on the screen; they just won't be spoken."""
+    given_up = 0
+    for c in s.checkins:
+        if c.get("unheard") and datetime.fromisoformat(c["at"]) < before:
+            c["unheard"] = False
+            c["expired"] = True
+            given_up += 1
+    return given_up
+
+
 def report_on_track(s: State) -> dict:
     return log_event(s, st.SELF_REPORT, "on_track")
 
