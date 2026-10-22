@@ -1,7 +1,7 @@
 """`focus status`: everything worth checking during testing, in one screen.
 
 Services and timers (from systemd), today's priorities, check-ins, focus
-block, phone, desk sound and presence, and what today's API calls cost,
+block, phone, camera, desk sound and presence, and what today's API calls cost,
 from the token counts recorded in state.json.
 """
 
@@ -12,17 +12,20 @@ from datetime import datetime
 from typing import Callable
 
 from . import blocks, feedback, pause, presence, stretch
+from . import state as st
 from .pricing import cost, prices  # noqa: F401  (tests use these here)
 from .config import Config
 from .state import State
 
-UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-dock", "focus-chat", "focus-voice"]
+UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-page", "focus-chat", "focus-voice",
+         "focus-camera", "focus-display"]
 
 
 def usage_today(cfg: Config, s: State) -> list[tuple[str, int, int, int, float | None]]:
     """(what, calls, tokens in, tokens out, dollars or None if a model's price is unknown)."""
     # (model, tokens in, tokens out, dollars saved at call time if any)
-    groups: dict[str, list[tuple[str, int, int, float | None]]] = {"check-ins": [], "chat": [], "stretch": []}
+    groups: dict[str, list[tuple[str, int, int, float | None]]] = {
+        "check-ins": [], "chat": [], "stretch": [], "nudges": []}
     for c in s.checkins:
         t = c.get("tokens")
         if t is not None:  # an offline check-in made no call
@@ -33,9 +36,10 @@ def usage_today(cfg: Config, s: State) -> list[tuple[str, int, int, int, float |
         t = c.get("tokens", {})
         groups["chat"].append((c.get("model", cfg.chat_model), t.get("in", 0), t.get("out", 0), c.get("usd")))
     for e in s.events:
-        if e["kind"] == stretch.STRETCH and "usage" in e:
+        if e["kind"] in (stretch.STRETCH, st.PHONE_NUDGE) and "usage" in e:
             u = e["usage"]
-            groups["stretch"].append((u["model"], u["in"], u["out"], u.get("usd")))
+            group = "stretch" if e["kind"] == stretch.STRETCH else "nudges"
+            groups[group].append((u["model"], u["in"], u["out"], u.get("usd")))
 
     rows = []
     for name, calls in groups.items():
@@ -83,7 +87,9 @@ def report(cfg: Config, s: State, now: datetime,
     focus_blocks = blocks.from_env()
     current = next((f"{a:%H:%M}-{b:%H:%M}" for a, b in focus_blocks
                     if blocks.in_block(now, [(a, b)])), None)
-    out = presence.phone_out_since(s, cfg)
+    in_use = st.phone_in_use_since(s.events)
+    seen = presence.camera_seen(cfg, now)
+    nudges = sum(1 for e in s.events if e["kind"] == st.PHONE_NUDGE)
     heard = presence.last_sound(cfg)
     reminders = [e for e in s.events if e["kind"] == stretch.STRETCH]
     by_coach = sum(1 for e in reminders if e.get("detail") == "coach")
@@ -97,7 +103,9 @@ def report(cfg: Config, s: State, now: datetime,
         f"  Priorities   {open_} open, {done} done" + (f", {len(s.later)} later" if s.later else ""),
         f"  Check-ins    {checkins}",
         f"  Focus block  {'yes, ' + current if current else 'no'}",
-        f"  Phone        {'off the charger since ' + out.strftime('%H:%M') if out else 'on the charger (or no charger reports today)'}",
+        f"  Phone        {'in use since ' + in_use.strftime('%H:%M') if in_use else 'not in use'}"
+        + (f", {nudges} nudge{'s' if nudges != 1 else ''}" if nudges else ""),
+        f"  Camera       {seen.label + ' since ' + seen.since.strftime('%H:%M') if seen else 'off (runs in focus blocks)'}",
         f"  Desk sound   {'last heard ' + heard.strftime('%H:%M') if heard else 'no reading (voice service off?)'}",
         f"  Presence     {'away' if presence.away(cfg, s, now) else 'at the desk'}",
         f"  Paused       {pause.describe(s, now) or 'no'}",

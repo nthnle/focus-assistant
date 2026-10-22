@@ -34,14 +34,15 @@ from .state import State
 SYSTEM_PROMPT = """\
 You are a focus coach on a small device on the user's desk. Three times a \
 day you get their to-do list, what they have done, and what the device has \
-logged (self-reports, pauses, phone taken off its charger during focus time). \
-Reply with what helps them get through it.
+logged (self-reports, pauses, phone use the desk camera saw during focus \
+time). Reply with what helps them get through it.
 
 `facts` already has the counts and totals: open and done items, phone pickups \
-and minutes off the charger, what has carried over three days or more, and \
+and minutes on the phone, what has carried over three days or more, and \
 whether they have paused. Use those numbers as given; never work them out \
-again from the events. The phone belongs on its charger during focus time, \
-so phone_out means it was picked up.
+again from the events. phone_out means the camera saw them on the phone for \
+at least 30 seconds, phone_in that they put it down, and phone_nudge that the \
+device told them they had been on it a while.
 
 `later` holds items scheduled for another day: leave them alone unless \
 asked.
@@ -157,8 +158,8 @@ def facts(s: State, now: str) -> dict:
         "done_count": len([p for p in s.today_list if p.done]),
         "carried_3_days_or_more": [p.text for p in open_ if p.carried_days >= 3],
         "phone_pickups_today": phone["pickups"],
-        "phone_minutes_off_charger_today": phone["minutes"],
-        "phone_off_charger_now_since": phone["out_since"].strftime("%H:%M") if phone["out_since"] else None,
+        "phone_minutes_today": phone["minutes"],
+        "phone_in_use_now_since": phone["out_since"].strftime("%H:%M") if phone["out_since"] else None,
         "last_self_report": reports[-1] if reports else None,
         "paused": pause.describe(s, datetime.fromisoformat(now)),
         "weekday": f"{datetime.fromisoformat(now):%A}",

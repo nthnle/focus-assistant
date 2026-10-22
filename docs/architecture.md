@@ -16,12 +16,12 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone (with an ordinary charger), the Pi's shared core and seven services, the speakerphone, the e-ink panel, and Groq, which only receives text" src="diagrams/architecture-simple.png">
+  <img alt="At a glance: the iPhone, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="diagrams/architecture-simple.png">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-simple-dark.png">
-  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone pickups as icons on You, Pi and Groq lanes, a mark wherever the e-ink panel redraws, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
+  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone use as icons on You, Pi and Groq lanes, a mark wherever the e-ink panel redraws, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
 </picture>
 
 <picture>
@@ -38,19 +38,17 @@ In detail:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-dark.png">
-  <img alt="Architecture: the phone, the Pi's seven sandboxed services, the shared core, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
+  <img alt="Architecture: the phone, the Pi's eight sandboxed services, the shared core, the webcam, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-dark.png">
-  <img alt="One weekday: check-ins, stretch reminders, phone charger events, voice and chat across You, Pi and model host lanes, marking each change the e-ink panel redraws for, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
+  <img alt="One weekday: check-ins, stretch reminders, phone use seen by the desk camera, voice and chat across You, Pi and model host lanes, marking each change the e-ink panel redraws for, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
 </picture>
 
 The sources are the HTML files in [`diagrams/`](diagrams/) (1600x1000, light
 or dark from the browser's setting); [`diagrams/README.md`](diagrams/README.md)
-says how to re-export the PNGs after an edit. The "dock" in them is just the phone's
-usual charger; `focus-dock` is the Pi service that logs what the iPhone
-reports about it. The drawings describe one setup: Groq
+says how to re-export the PNGs after an edit. The drawings describe one setup: Groq
 running `openai/gpt-oss-120b`, an Anker PowerConf on a powered USB hub, and
 a desktop PC that copies `state.json` at 18:00.
 
@@ -62,7 +60,7 @@ a desktop PC that copies `state.json` at 18:00.
                             │              │               │
   timers                    │   inputs     │      outputs  │
   ───────                   │   ──────     │      ───────  │
-  focus-checkin  ──► coach ─┤   dock  ─────┤      console ◄┤
+  focus-checkin  ──► coach ─┤   camera ────┤      console ◄┤
   focus-stretch  ──► coach ─┤   chat  ─────┤      speech  ◄┤
                             │   voice ─────┤      inky    ◄┘
   you ─► focus CLI ─────────┘   (all call focus.actions)
@@ -110,7 +108,9 @@ focus/
   checkin.py      one scheduled check-in: snapshot -> coach -> record -> outputs;
                   plus its quiet rewrite (screen only) after something is marked done
   stretch.py      the :50 stretch reminder (coach-written, fixed fallback), :00 back to work
-  presence.py     away or not, from charger events and desk sound
+  presence.py     away or not, from the desk camera and desk sound
+  camera.py       the desk camera: phone use and an empty desk, in focus blocks
+  nudge.py        "you've been on your phone 5 minutes", said by the voice service
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
   days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later items
   feedback.py     replies.jsonl: every model reply with its payload, checks and ratings
@@ -120,8 +120,9 @@ focus/
   bench.py        voice benchmark
   cli.py          the `focus` command
   outputs/        where a check-in goes: console, speech, inky
-  inputs/         long-running services: dock, chat, voice (+ _web helpers)
+  inputs/         long-running services: chat, the status page, voice (+ _web helpers)
 deploy/           systemd units, udev rule, focus.env.example, install.sh
+tools/            train_camera.py: trains the camera's model on a PC
 tests/
 ```
 
@@ -143,15 +144,16 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each weekday hour, after a reminder | **no** | none | sound cards |
-| `focus-dock` | always (charger reports from the iPhone + the status page: the e-ink panel's layout in a browser) | **no** | home network only, inbound | none |
+| `focus-page` | always (the status page: the e-ink panel's layout in a browser) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |
+| `focus-camera` | always; the camera is open only in focus blocks | **no** | none | the webcam |
 
 Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.
 
-The two services that listen on the network (`dock`, `chat`) answer only
+The two services that listen on the network (`page`, `chat`) answer only
 private addresses and require their own token (`Authorization: Bearer`, or
 `?k=` for the status page), optionally narrowed to listed devices with
 `FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN.
@@ -183,7 +185,7 @@ with st.locked_state(config.load()) as s:
 
 Long-running inputs get their own systemd unit, so a crash in one never
 affects the check-ins. For a network input, `focus/inputs/_web.py` has the
-token check and server loop that the dock and chat use.
+token check and server loop that the status page and chat use.
 
 ## E-ink display
 

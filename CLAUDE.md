@@ -9,6 +9,8 @@
 - When behaviour changes, update the docs and, if the picture changes, the
   diagrams in `docs/diagrams/` (edit the HTML, then re-export with
   `python docs/diagrams/render.py`; see docs/diagrams/README.md).
-- In docs and diagrams the "dock" is just the phone's charger; `focus-dock`
-  is the Pi service that logs what the iPhone reports. The status page is the
-  e-ink panel's layout in a browser.
+- Phone use comes from the desk camera (`focus-camera`); there are no
+  charger reports any more. The status page (`focus-page`) is the e-ink
+  panel's layout in a browser.
+- Camera frames, and the model trained on them, are pictures of the user:
+  never commit them (`frames/`, `*.onnx` are git-ignored).

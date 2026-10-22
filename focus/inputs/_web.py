@@ -1,4 +1,4 @@
-"""What the phone-facing services share: the token check and the server loop.
+"""What the network services (chat, the status page) share: the token check and the server loop.
 
 Only private (home network) addresses with `Authorization: Bearer <token>`
 get past `authorized()`; everything else is a 403 and a log line. A browser

@@ -19,6 +19,8 @@ voice = ["piper-tts>=1.3", "faster-whisper>=1.1"]
 # because it requires tflite-runtime on Linux, which has no build for the
 # Pi's Python; these are the dependencies its ONNX path actually uses.
 wake = ["onnxruntime>=1.10", "scipy>=1.3", "scikit-learn>=1", "tqdm>=4", "requests>=2"]
+# The desk camera's model (ffmpeg, from apt, reads the webcam).
+camera = ["onnxruntime>=1.20", "numpy>=1.26"]
 # gpio    = ["gpiozero"]
 
 [project.scripts]

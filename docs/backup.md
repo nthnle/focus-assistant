@@ -85,9 +85,9 @@ With your normal login, not the backup key:
 ```bash
 scp ~/focus-backups/state-2026-10-23.json <user>@focus.local:/tmp/state.json
 ssh <user>@focus.local
-sudo systemctl stop focus-dock focus-chat focus-voice
+sudo systemctl stop focus-page focus-chat focus-voice focus-camera
 cp /tmp/state.json ~/.local/state/focus-assistant/state.json
-sudo systemctl start focus-dock focus-chat focus-voice   # the ones you use
+sudo systemctl start focus-page focus-chat focus-voice focus-camera   # the ones you use
 focus show
 ```
 

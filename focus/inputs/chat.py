@@ -5,8 +5,8 @@
     {"text": "I finished the spec, what next?"}
 
 and gets the coach's reply back as plain text to show or speak. This is a
-separate service from the dock because it holds the API key and talks to
-the internet; the dock does neither.
+separate service from the status page because it holds the API key and
+talks to the internet; the page does neither.
 
     python -m focus.inputs.chat    the service (what focus-chat runs)
 """

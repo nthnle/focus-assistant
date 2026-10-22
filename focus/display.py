@@ -6,11 +6,11 @@ and the reply. Under it, a status strip the e-ink panel doesn't have: where you
 are in the day (focus block, break, between blocks), the next 50/10 break,
 the phone, presence, and today's counts.
 
-The dock service serves it at /display, through `Page`. Every POLL_SECONDS
-the page asks for itself again with its version as an ETag; the answer is a
-bodyless 304 until the content changes, and then the new content is swapped
-in place, so a chat, voice, CLI or dock change shows up within a couple of
-seconds. `Page` re-renders only when a file the page reads, or the minute,
+The focus-page service serves it at /display, through `Page`. Every
+POLL_SECONDS the page asks for itself again with its version as an ETag;
+the answer is a bodyless 304 until the content changes, and then the new
+content is swapped in place, so a chat, voice, CLI or camera change shows
+up within a couple of seconds. `Page` re-renders only when a file the page reads, or the minute,
 has changed, so an unchanged poll costs two stat() calls.
 """
 
@@ -181,12 +181,11 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     focus_blocks = blocks.from_env() if focus_blocks is None else focus_blocks
     chips = where_in_day(now, focus_blocks)
 
-    out = presence.phone_out_since(state, cfg)
-    if out:
-        when = _hm(out) if out.date() == now.date() else f"{out:%a} {_hm(out)}"
-        chips.append(("Phone", f"Off since {when}", ALERT))
-    elif blocks.in_block(now, focus_blocks):
-        chips.append(("Phone", "On charger", GOOD))
+    in_use = st.phone_in_use_since(state.events)
+    if in_use:
+        chips.append(("Phone", f"In use since {_hm(in_use)}", ALERT))
+    elif cfg is not None and presence.camera_seen(cfg, now) is not None:
+        chips.append(("Phone", "Not in use", GOOD))
 
     quiet = pause.describe(state, now)
     if quiet:
@@ -289,7 +288,7 @@ def render_html(state: State, now: str, cfg: Config | None = None,
 
 class Page:
     """The rendered page, cached until something it shows could have changed:
-    state.json, presence.json, or the minute (the day chips move with time,
+    state.json, presence.json, camera.json, or the minute (the day chips move with time,
     and the date in it also covers the midnight rollover)."""
 
     def __init__(self, cfg: Config, focus_blocks: list[blocks.Block]):
@@ -310,7 +309,7 @@ class Page:
     def get(self, now: str) -> tuple[str, str]:
         """(version, html) at `now`, an ISO timestamp with its offset."""
         key = (self._stamp(self.cfg.state_path), self._stamp(presence.sound_path(self.cfg)),
-               self._stamp(presence.charger_path(self.cfg)), now[:16])
+               self._stamp(presence.camera_path(self.cfg)), now[:16])
         with self._lock:
             if key != self._key:
                 self._page = render(st.peek(self.cfg), now, self.cfg, self.focus_blocks)

@@ -5,3 +5,8 @@ __pycache__/
 *.env
 !deploy/focus.env.example
 state.json
+# Desk camera training data and models: pictures of you, never committed
+frames/
+*.onnx
+*.jpg
+!docs/**/*.jpg

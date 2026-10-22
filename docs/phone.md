@@ -1,19 +1,17 @@
-# Phone, status page and presence
+# Chat, status page and presence
 
-Three services that talk to your phone or browser over your home network:
+Two services that talk to your phone or browser over your home network:
 
-- **[phone pickups](#phone-pickups)**, which notices when you take your
-  phone off its charger during focus time
 - **[chat](#chat)** with the coach from your phone, typed or through Siri
 - the **[status page](#status-page)**, the e-ink panel's layout in a browser,
   with a status strip under it
 
-and **[presence](#presence)**, which uses the charger reports to tell whether you're
-at the desk.
+and **[presence](#presence)**, which tells whether you're at the desk.
 
-The phone parts use **iOS Shortcuts**. Android with an automation app that
-can send HTTP requests (Tasker, for example) should work the same way, but
-it's untested.
+Phone *use* is counted by the [desk camera](camera.md), with nothing to set
+up on the phone. Chat uses one **iOS Shortcut** that you run yourself.
+Android with an app that can send HTTP requests (HTTP Shortcuts, for
+example) should work the same way, but it's untested.
 
 ## How the network services are protected
 
@@ -29,78 +27,17 @@ it's untested.
 - **Rotating a token:** delete its line from `focus.env`, run
   `sudo deploy/install.sh` (it writes a new one), and update the Shortcut
   or bookmark.
-- Of these, only chat holds the API key. `focus-dock` and the status page can't
-  spend money.
+- Of the two, only chat holds the API key. The status page can't spend
+  money.
 
 Read a token with, for example:
 
 ```bash
-sudo grep FOCUS_DOCK_TOKEN /etc/focus-assistant/focus.env
+sudo grep FOCUS_CHAT_TOKEN /etc/focus-assistant/focus.env
 ```
 
 The examples use `focus.local` as the Pi's address. If your phone can't
 resolve `.local` names, use the Pi's IP address (`hostname -I`).
-
-## Phone pickups
-
-The "dock" is just your phone's usual charger, a pad or a cable. It has no
-electronics or connection of its own: the iPhone tells the Pi when it starts
-or stops charging, and a small service on the Pi, `focus-dock`, writes that
-down. That service also serves the [status page](#status-page).
-
-During a focus block (`FOCUS_BLOCKS`, default 09:00-12:00 and 13:00-17:30 on
-weekdays), taking the phone off its charger for more than 30 seconds logs a
-**phone out** event, and putting it back logs **phone in** with the minutes
-it was gone. Quick glances are ignored. The coach sees these at the next
-check-in, and the status page counts the pickups.
-
-Outside focus blocks nothing is counted, but the service still notes every
-report in `charger.json`, so presence and the status page know where the
-phone is at any hour, including when it left before the day began.
-
-There's no sensor: the **iPhone reports it**, through a Shortcuts
-automation that runs when it connects to or disconnects from power. It works
-with wireless chargers, and anything else on the same charger (a watch, for
-example) is ignored.
-
-**On the Pi:**
-
-```bash
-sudo systemctl enable --now focus-dock
-TOKEN=$(sudo sed -n 's/^FOCUS_DOCK_TOKEN=//p' /etc/focus-assistant/focus.env)
-curl -i -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8765/dock/out   # expect 204
-curl -i -X POST -H "Authorization: Bearer $TOKEN" http://localhost:8765/dock/in
-```
-
-**On the iPhone,** create two shortcuts in the Shortcuts app (tap **Edit**
-to build them by hand):
-
-- **Dock Out:** one **Get Contents of URL** action with the URL
-  `http://focus.local:8765/dock/out`. Expand it, set **Method** to `POST`,
-  and add a header `Authorization` with the value `Bearer <token>`.
-- **Dock In:** the same, with `/dock/in`.
-
-Run each once by hand. If iOS asks to let Shortcuts find devices on your
-local network, allow it (or later: Settings > Privacy & Security > Local
-Network > Shortcuts).
-
-Then, in the **Automation** tab, add two **Charger** automations:
-
-- **Is Disconnected**, **Run Immediately**, **Notify When Run** off, running
-  **Dock Out**
-- **Is Connected**, the same, running **Dock In**
-
-Away from home the request fails silently. To avoid error banners, wrap the
-action in an **If** with **Get Network Details** (Wi-Fi, Network Name) equal
-to your home network.
-
-**Check it:** `journalctl -u focus-dock -f`. Every report logs a
-`Charger: in/out (...)` line saying whether it counts; `Rejected ...` means
-a wrong token; no line at all means the request never arrived.
-
-> **Battery:** keeping a phone on a charger all day is fine with **80%
-> Limit** (iPhone 15 and later) or **Optimized Battery Charging** turned on,
-> in Settings > Battery > Charging.
 
 ## Chat
 
@@ -149,8 +86,8 @@ today's open items, and under them a status strip the panel doesn't have: where 
 until 12:00, break till 11:00, next block), the next break, the phone,
 whether you're away or have a check-in waiting, and today's done count,
 phone pickups and breaks. It's read-only, and live: it updates within two
-seconds of any change, whether from voice, chat, the CLI, a charger report or a
-check-in.
+seconds of any change, whether from voice, chat, the CLI, the desk camera or
+a check-in.
 
 When you mark something done after a check-in, a red line under the reply
 says so straight away ("Since 16:20: done Mow the lawn"). If you marked it
@@ -160,7 +97,11 @@ only shown, never spoken, and its cost counts with the check-ins in
 `focus status`. Friday's weekly review is never rewritten, and `focus done`
 from the CLI only gets the line, because the CLI can't read the API key.
 
-`focus-dock` serves it, so enable that first. Then open:
+The `focus-page` service serves it. Enable it, then open:
+
+```bash
+sudo systemctl enable --now focus-page
+```
 
 ```
 http://focus.local:8765/display?k=<FOCUS_DISPLAY_TOKEN>
@@ -174,19 +115,17 @@ The upper panel mirrors the e-ink display layout ([architecture.md](architecture
 
 ## Presence
 
-So the coach doesn't talk to an empty desk: you count as **away** when the
-phone has been off its charger for 10 minutes **and** the desk has been quiet
-for 15 (no typing, chair or voice heard by the [voice service's
-microphone](voice.md#2-voice-commands)). Only the time of the last sound is
-stored, in `presence.json`; never audio. The phone's side comes from
-`charger.json`, which the dock service keeps up to date at all hours. Without
-the voice service, the charger reports decide alone.
+So the coach doesn't talk to an empty desk, you count as **away**:
 
-You also count as away when the desk has been quiet for **30 minutes**,
-even with the phone on its charger, so walking off and leaving it there
-still counts. The catch: sit in total silence for half an hour (reading,
-say) and it thinks you've gone. Nothing is lost when that happens: a held
-check-in is said as soon as the microphone hears you again.
+- **in a focus block, with the [desk camera](camera.md):** once it has seen
+  the empty chair for 5 minutes
+- **otherwise** (before and between blocks, while paused, or without a
+  camera): once the desk has been quiet for 30 minutes, going by the [voice
+  service's microphone](voice.md#2-voice-commands) (no typing, chair or
+  voice). Only the time of the last sound is stored, in `presence.json`;
+  never audio.
+
+With neither, you always count as here.
 
 While you're away:
 
@@ -199,15 +138,12 @@ The same happens while you're paused (`focus pause 11:00`, or "quiet until
 11" to the coach): reminders are skipped, and a check-in is held until the
 pause ends. See [Pausing](../README.md#using-it).
 
-**Its blind spots:** leave your phone on the charger and walk off, and it
-takes 30 quiet minutes, not 15, to notice. Noise at an empty desk (people
-nearby, a TV) still counts as you being there. And it only knows when
-charging starts or stops:
-on a cable you can use the phone without unplugging it, and that isn't
-counted as a pickup. A wireless pad, where using the phone means lifting it,
-gives the truest count.
+**Its blind spots:** without the camera, sitting in total silence for half
+an hour (reading, say) looks like you've gone; nothing is lost when that
+happens, as a held check-in is said as soon as you're noticed again. Noise
+at an empty desk (people nearby, a TV) counts as you being there. With the
+camera, someone else in your chair looks like you.
 
-Tune it with `FOCUS_AWAY_PHONE_MIN`, `FOCUS_AWAY_QUIET_MIN` and
-`FOCUS_AWAY_QUIET_DOCKED_MIN`;
+Tune it with `FOCUS_AWAY_CAMERA_MIN` and `FOCUS_AWAY_QUIET_MIN`;
 `journalctl -u focus-stretch -u focus-checkin -u focus-voice | grep -i away`
 shows its decisions.

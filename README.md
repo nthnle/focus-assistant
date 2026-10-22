@@ -10,8 +10,8 @@ your phone.**
 ```
 09:00  MORNING CHECK-IN
        Start with the quarterly report: it has carried over three days, so
-       give it the first block before email. Leave the phone on its
-       charger until the 10:50 break.
+       give it the first block before email. Leave the phone face down
+       until the 10:50 break.
 ```
 
 <picture>
@@ -23,7 +23,7 @@ How the parts fit:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone (with an ordinary charger), the Pi's shared core and seven services, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
+  <img alt="At a glance: the iPhone, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
 </picture>
 
 More diagrams, including a weekday timeline, are in
@@ -38,10 +38,10 @@ More diagrams, including a weekday timeline, are in
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
 | A **status page** that previews the e-ink display in a browser while the panel is on its way, for development: today's open items, the coach's last words, focus block, phone, breaks | nothing extra |
-| **Phone pickups**: it notices when you take your phone off its charger during focus time | your usual charger (pad or cable), iOS Shortcuts |
-| **Chat** with the coach from your phone, typed or through Siri | iOS Shortcuts |
+| **Phone use**: a desk camera notices when you pick up your phone during focus time, and after 5 minutes on it the coach says so | a USB webcam, and a PC to train its model once on your own desk |
+| **Chat** with the coach from your phone, typed or through Siri | an iOS Shortcut |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
-| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | phone pickups (and the speakerphone, for desk sound) |
+| **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the desk camera, or the speakerphone (desk sound) |
 | An **e-ink display** that redraws when your list or the coach's reply changes | a Pimoroni Inky Impression 4.0" (Spectra 6), on the Pi or on a ribbon |
 
 It runs on a Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), and should
@@ -141,7 +141,8 @@ of changes to the prompts or code. The loop is drawn in
 | [docs/routine.md](docs/routine.md) | Day to day: what to do every workday, every week and now and then, with a one-page desk card |
 | [docs/install.md](docs/install.md) | Full setup, updating, the check-in schedule, troubleshooting |
 | [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
-| [docs/phone.md](docs/phone.md) | Phone pickups, chat from your phone, the status page, presence |
+| [docs/camera.md](docs/camera.md) | The desk camera: phone use, the phone nudge, an empty desk; recording, training, privacy |
+| [docs/phone.md](docs/phone.md) | Chat from your phone, the status page, presence |
 | [docs/configuration.md](docs/configuration.md) | Every setting in `focus.env` |
 | [docs/backup.md](docs/backup.md) | A daily copy of `state.json` to another computer, with a key that can only read that file |
 | [docs/architecture.md](docs/architecture.md) | How it fits together, security model, adding your own inputs and outputs, development |
@@ -167,15 +168,19 @@ check-ins fall back to a fixed nudge built from your list.
 - **Speech never leaves the Pi.** Speech recognition (faster-whisper or
   Moonshine), text-to-speech (Piper) and the wake word (openWakeWord) all run
   locally; only the transcribed text goes to the coach.
+- **Camera frames never leave the Pi and are never saved.** The desk
+  camera runs only in focus blocks; each frame is classified on the Pi
+  (phone, work or away) and thrown away. Only the times you picked up and
+  put down the phone are kept. The frames you record to train it, and the
+  model, stay on your own machines ([docs/camera.md](docs/camera.md#privacy)).
 - **With voice enabled, the microphone stream is always open**, but its
   audio is discarded unless you've pressed the button or said the wake
   word. The only thing kept from it is the time the desk last made a sound,
   used for presence. A speakerphone's mute button, or the nightly quiet
   hours (voice off from 00:00 to 08:00), turn it off completely.
 - **The network services listen on your home network only**, each behind
-  its own token. Of the two, only chat holds the model key; the service that
-  receives charger reports (`focus-dock`) and the status page can't spend
-  money. Every service runs sandboxed with only the access
+  its own token. Of the two, only chat holds the model key; the status page
+  (`focus-page`) can't spend money. Every service runs sandboxed with only the access
   it needs. Details in [docs/architecture.md](docs/architecture.md).
 
 ## Status

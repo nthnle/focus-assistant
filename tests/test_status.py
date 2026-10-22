@@ -42,6 +42,8 @@ def busy_day():
          "usage": {"model": "test-chat-model", "in": 300, "out": 20}},
         {"at": at(11, 50), "kind": stretch.STRETCH, "detail": "fixed"},
         {"at": at(13, 42), "kind": st.PHONE_OUT},
+        {"at": at(13, 47), "kind": st.PHONE_NUDGE, "detail": "5 min",
+         "usage": {"model": "test-chat-model", "in": 400, "out": 30}},
     ]
     return s
 
@@ -64,6 +66,7 @@ def test_usage_today_groups_and_prices(cfg):
     assert rows["check-ins"] == [2, 2000, 200, pytest.approx(0.006)]
     assert rows["chat"] == [1, 2000, 50, pytest.approx(0.000225)]
     assert rows["stretch"] == [1, 300, 20, pytest.approx(0.00004)]
+    assert rows["nudges"] == [1, 400, 30, pytest.approx(0.000055)]
 
 
 def test_report_shows_the_day(cfg):
@@ -74,16 +77,20 @@ def test_report_shows_the_day(cfg):
             return "Mon 2026-10-12 14:50:00 CDT"
         return fake.get(args, "active")
 
+    from focus import presence
+    presence.record_camera(cfg, "away", NOW - timedelta(minutes=8), NOW, sees_away=True)
     text = status.report(cfg, busy_day(), NOW, systemctl=systemctl)
     assert "focus-stretch.timer  active   next Mon 2026-10-12 14:50:00 CDT" in text
     assert "focus-voice          inactive" in text
     assert "1 open, 1 done" in text
     assert "midday 13:00 (held, away)" in text
     assert "Focus block  yes, 13:00-17:30" in text
-    assert "off the charger since 13:42" in text
-    assert "Presence     away" in text           # phone out 23 min, no sound reading
+    assert "Phone        in use since 13:42, 1 nudge" in text
+    assert "Camera       away since 13:57" in text
+    assert "Presence     away" in text           # the camera has seen the empty desk for 8 min
     assert "2 reminders (1 by the coach, 1 fixed)" in text
     assert "1 messages (1 by voice)" in text
+    assert "focus-camera" in text and "focus-page" in text
     assert "total      $0.0063" in text
 
 

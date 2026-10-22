@@ -230,6 +230,13 @@ sudo systemd-run --pipe --wait -p User=$USER -p EnvironmentFile=/etc/focus-assis
      /opt/focus-assistant/venv/bin/python -m focus.stretch --now
 ```
 
+**Phone nudges.** With the [desk camera](camera.md) running, the voice
+service also speaks up when you've been on your phone for 5 minutes of
+focus time ("Five minutes on the phone. Back to the spec?"), and again
+every 5 minutes after. The coach writes it, with a fixed line as the
+fallback; never while you're paused or in the break after a reminder.
+`FOCUS_PHONE_NUDGE_MIN` changes the 5, and `0` turns it off.
+
 ## Quiet hours
 
 From **00:00 to 08:00** the voice service is stopped completely: no

@@ -115,7 +115,7 @@ def test_history_keeps_the_patterns_for_routine_suggestions(cfg):
     with day(cfg, TUE) as s:
         h = s.history[-1]
     assert h["checkin_times"] == ["09:00"] and h["done_times"] == ["10:42"]
-    assert h["phone_pickups"] == 2 and h["phone_minutes_off"] == 20
+    assert h["phone_pickups"] == 2 and h["phone_minutes"] == 20
     assert h["pickups_by_hour"] == {"14": 2}
 
 

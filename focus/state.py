@@ -42,8 +42,11 @@ SCHEMA_VERSION = 1
 SELF_REPORT = "self_report"  # detail: "on_track" | "drifted"
 PAUSE = "pause"    # detail: when it ends, "HH:MM" or a date
 RESUME = "resume"
+# The desk camera saw the phone in use for 30 s (backdated to when it
+# started), and when it was put down again (detail: "N min").
 PHONE_OUT = "phone_out"
 PHONE_IN = "phone_in"
+PHONE_NUDGE = "phone_nudge"   # the coach said you'd been on it a while (detail: "N min")
 STRETCH_REMINDER = "stretch_reminder"
 
 LATER = "later"  # Priority.on: no date yet
@@ -163,10 +166,10 @@ def now_iso() -> str:
 
 
 def phone_summary(events: list[dict], now: str | None = None) -> dict:
-    """Pickups and minutes off the charger from PHONE_OUT / PHONE_IN events.
+    """Pickups and minutes on the phone from PHONE_OUT / PHONE_IN events.
 
-    With `now`, a phone still out counts up to then; without, only the time
-    it was back counts. Malformed or mixed-timezone events stop the totals
+    With `now`, a phone still in use counts up to then; without, only the time
+    until it was put down counts. Malformed or mixed-timezone events stop the totals
     where they got to.
     """
     pickups, minutes, out_at, hours = 0, 0.0, None, {}
@@ -184,6 +187,11 @@ def phone_summary(events: list[dict], now: str | None = None) -> dict:
     except (KeyError, ValueError, TypeError):
         pass
     return {"pickups": pickups, "minutes": round(minutes), "out_since": out_at, "by_hour": hours}
+
+
+def phone_in_use_since(events: list[dict]) -> datetime | None:
+    """When the phone was picked up, if the camera still sees it in use."""
+    return phone_summary(events)["out_since"]
 
 
 def _hm(iso: str | None) -> str | None:
@@ -215,7 +223,7 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
         "checkin_times": [t for c in state.checkins if (t := _hm(c.get("at")))],
         "done_times": [t for p in state.today_list if p.done and (t := _hm(p.done_at))],
         "phone_pickups": phone["pickups"],
-        "phone_minutes_off": phone["minutes"],
+        "phone_minutes": phone["minutes"],
         "pickups_by_hour": phone["by_hour"],
     })
     state.history = state.history[-history_days:]

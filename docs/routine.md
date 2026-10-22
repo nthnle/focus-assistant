@@ -15,9 +15,9 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 
 | When | Do |
 |---|---|
-| Before 09:00 | Put what you need to get done on the list: `focus add Write the spec`, or "add email Sam". It isn't ranked. Phone on its charger. |
+| Before 09:00 | Put what you need to get done on the list: `focus add Write the spec`, or "add email Sam". It isn't ranked. Phone out of reach. |
 | 09:00 | Listen to the morning check-in: it suggests one item to start with, and why. |
-| Focus time | Leave the phone on the charger. Stand up when the :50 reminder says so. Finished something? Say "done with the report", or, if it's the one the check-in suggested, press the speakerphone's **Call** button. |
+| Focus time | Leave the phone alone: the camera counts each pickup, and the coach speaks up after 5 minutes on it. Stand up when the :50 reminder says so. Finished something? Say "done with the report", or, if it's the one the check-in suggested, press the speakerphone's **Call** button. |
 | A meeting or call | "Quiet until 11", or `focus pause 11:00`. Check-ins wait until it ends; stretch reminders are skipped. |
 | 13:00 | Midday check-in. If you drifted, take the one reset it gives you. |
 | 17:30 | Evening check-in. Add tomorrow's first thing now (it won't count as slipping). |

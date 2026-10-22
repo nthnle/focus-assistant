@@ -1,0 +1,41 @@
+[Unit]
+Description=Focus assistant desk camera (phone use and presence, focus blocks only)
+
+[Service]
+Type=simple
+User=@USER@
+Group=@USER@
+# The webcam (/dev/video*).
+SupplementaryGroups=video
+EnvironmentFile=/etc/focus-assistant/focus.env
+# Frames are classified on the Pi and thrown away: no key, no network.
+UnsetEnvironment=FOCUS_LLM_API_KEY
+Environment=FOCUS_STATE_DIR=@STATE_DIR@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/focus-assistant/venv/bin/python -m focus.camera
+Restart=on-failure
+RestartSec=30
+# Exit 2: no model trained yet (docs/camera.md); retrying won't help.
+RestartPreventExitStatus=2
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=tmpfs
+BindPaths=@STATE_DIR@
+PrivateTmp=yes
+DevicePolicy=closed
+DeviceAllow=char-video4linux rw
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

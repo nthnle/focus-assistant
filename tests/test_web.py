@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from focus import config
-from focus.inputs import _web, dock
+from focus.inputs import _web, chat
 
 TOKEN = "x" * 24
 
@@ -56,30 +56,24 @@ def base(tmp_path, monkeypatch):
     monkeypatch.delenv("FOCUS_ALLOWED_CLIENTS", raising=False)
     calls = []
 
-    class Recorder:
-        cfg = config.load()
-        blocks = []
+    def run(cfg, text):
+        calls.append(text)
+        return "ok"
 
-        def phone_in(self, now):
-            calls.append("in")
-
-        def phone_out(self, now):
-            calls.append("out")
-
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), dock.make_handler(Recorder(), TOKEN))
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), chat.make_handler(config.load(), TOKEN, run=run))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}", calls
     srv.shutdown()
     srv.server_close()
 
 
-def raw_post(url, headers):
+def raw_post(url, headers, body=b""):
     parts = urlsplit(url)
     conn = http.client.HTTPConnection(parts.hostname, parts.port, timeout=5)
     conn.putrequest("POST", parts.path)
     for k, v in headers.items():
         conn.putheader(k, v)
-    conn.endheaders()
+    conn.endheaders(body)
     status = conn.getresponse().status
     conn.close()
     return status
@@ -87,21 +81,22 @@ def raw_post(url, headers):
 
 def test_allowlist_applies_to_live_requests(base, monkeypatch):
     url, calls = base
-    auth = {"Authorization": f"Bearer {TOKEN}", "Content-Length": "0"}
+    body = b'{"text": "hi"}'
+    auth = {"Authorization": f"Bearer {TOKEN}", "Content-Length": str(len(body))}
     monkeypatch.setenv("FOCUS_ALLOWED_CLIENTS", "192.168.1.50")
-    assert raw_post(f"{url}/dock/out", auth) == 204   # loopback: always allowed
-    assert raw_post(f"{url}/dock/out", {"Content-Length": "0"}) == 403   # but still needs the token
-    assert calls == ["out"]
+    assert raw_post(f"{url}/chat", auth, body) == 200   # loopback: always allowed
+    assert raw_post(f"{url}/chat", {"Content-Length": str(len(body))}, body) == 403   # but still needs the token
+    assert calls == ["hi"]
 
 
 def test_malformed_content_length_is_answered_not_crashed(base):
     url, calls = base
     # Without a token: a plain 403, not an exception in the handler.
-    assert raw_post(f"{url}/dock/out", {"Content-Length": "abc"}) == 403
+    assert raw_post(f"{url}/chat", {"Content-Length": "abc"}) == 403
     # With one: a 400 instead of blocking on read(-1).
     auth = {"Authorization": f"Bearer {TOKEN}"}
-    assert raw_post(f"{url}/dock/out", {**auth, "Content-Length": "-1"}) == 400
-    assert raw_post(f"{url}/dock/out", {**auth, "Content-Length": "abc"}) == 400
+    assert raw_post(f"{url}/chat", {**auth, "Content-Length": "-1"}) == 400
+    assert raw_post(f"{url}/chat", {**auth, "Content-Length": "abc"}) == 400
     assert calls == []
 
 

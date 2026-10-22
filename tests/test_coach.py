@@ -141,8 +141,8 @@ def test_facts_do_the_arithmetic():
     assert f == {
         "open_count": 2, "done_count": 1,
         "carried_3_days_or_more": ["Report"],
-        "phone_pickups_today": 3, "phone_minutes_off_charger_today": 18 + 45 + 10,
-        "phone_off_charger_now_since": "12:50", "last_self_report": "drifted",
+        "phone_pickups_today": 3, "phone_minutes_today": 18 + 45 + 10,
+        "phone_in_use_now_since": "12:50", "last_self_report": "drifted",
         "paused": None, "weekday": "Monday",
     }
 
@@ -151,4 +151,4 @@ def test_facts_survive_an_empty_day_and_odd_events():
     f = coach.facts(State(date="2026-10-12", events=[{"at": "not a time", "kind": "phone_out"}]),
                     "2026-10-12T09:00:00-05:00")
     assert "next_up" not in f and f["open_count"] == 0
-    assert f["phone_minutes_off_charger_today"] == 0
+    assert f["phone_minutes_today"] == 0

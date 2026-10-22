@@ -1,6 +1,6 @@
 """The coach's replies, kept with what it was given, plus your ratings.
 
-Every check-in, chat or voice reply and stretch reminder the model writes is
+Every check-in, chat or voice reply, stretch reminder and phone nudge the model writes is
 appended to `replies.jsonl` in the state folder, next to the exact payload
 it was given, so any reply can be looked at and reproduced later. Each one
 is run through `check()`: rules a reply must follow that code can verify
@@ -34,7 +34,7 @@ from .config import Config
 KEEP_DAYS = 60
 
 # Word limits from the prompts, with a little slack.
-LIMITS = {"checkin": 70, "weekly": 100, "chat": 60, "voice": 30, "stretch": 25}
+LIMITS = {"checkin": 70, "weekly": 100, "chat": 60, "voice": 30, "stretch": 25, "nudge": 25}
 SLACK = 1.2
 
 _MARKDOWN = re.compile(r"(\*\*|__|`|^\s*#|^\s*[-*•]\s|^\s*\d+[.)]\s)", re.M)

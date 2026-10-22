@@ -1,6 +1,6 @@
 """Everything a person can do to the state, independent of how they did it.
 
-The CLI, chat, voice and the charger reports all call these, so behaviour
+The CLI, chat, voice and the desk camera all call these, so behaviour
 stays identical whichever input was used.
 """
 

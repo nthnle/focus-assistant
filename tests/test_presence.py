@@ -32,54 +32,53 @@ def heard_sound(cfg, minutes_ago):
     presence.sound_path(cfg).write_text(json.dumps({"sound_at": ago(minutes_ago)}))
 
 
-def test_phone_out_since_follows_the_last_dock_event():
-    assert presence.phone_out_since(state_with()) is None
-    assert presence.phone_out_since(state_with((st.PHONE_OUT, ago(20)))) == NOW - timedelta(minutes=20)
-    assert presence.phone_out_since(state_with((st.PHONE_OUT, ago(20)), (st.PHONE_IN, ago(5)))) is None
+def camera_sees(cfg, label, minutes_ago, sees_away=True, written_ago=0):
+    presence.record_camera(cfg, label, NOW - timedelta(minutes=minutes_ago),
+                           NOW - timedelta(minutes=written_ago), sees_away)
 
 
-def test_away_needs_the_phone_gone_and_the_desk_quiet(cfg):
-    gone = state_with((st.PHONE_OUT, ago(20)))
-    assert presence.away(cfg, gone, NOW)                      # no sound reading: the dock decides
-    heard_sound(cfg, 30)
-    assert presence.away(cfg, gone, NOW)                      # quiet for 30 min
-    heard_sound(cfg, 3)
-    assert not presence.away(cfg, gone, NOW)                  # typing 3 min ago: still here
-
-
-def test_not_away_when_the_phone_is_docked_or_only_just_left(cfg):
+def test_the_camera_decides_while_it_runs(cfg):
+    heard_sound(cfg, 60)                                  # the microphone would say away
+    camera_sees(cfg, "work", 20)
     assert not presence.away(cfg, state_with(), NOW)
-    assert not presence.away(cfg, state_with((st.PHONE_OUT, ago(4))), NOW)
-    assert not presence.away(cfg, state_with((st.PHONE_OUT, ago(30)), (st.PHONE_IN, ago(1))), NOW)
-
-
-def test_the_charger_file_knows_the_phone_left_before_the_day_began(cfg):
-    # Off the charger since 07:30, before any focus block: no event today.
-    presence.record_charger(cfg, False, NOW.replace(hour=7, minute=30))
-    assert presence.phone_out_since(state_with(), cfg) == NOW.replace(hour=7, minute=30)
+    camera_sees(cfg, "phone", 20)
+    assert not presence.away(cfg, state_with(), NOW)
+    camera_sees(cfg, "away", 3)
+    assert not presence.away(cfg, state_with(), NOW)      # empty for 3 min: a quick errand
+    camera_sees(cfg, "away", 6)
     assert presence.away(cfg, state_with(), NOW)
-    presence.record_charger(cfg, False, NOW)             # a repeat keeps the first time
-    assert presence.charger(cfg) == (False, NOW.replace(hour=7, minute=30))
-    presence.record_charger(cfg, True, NOW)
-    assert presence.phone_out_since(state_with(), cfg) is None
+    heard_sound(cfg, 0)
+    assert presence.away(cfg, state_with(), NOW)          # the camera wins over a noise
+
+
+def test_a_stopped_camera_is_ignored(cfg):
+    camera_sees(cfg, "away", 30, written_ago=2)           # last wrote 2 min ago: it stopped
+    assert presence.camera_seen(cfg, NOW) is None
     assert not presence.away(cfg, state_with(), NOW)
+    presence.clear_camera(cfg)
+    assert presence.camera_seen(cfg, NOW) is None
 
 
-def test_a_long_quiet_counts_as_away_even_with_the_phone_charging(cfg, monkeypatch):
-    docked = state_with()                                       # no phone out
-    assert not presence.away(cfg, docked, NOW)                  # no sound reading: can't tell
-    heard_sound(cfg, 20)
-    assert not presence.away(cfg, docked, NOW)                  # quiet, but not for 30 min
+def test_a_model_without_away_leaves_it_to_the_microphone(cfg):
+    camera_sees(cfg, "work", 40, sees_away=False)
     heard_sound(cfg, 31)
-    assert presence.away(cfg, docked, NOW)
-    assert presence.away(cfg, state_with((st.PHONE_OUT, ago(4))), NOW)  # only just left
-    monkeypatch.setenv("FOCUS_AWAY_QUIET_DOCKED_MIN", "0")
-    assert not presence.away(cfg, docked, NOW)                  # turned off
+    assert presence.away(cfg, state_with(), NOW)
+
+
+def test_without_the_camera_a_long_quiet_counts_as_away(cfg, monkeypatch):
+    assert not presence.away(cfg, state_with(), NOW)      # no reading at all: can't tell
+    heard_sound(cfg, 20)
+    assert not presence.away(cfg, state_with(), NOW)      # quiet, but not for 30 min
+    heard_sound(cfg, 31)
+    assert presence.away(cfg, state_with(), NOW)
+    monkeypatch.setenv("FOCUS_AWAY_QUIET_MIN", "0")
+    assert not presence.away(cfg, state_with(), NOW)      # turned off
 
 
 def test_thresholds_come_from_the_environment(cfg, monkeypatch):
-    monkeypatch.setenv("FOCUS_AWAY_PHONE_MIN", "3")
-    assert presence.away(cfg, state_with((st.PHONE_OUT, ago(4))), NOW)
+    camera_sees(cfg, "away", 3)
+    monkeypatch.setenv("FOCUS_AWAY_CAMERA_MIN", "2")
+    assert presence.away(cfg, state_with(), NOW)
 
 
 def test_sound_tracker_ignores_steady_noise_and_records_sounds(cfg):
@@ -115,7 +114,8 @@ def checkin_state(cfg, *events):
 
 def test_spoken_checkin_is_held_while_away(cfg, monkeypatch):
     monkeypatch.setattr(speech, "datetime", type("D", (), {"now": staticmethod(lambda: NOW)}))
-    s = checkin_state(cfg, (st.PHONE_OUT, ago(30)))
+    camera_sees(cfg, "away", 30)
+    s = checkin_state(cfg)
     played = []
     speech.Speech(FakeVoice(), played.append, cfg).checkin(s, "midday", "Back to the report.")
     assert played == []
@@ -131,13 +131,12 @@ def test_spoken_checkin_plays_when_present(cfg, monkeypatch):
 
 
 def test_held_checkin_is_said_once_when_back(cfg):
+    camera_sees(cfg, "away", 60)
     with st.locked_state(cfg, today=NOW.date()) as s:
-        s.events = [{"at": ago(60), "kind": st.PHONE_OUT}]
         s.checkins.append({"slot": "midday", "at": ago(50), "reply": "Back to the report.", "unheard": True})
     said = []
     assert not voice.replay_missed(cfg, said.append, NOW)    # still away
-    with st.locked_state(cfg, today=NOW.date()) as s:
-        s.events.append({"at": ago(0), "kind": st.PHONE_IN})  # phone back on the dock
+    camera_sees(cfg, "work", 0)                              # back in the chair
     assert voice.replay_missed(cfg, said.append, NOW)
     assert said == ["You missed the midday check-in. It said: Back to the report."]
     assert not voice.replay_missed(cfg, said.append, NOW)    # only once
@@ -145,9 +144,8 @@ def test_held_checkin_is_said_once_when_back(cfg):
 
 def test_stretch_reminder_skipped_while_away(cfg):
     local = datetime(2026, 10, 12, 13, 50)  # naive, like the timer's datetime.now()
-    out = (local.astimezone() - timedelta(minutes=30)).isoformat(timespec="seconds")
-    with st.locked_state(cfg, today=local.date()) as s:
-        s.events = [{"at": out, "kind": st.PHONE_OUT}]
+    presence.record_camera(cfg, "away", local.astimezone() - timedelta(minutes=30),
+                           local.astimezone(), sees_away=True)
     said = []
     focus = blocks.parse_blocks(blocks.DEFAULT_BLOCKS)
     assert not stretch.run(cfg, local, said.append, focus, write=lambda c, n: None)

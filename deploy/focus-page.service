@@ -1,27 +1,27 @@
 [Unit]
-Description=Focus assistant phone dock and display page
+Description=Focus assistant status page (the e-ink layout in a browser)
 
 [Service]
 Type=simple
 User=@USER@
 Group=@USER@
-# Shared settings file (FOCUS_DOCK_TOKEN, FOCUS_DISPLAY_TOKEN, FOCUS_BLOCKS); it never needs the model provider's key.
+# Shared settings file (FOCUS_DISPLAY_TOKEN, FOCUS_BLOCKS); it never needs the model provider's key.
 EnvironmentFile=/etc/focus-assistant/focus.env
 UnsetEnvironment=FOCUS_LLM_API_KEY
 Environment=FOCUS_STATE_DIR=@STATE_DIR@
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/focus-assistant/venv/bin/python -m focus.inputs.dock
+ExecStart=/opt/focus-assistant/venv/bin/python -m focus.inputs.page
 Restart=on-failure
 RestartSec=5
 
-# Answers the home network only, and writes only the state file.
+# Answers the home network only, and only reads the state folder.
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
 # An empty home with only the state folder in it: nothing else there (SSH
 # keys included) is visible even if this service were compromised.
 ProtectHome=tmpfs
-BindPaths=@STATE_DIR@
+BindReadOnlyPaths=@STATE_DIR@
 PrivateTmp=yes
 PrivateDevices=yes
 IPAddressDeny=any

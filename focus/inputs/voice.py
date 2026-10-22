@@ -11,7 +11,8 @@ sound (focus.presence). A turn's audio is kept only after the wake word or
 a press, until you stop talking. Speech never leaves the Pi (only the
 transcribed text goes to the coach). Without a wake word, only the button
 starts a turn. Between turns it also says a check-in that was held while
-you were away, once you're back. The Anker PowerConf's play button
+you were away, once you're back, and a nudge when the desk camera has seen
+you on the phone for a while (focus.nudge). The Anker PowerConf's play button
 arrives as KEY_PLAYPAUSE on its "Consumer Control" input device, with the
 release right after the press, so it is press-to-talk, not hold-to-talk.
 (Its call button sends nothing Linux turns into a key.)
@@ -55,7 +56,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import actions, chat, checkin, config, pause, presence, state as st
+from .. import actions, blocks, chat, checkin, config, nudge, pause, presence, state as st
 from ..coach import CoachError
 from ..config import Config
 
@@ -607,7 +608,7 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
     """Start a turn on each play press or wake word, until the hardware goes away.
 
     `on_chunk` sees every chunk (presence keeps only a loudness reading);
-    `idle` runs between turns every `idle_every_s` (held check-ins);
+    `idle` runs between turns every `idle_every_s` (held check-ins, phone nudges);
     `on_call` runs on a call-button press between turns, `on_double_call`
     on two presses within DOUBLE_PRESS_S.
     """
@@ -733,8 +734,14 @@ def main() -> int:
                   followup_s=float(os.environ.get("FOCUS_VOICE_FOLLOWUP", "5")),
                   talk_followup_s=float(os.environ.get("FOCUS_VOICE_TALK_FOLLOWUP", "10")))
     tracker = presence.SoundTracker(cfg)
-    extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)),
-                  idle=lambda: replay_missed(cfg, spoken.say, datetime.now().astimezone()))
+    focus_blocks = blocks.from_env()
+
+    def idle() -> None:
+        now = datetime.now().astimezone()
+        replay_missed(cfg, spoken.say, now)
+        nudge.run(cfg, now, spoken.say, focus_blocks)
+
+    extras = dict(on_chunk=lambda chunk: tracker.feed(level(chunk)), idle=idle)
     key = int(os.environ.get("FOCUS_VOICE_KEY", KEY_PLAYPAUSE))
     ways = ([f'say "{wake_name.replace("_", " ")}"'] if wake else []) + ([f"press key {key}"] if button else [])
 
