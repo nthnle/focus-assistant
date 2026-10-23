@@ -33,45 +33,52 @@ def camera_sees(cfg, label, minutes_ago, sees_away=True, written_ago=0):
 
 def test_away_once_the_camera_has_seen_the_empty_desk_for_a_while(cfg):
     camera_sees(cfg, "work", 20)
-    assert not presence.away(cfg, state_with(), NOW)
+    assert not presence.away(cfg, NOW)
     camera_sees(cfg, "phone", 20)
-    assert not presence.away(cfg, state_with(), NOW)
+    assert not presence.away(cfg, NOW)
     camera_sees(cfg, "away", 3)
-    assert not presence.away(cfg, state_with(), NOW)      # empty for 3 min: a quick errand
+    assert not presence.away(cfg, NOW)      # empty for 3 min: a quick errand
     camera_sees(cfg, "away", 6)
-    assert presence.away(cfg, state_with(), NOW)
+    assert presence.away(cfg, NOW)
 
 
 def test_without_a_running_camera_you_count_as_here(cfg):
-    assert not presence.away(cfg, state_with(), NOW)      # no camera at all
+    assert not presence.away(cfg, NOW)      # no camera at all
     camera_sees(cfg, "away", 30, written_ago=2)           # last wrote 2 min ago: it stopped
     assert presence.camera_seen(cfg, NOW) is None
-    assert not presence.away(cfg, state_with(), NOW)
+    assert not presence.away(cfg, NOW)
     presence.clear_camera(cfg)
     assert presence.camera_seen(cfg, NOW) is None
 
 
 def test_a_model_without_away_never_says_away(cfg):
     camera_sees(cfg, "work", 40, sees_away=False)
-    assert not presence.away(cfg, state_with(), NOW)
+    assert not presence.away(cfg, NOW)
     assert presence.back(cfg, NOW)
 
 
-def test_back_needs_the_camera_to_see_you_once_there_is_one(cfg):
-    assert presence.back(cfg, NOW)                        # no camera set up: nothing to wait for
-    presence.model_path(cfg).parent.mkdir(parents=True)
-    presence.model_path(cfg).write_bytes(b"model")
-    assert not presence.back(cfg, NOW)                    # a camera that isn't running yet
+def test_back_waits_for_the_camera_only_while_its_service_runs(cfg):
+    assert presence.back(cfg, NOW)                        # no camera service: nothing to wait for
+    camera_sees(cfg, presence.OFF, 10)
+    assert presence.latest(cfg, NOW) is not None and presence.camera_seen(cfg, NOW) is None
+    assert not presence.back(cfg, NOW)                    # off for now: it comes on for a held check-in
     camera_sees(cfg, "away", 1)
     assert not presence.back(cfg, NOW)
     camera_sees(cfg, "work", 0)
     assert presence.back(cfg, NOW)
+    camera_sees(cfg, "away", 30, written_ago=5)           # the service stopped long ago
+    assert presence.back(cfg, NOW)                        # don't hold it forever
+
+
+def test_an_off_camera_is_not_away(cfg):
+    camera_sees(cfg, presence.OFF, 60)
+    assert not presence.away(cfg, NOW)
 
 
 def test_thresholds_come_from_the_environment(cfg, monkeypatch):
     camera_sees(cfg, "away", 3)
     monkeypatch.setenv("FOCUS_AWAY_CAMERA_MIN", "2")
-    assert presence.away(cfg, state_with(), NOW)
+    assert presence.away(cfg, NOW)
 
 
 class FakeVoice:
@@ -119,6 +126,28 @@ def test_held_checkin_is_said_once_when_back(cfg):
     assert not voice.replay_missed(cfg, said.append, NOW)    # only once
 
 
+def test_no_held_checkin_means_no_lock_and_no_rewrite(cfg):
+    """The voice service asks every 30 s; state.json mustn't be rewritten each time."""
+    with st.locked_state(cfg, today=NOW.date()) as s:
+        s.checkins.append({"slot": "midday", "at": ago(50), "reply": "Back to the report."})
+    before = cfg.state_path.stat().st_mtime_ns
+    assert not voice.replay_missed(cfg, [].append, NOW)
+    assert cfg.state_path.stat().st_mtime_ns == before
+
+
+def test_between_turns_says_a_held_checkin_before_any_nudge(cfg, monkeypatch):
+    from focus import nudge
+    nudged = []
+    monkeypatch.setattr(nudge, "run", lambda *a: nudged.append(a) or True)
+    with st.locked_state(cfg, today=NOW.date()) as s:
+        s.checkins.append({"slot": "midday", "at": ago(50), "reply": "Back to the report.", "unheard": True})
+    said = []
+    voice.between_turns(cfg, said.append, NOW, blocks.parse_blocks(blocks.DEFAULT_BLOCKS))
+    assert said == ["You missed the midday check-in. It said: Back to the report."] and nudged == []
+    voice.between_turns(cfg, said.append, NOW, blocks.parse_blocks(blocks.DEFAULT_BLOCKS))
+    assert len(nudged) == 1                                # the next tick, nothing held: the nudge
+
+
 def test_stretch_reminder_skipped_while_away(cfg):
     local = datetime(2026, 10, 12, 13, 50)  # naive, like the timer's datetime.now()
     presence.record_camera(cfg, "away", local.astimezone() - timedelta(minutes=30),
@@ -143,8 +172,7 @@ def test_run_feeds_chunks_and_runs_idle_between_turns():
         def clear(self):
             self.cleared += 1
 
-    seen, idles, mic = [], [], Mic()
+    idles, mic = [], Mic()
     with pytest.raises(StopIteration):
-        voice.run(object(), mic, None, None, on_chunk=seen.append,
-                  idle=lambda: idles.append(1), idle_every_s=0)
-    assert len(seen) == 5 and len(idles) == 5 and mic.cleared == 5
+        voice.run(object(), mic, None, None, idle=lambda: idles.append(1), idle_every_s=0)
+    assert len(idles) == 5 and mic.cleared == 5

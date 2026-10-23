@@ -12,7 +12,9 @@ away: none is saved, sent or logged. What is kept:
   frame or two changes nothing, and a phone session only ends after 30 s
   without the phone.
 - camera.json: what it sees now and since when, for presence and the status
-  page; rewritten when that changes, and every 30 s.
+  page; rewritten when that changes, and every 30 s. While the camera is
+  off, the service still writes "off" every 30 s, so a camera that is off
+  on schedule can be told from a service that isn't running at all.
 
 It runs from 5 minutes before each focus block (FOCUS_BLOCKS, weekdays) to
 5 minutes after it, so the check-ins at the edges of a block get its answer
@@ -33,6 +35,7 @@ import argparse
 import json
 import logging
 import os
+import queue
 import shutil
 import signal
 import subprocess
@@ -50,7 +53,8 @@ from .config import Config
 
 log = logging.getLogger(__name__)
 
-PHONE, WORK, AWAY = "phone", "work", "away"
+PHONE, WORK = "phone", "work"
+AWAY = presence.AWAY
 SIZE = 224               # the model's input: 224x224 RGB, squashed from the camera's 4:3
 WINDOW = 5               # frames a label needs a majority of
 SETTLE = timedelta(seconds=30)
@@ -58,21 +62,28 @@ END = timedelta(seconds=30)
 WRITE_EVERY = timedelta(seconds=30)
 MARGIN = timedelta(minutes=5)    # on this long before and after each focus block
 WAIT = timedelta(hours=2)        # how long a held check-in keeps it on
-OFF_POLL_S = 15.0
+OFF_POLL_S = 15.0        # how often it checks whether it should be on (or off)
+FRAME_TIMEOUT_S = 30.0   # no frame for this long: the camera has hung
 EXIT_NO_MODEL = 2        # the unit doesn't restart for this one
 
 Change = tuple[str, datetime, "int | None"]   # (event kind, when, minutes for PHONE_IN)
 
 
-model_path = presence.model_path
+def model_path(cfg: Config) -> Path:
+    env = os.environ.get("FOCUS_CAMERA_MODEL")
+    return Path(env) if env else cfg.state_dir / "camera" / "model.onnx"
+
+
+def put_down(start: datetime, last: datetime) -> Change:
+    """The PHONE_IN closing a session, with its minutes."""
+    return (st.PHONE_IN, last, round((last - start).total_seconds() / 60))
 
 
 class Tracker:
     """Per-frame labels in; what you're doing, and phone sessions as events, out."""
 
-    def __init__(self, window: int = WINDOW, settle: timedelta = SETTLE, end: timedelta = END):
-        self.recent: deque[str] = deque(maxlen=window)
-        self.settle, self.end = settle, end
+    def __init__(self) -> None:
+        self.recent: deque[str] = deque(maxlen=WINDOW)
         self.seen: str | None = None
         self.since: datetime | None = None
         self._phone_since: datetime | None = None
@@ -92,10 +103,10 @@ class Tracker:
             if self._phone_since is None:
                 self._phone_since = at
             self._last_phone = at
-            if not self._logged and at - self._phone_since >= self.settle:
+            if not self._logged and at - self._phone_since >= SETTLE:
                 self._logged = True
                 return [(st.PHONE_OUT, self._phone_since, None)]
-        elif self._phone_since is not None and at - self._last_phone >= self.end:
+        elif self._phone_since is not None and at - self._last_phone >= END:
             return self._close()
         return []
 
@@ -112,7 +123,7 @@ class Tracker:
         self._logged = False
         if not logged:
             return []  # a glance: never logged, nothing to close
-        return [(st.PHONE_IN, last, round((last - start).total_seconds() / 60))]
+        return [put_down(start, last)]
 
 
 def record(cfg: Config, changes: list[Change]) -> None:
@@ -127,14 +138,21 @@ def record(cfg: Config, changes: list[Change]) -> None:
 
 # --- the camera and the model ---------------------------------------------
 
-def ffmpeg_command(device: str, every: float, size: int = SIZE, mjpeg: bool = True) -> list[str]:
-    """One raw RGB frame every `every` seconds on stdout, scaled for the model."""
+def webcam_input(device: str, mjpeg: bool | None = None) -> list[str]:
+    """ffmpeg reading the webcam, the same way for training frames and live ones."""
+    if mjpeg is None:
+        mjpeg = os.environ.get("FOCUS_CAMERA_MJPEG", "1") != "0"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "v4l2"]
     if mjpeg:
         cmd += ["-input_format", "mjpeg"]  # far less USB bandwidth than raw video
-    return cmd + ["-video_size", "640x480", "-i", device,
-                  "-vf", f"fps=1/{every},scale={size}:{size}:flags=bilinear",
-                  "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    return cmd + ["-video_size", "640x480", "-i", device]
+
+
+def ffmpeg_command(device: str, every: float, size: int = SIZE, mjpeg: bool | None = None) -> list[str]:
+    """One raw RGB frame every `every` seconds on stdout, scaled for the model."""
+    return webcam_input(device, mjpeg) + [
+        "-vf", f"fps=1/{every},scale={size}:{size}:flags=bilinear",
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
 
 
 class CameraError(RuntimeError):
@@ -142,19 +160,34 @@ class CameraError(RuntimeError):
 
 
 class Camera:
-    """The webcam through ffmpeg; read() blocks until the next frame."""
+    """The webcam through ffmpeg. read() waits for the next frame, but not
+    forever: a webcam can hang without ffmpeg exiting."""
 
-    def __init__(self, device: str, every: float, size: int = SIZE, popen=subprocess.Popen):
+    def __init__(self, device: str, every: float, size: int = SIZE, popen=subprocess.Popen,
+                 timeout: float = FRAME_TIMEOUT_S):
         self.frame_bytes = size * size * 3
-        mjpeg = os.environ.get("FOCUS_CAMERA_MJPEG", "1") != "0"
-        self.proc = popen(ffmpeg_command(device, every, size, mjpeg),
+        self.timeout = max(timeout, 5 * every)
+        self.proc = popen(ffmpeg_command(device, every, size),
                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
+        self._frames: queue.Queue[bytes | None] = queue.Queue()
+        threading.Thread(target=self._pump, daemon=True).start()
+
+    def _pump(self) -> None:
+        while True:
+            data = self.proc.stdout.read(self.frame_bytes)
+            if not data or len(data) < self.frame_bytes:
+                self._frames.put(None)  # ffmpeg stopped
+                return
+            self._frames.put(data)
 
     def read(self) -> bytes:
-        data = self.proc.stdout.read(self.frame_bytes)
-        if data is None or len(data) < self.frame_bytes:
-            code = self.proc.poll()
-            raise CameraError(f"The camera stopped (ffmpeg exit {code}); is it plugged in, "
+        try:
+            data = self._frames.get(timeout=self.timeout)
+        except queue.Empty:
+            raise CameraError(f"No frame from the camera for {self.timeout:.0f} s; it may have hung "
+                              "(unplug it and plug it back in)") from None
+        if data is None:
+            raise CameraError(f"The camera stopped (ffmpeg exit {self.proc.poll()}); is it plugged in, "
                               "or in use by something else?")
         return data
 
@@ -201,12 +234,6 @@ def in_window(now: datetime, focus_blocks: list[blocks.Block], margin: timedelta
                for start, end in focus_blocks)
 
 
-def held(s: st.State, now: datetime, recent: bool = True) -> list[dict]:
-    """Spoken check-ins waiting for you: those under WAIT old, or (recent=False) the older ones."""
-    return [c for c in s.checkins
-            if c.get("unheard") and (now - datetime.fromisoformat(c["at"]) < WAIT) == recent]
-
-
 def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block]) -> str | None:
     """Why the camera should be off at `now` (timezone-aware), or None to run it.
 
@@ -217,11 +244,12 @@ def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block]) -> str
         return "paused"
     if in_window(now, focus_blocks):
         return None
-    if held(s, now, recent=False):
+    waiting, stale = s.held(now, WAIT)
+    if stale:
         with st.locked_state(cfg, today=now.date()) as s:
-            given_up = actions.expire_held_checkins(s, now - WAIT)
+            given_up = actions.expire_held_checkins(s, now, WAIT)
         log.info("Gave up waiting to say %d held check-in(s); they stay on the screen", given_up)
-    if held(s, now):
+    if waiting:
         return None
     return "outside focus blocks"
 
@@ -233,57 +261,65 @@ def close_stale(cfg: Config, now: datetime) -> None:
     since = st.phone_in_use_since(st.peek(cfg, today=now.date()).events)
     if since is None:
         return
-    try:
-        data = json.loads(presence.camera_path(cfg).read_text())
-        last = datetime.fromisoformat(data["at"] if data["seen"] == PHONE else data["since"])
-    except (OSError, ValueError, KeyError, TypeError):
-        last = since
+    seen = presence.read_camera(cfg)
+    last = since if seen is None else (seen.at if seen.label == PHONE else seen.since)
     if not since <= last <= now:
         last = since
     log.info("Closing the phone session left open since %s", since.strftime("%H:%M"))
-    record(cfg, [(st.PHONE_IN, last, round((last - since).total_seconds() / 60))])
+    record(cfg, [put_down(since, last)])
     presence.clear_camera(cfg)
 
 
-def watch(cfg: Config, model: Callable[[bytes], str], labels: list[str],
+def watch(cfg: Config, model: Callable[[bytes], str], sees_away: bool,
           open_camera: Callable[[], Camera], focus_blocks: list[blocks.Block],
           clock: Callable[[], datetime] = lambda: datetime.now().astimezone(),
           sleep: Callable[[float], None] = time.sleep) -> None:
     """Run the camera whenever it should be on, until something fails."""
     tracker = Tracker()
-    sees_away = AWAY in labels
     camera: Camera | None = None
     written: tuple[str | None, datetime] | None = None
+    checked: datetime | None = None   # when it last asked why_off (it reads state.json)
+    off_since: datetime | None = None
+
+    def write(label: str, since: datetime, now: datetime) -> None:
+        nonlocal written
+        if written is None or written[0] != label or now - written[1] >= WRITE_EVERY:
+            presence.record_camera(cfg, label, since, now, sees_away)
+            written = (label, now)
 
     def close(reason: str) -> None:
-        nonlocal camera, written
+        nonlocal camera
         camera.close()
-        camera, written = None, None
+        camera = None
         record(cfg, tracker.stop())
-        presence.clear_camera(cfg)
         log.info("Camera off: %s", reason)
 
     close_stale(cfg, clock())
     try:
         while True:
-            off = why_off(cfg, clock(), focus_blocks)
-            if off:
-                if camera is not None:
-                    close(off)
-                sleep(OFF_POLL_S)
-                continue
+            now = clock()
+            if camera is None or (now - checked).total_seconds() >= OFF_POLL_S:
+                off = why_off(cfg, now, focus_blocks)
+                checked = now
+                if off:
+                    if camera is not None:
+                        close(off)
+                    off_since = off_since or now
+                    write(presence.OFF, off_since, now)
+                    sleep(OFF_POLL_S)
+                    continue
             if camera is None:
                 camera = open_camera()
+                off_since = None
                 log.info("Camera on")
             label = model(camera.read())
             now = clock()
             record(cfg, tracker.feed(label, now, counts=blocks.in_block(now, focus_blocks)))
-            if written is None or written[0] != tracker.seen or now - written[1] >= WRITE_EVERY:
-                presence.record_camera(cfg, tracker.seen, tracker.since, now, sees_away)
-                written = (tracker.seen, now)
+            write(tracker.seen, tracker.since, now)
     finally:
         if camera is not None:
             close("stopping")
+        presence.clear_camera(cfg)   # nobody should think it still runs
 
 
 def check(model: Model, camera: Camera, frames: int) -> int:
@@ -325,11 +361,7 @@ def collect(device: str, out: Path, every: float, keys=None, popen=subprocess.Po
     for name in COLLECT_KEYS.values():
         (out / name).mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix="focus-frames-"))
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "v4l2"]
-    if os.environ.get("FOCUS_CAMERA_MJPEG", "1") != "0":
-        cmd += ["-input_format", "mjpeg"]
-    cmd += ["-video_size", "640x480", "-i", device, "-vf", f"fps=1/{every}", "-q:v", "3",
-            str(staging / "%06d.jpg")]
+    cmd = webcam_input(device) + ["-vf", f"fps=1/{every}", "-q:v", "3", str(staging / "%06d.jpg")]
     camera = popen(cmd, stdin=subprocess.DEVNULL)
     changes = [(datetime.now(), "s")]
     lock = threading.Lock()
@@ -425,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.check:
             return check(model, Camera(device, every, model.size), args.check)
-        watch(cfg, model, model.labels, lambda: Camera(device, every, model.size), blocks.from_env())
+        watch(cfg, model, AWAY in model.labels, lambda: Camera(device, every, model.size), blocks.from_env())
     except CameraError as exc:
         log.error("%s", exc)
         return 1

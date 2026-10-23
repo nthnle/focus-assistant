@@ -163,8 +163,9 @@ check-ins fall back to a fixed nudge built from your list.
 - **Your data stays on the Pi**, in one JSON file (and a 60-day log of the
   coach's replies, for improving it), except what is sent to
   the model host you chose, to write each reply: your list, today's
-  events and check-ins, and recent daily summaries. Check that host's data
-  retention policy.
+  events and check-ins, your last few chat or voice messages and their
+  replies, and recent daily summaries. Check that host's data retention
+  policy.
 - **Speech never leaves the Pi.** Speech recognition (faster-whisper or
   Moonshine), text-to-speech (Piper) and the wake word (openWakeWord) all run
   locally; only the transcribed text goes to the coach.
@@ -204,5 +205,7 @@ no Pi. They also run on Windows and macOS.
 MIT, see [LICENSE](LICENSE). The optional components it installs have their
 own licenses: notably `piper-tts` is GPL-3.0, and openWakeWord's pre-trained
 wake-word models are licensed for non-commercial use only. Piper voices and
-speech models each come with their own model cards; check them before any
-commercial use.
+speech models each come with their own model cards. The desk camera's model
+is trained starting from torchvision's MobileNetV3 weights, pretrained on
+ImageNet, whose terms are for non-commercial research. Check all of these
+before any commercial use.

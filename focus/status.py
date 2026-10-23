@@ -35,10 +35,10 @@ def usage_today(cfg: Config, s: State) -> list[tuple[str, int, int, int, float |
     for c in s.chat:
         t = c.get("tokens", {})
         groups["chat"].append((c.get("model", cfg.chat_model), t.get("in", 0), t.get("out", 0), c.get("usd")))
+    by_kind = {stretch.STRETCH: "stretch", st.PHONE_NUDGE: "nudges"}
     for e in s.events:
-        if e["kind"] in (stretch.STRETCH, st.PHONE_NUDGE) and "usage" in e:
+        if (group := by_kind.get(e["kind"])) and "usage" in e:
             u = e["usage"]
-            group = "stretch" if e["kind"] == stretch.STRETCH else "nudges"
             groups[group].append((u["model"], u["in"], u["out"], u.get("usd")))
 
     rows = []
@@ -73,6 +73,21 @@ def service_lines(systemctl: Callable[..., str | None] = _systemctl) -> list[str
     return lines
 
 
+def camera_line(cfg: Config, now: datetime) -> str:
+    seen = presence.latest(cfg, now)
+    if seen is None:
+        return "not running (sudo systemctl status focus-camera)"
+    if not seen.looking:
+        return "off (it runs around focus blocks)"
+    return f"{seen.label} since {seen.since:%H:%M}"
+
+
+def phone_line(cfg: Config, in_use: datetime | None, now: datetime) -> str:
+    if in_use:
+        return f"in use since {in_use:%H:%M}"
+    return "not in use" if presence.camera_seen(cfg, now) else "not watched (the camera is off)"
+
+
 def _hm(iso: str) -> str:
     return datetime.fromisoformat(iso).strftime("%H:%M")
 
@@ -87,8 +102,7 @@ def report(cfg: Config, s: State, now: datetime,
     focus_blocks = blocks.from_env()
     current = next((f"{a:%H:%M}-{b:%H:%M}" for a, b in focus_blocks
                     if blocks.in_block(now, [(a, b)])), None)
-    in_use = st.phone_in_use_since(s.events)
-    seen = presence.camera_seen(cfg, now)
+    in_use = presence.phone_in_use_since(cfg, s, now)
     nudges = sum(1 for e in s.events if e["kind"] == st.PHONE_NUDGE)
     reminders = [e for e in s.events if e["kind"] == stretch.STRETCH]
     by_coach = sum(1 for e in reminders if e.get("detail") == "coach")
@@ -102,10 +116,10 @@ def report(cfg: Config, s: State, now: datetime,
         f"  Priorities   {open_} open, {done} done" + (f", {len(s.later)} later" if s.later else ""),
         f"  Check-ins    {checkins}",
         f"  Focus block  {'yes, ' + current if current else 'no'}",
-        f"  Phone        {'in use since ' + in_use.strftime('%H:%M') if in_use else 'not in use'}"
+        f"  Phone        {phone_line(cfg, in_use, now)}"
         + (f", {nudges} nudge{'s' if nudges != 1 else ''}" if nudges else ""),
-        f"  Camera       {seen.label + ' since ' + seen.since.strftime('%H:%M') if seen else 'off (runs around focus blocks)'}",
-        f"  Presence     {'away' if presence.away(cfg, s, now) else 'at the desk'}",
+        f"  Camera       {camera_line(cfg, now)}",
+        f"  Presence     {'away' if presence.away(cfg, now) else 'at the desk'}",
         f"  Paused       {pause.describe(s, now) or 'no'}",
         f"  Stretch      {len(reminders)} reminders ({by_coach} by the coach, {len(reminders) - by_coach} fixed)",
         f"  Chat         {len(s.chat)} messages ({voice_chats} by voice)",

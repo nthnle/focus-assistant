@@ -17,6 +17,10 @@ Restart=on-failure
 RestartSec=30
 # Exit 2: no model trained yet (docs/camera.md); retrying won't help.
 RestartPreventExitStatus=2
+# Stop by signalling Python only: it closes a phone session in progress and
+# then stops ffmpeg itself. (Signalling ffmpeg too would end the frames first
+# and turn a normal stop into a camera failure.)
+KillMode=mixed
 
 NoNewPrivileges=yes
 CapabilityBoundingSet=

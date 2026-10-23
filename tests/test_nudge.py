@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from conftest import completion, scripted
-from focus import actions, blocks, config, feedback, nudge, state as st
+from focus import actions, blocks, config, feedback, nudge, presence, state as st
 
 BLOCKS = blocks.parse_blocks(blocks.DEFAULT_BLOCKS)
 TZ = timezone(timedelta(hours=-5))
@@ -19,6 +19,13 @@ def at(hour, minute, day=12):  # 2026-10-12 is a Monday
 def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("FOCUS_STATE_DIR", str(tmp_path))
     return config.load()
+
+
+@pytest.fixture(autouse=True)
+def watching(monkeypatch):
+    """The camera is running and looking, unless a test says otherwise."""
+    seen = presence.Seen("phone", at(9, 0), at(9, 0), True)
+    monkeypatch.setattr(nudge.presence, "camera_seen", lambda cfg, now: seen)
 
 
 def on_phone_since(cfg, when, *items):
@@ -105,6 +112,30 @@ def test_quiet_in_the_break_after_a_stretch_reminder(cfg):
     assert not nudge.run(cfg, at(10, 55), said.append, BLOCKS, write=NO_COACH)
     assert nudge.run(cfg, at(11, 0), said.append, BLOCKS, write=NO_COACH)   # break's over
     assert said == ["You've been on your phone for 12 minutes. Time to put it down."]
+
+
+def test_quiet_when_the_camera_isnt_watching(cfg, monkeypatch):
+    """A camera that died with a session open must not nudge forever."""
+    on_phone_since(cfg, at(10, 0))
+    monkeypatch.setattr(nudge.presence, "camera_seen", lambda cfg, now: None)
+    assert not nudge.run(cfg, at(10, 30), [].append, BLOCKS, write=NO_COACH)
+
+
+def test_a_speaker_failure_doesnt_repeat_the_model_call(cfg):
+    on_phone_since(cfg, at(10, 0))
+    asked = []
+
+    def broken_speaker(text):
+        raise OSError("aplay: device busy")
+
+    def write(c, now, minutes, n):
+        asked.append(now)
+        return None
+
+    with pytest.raises(OSError):
+        nudge.run(cfg, at(10, 5), broken_speaker, BLOCKS, write=write)
+    assert not nudge.run(cfg, at(10, 6), broken_speaker, BLOCKS, write=write)   # already logged
+    assert len(asked) == 1
 
 
 def test_no_break_without_a_reminder_that_played(cfg):

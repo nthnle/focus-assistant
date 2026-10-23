@@ -227,7 +227,7 @@ class Speech:
             state.checkins[-1]["unheard"] = True
             log.info("Paused %s; holding the %s check-in", pause.describe(state, now), slot)
             return
-        if self.cfg and presence.away(self.cfg, state, now):
+        if self.cfg and presence.away(self.cfg, now):
             # Nobody to hear it: the voice service says it when you're back.
             state.checkins[-1]["unheard"] = True
             log.info("Away from the desk; holding the %s check-in until you're back", slot)

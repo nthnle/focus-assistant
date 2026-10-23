@@ -68,24 +68,22 @@ def load(files: list[Path]) -> torch.Tensor:
     ])
 
 
+def normalize(x: torch.Tensor) -> torch.Tensor:
+    """uint8 NCHW to what ImageNet-pretrained weights expect; training and the Pi share it."""
+    mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+    return (x.float() / 255.0 - mean) / std
+
+
 class Deployed(nn.Module):
     """What runs on the Pi: uint8 NHWC frames in, label probabilities out."""
 
     def __init__(self, net: nn.Module):
         super().__init__()
         self.net = net
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
 
     def forward(self, frames: torch.Tensor) -> torch.Tensor:
-        x = frames.permute(0, 3, 1, 2).float() / 255.0
-        return torch.softmax(self.net((x - self.mean) / self.std), dim=1)
-
-
-def normalize(x: torch.Tensor) -> torch.Tensor:
-    mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
-    std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
-    return (x.float() / 255.0 - mean) / std
+        return torch.softmax(self.net(normalize(frames.permute(0, 3, 1, 2))), dim=1)
 
 
 AUGMENT = v2.Compose([

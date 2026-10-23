@@ -15,21 +15,19 @@ nudge is logged as an event, so check-ins can see them.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable
 
 import openai
 
-from . import actions, blocks, coach, feedback, pause, pricing, state as st
+from . import actions, blocks, coach, pause, presence, state as st, stretch
 from .config import Config
 
 log = logging.getLogger(__name__)
 
 COACH_TIMEOUT = 5.0
-BREAK = timedelta(minutes=10)
 
 SYSTEM_PROMPT = """\
 You are the user's focus coach on a small device on their desk. Its camera \
@@ -45,13 +43,6 @@ sentences, no markdown, no emoji. Never invent tasks, progress or events."""
 
 def every() -> int:
     return int(os.environ.get("FOCUS_PHONE_NUDGE_MIN", "5"))
-
-
-def on_break(s: st.State, now: datetime) -> bool:
-    """Between a stretch reminder that played at :50 and the top of the hour."""
-    return now.minute >= 50 and any(
-        e["kind"] == st.STRETCH_REMINDER and now - datetime.fromisoformat(e["at"]) <= BREAK
-        for e in s.events)
 
 
 def due(s: st.State, now: datetime, every_min: int) -> tuple[int, int] | None:
@@ -76,27 +67,12 @@ def fixed_line(s: st.State, minutes: int) -> str:
 def compose(cfg: Config, now: datetime, minutes: int, n: int,
             client: openai.OpenAI | None = None) -> dict | None:
     """The coach's nudge as {"text", "usage"}, or None if it can't produce one quickly."""
-    s = st.peek(cfg, today=now.date())
-    payload = coach.build_payload(s, "phone_nudge", now.isoformat(timespec="seconds"))
+    payload = coach.build_payload(st.peek(cfg, today=now.date()), "phone_nudge",
+                                  now.isoformat(timespec="seconds"))
     payload["minutes_on_phone"] = minutes
     payload["nudge"] = n
-    try:
-        client = client or coach.make_client("the voice service gets it from focus.env",
-                                             timeout=COACH_TIMEOUT, max_retries=0)
-        response = coach.create(
-            cfg, client, model=cfg.chat_model, system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-        )
-        text = coach.reply_text(response)
-        feedback.record(cfg, "nudge", payload, text, cfg.chat_model)
-        return {"text": text,
-                "usage": pricing.priced({"model": cfg.chat_model, "in": response.usage.input_tokens,
-                                         "out": response.usage.output_tokens},
-                                        cfg.chat_model, response.usage.input_tokens,
-                                        response.usage.output_tokens)}
-    except coach.CoachError as exc:
-        log.warning("Coach unavailable (%s); using a fixed line", exc)
-        return None
+    return coach.short_reply(cfg, "nudge", SYSTEM_PROMPT, payload,
+                             "the voice service gets it from focus.env", client, COACH_TIMEOUT)
 
 
 def run(cfg: Config, now: datetime, say: Callable[[str], None], focus_blocks: list[blocks.Block],
@@ -104,8 +80,10 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None], focus_blocks: li
     """Say a nudge if one is due. `now` must be timezone-aware. Returns whether it did."""
     if not blocks.in_block(now, focus_blocks):
         return False
+    if presence.camera_seen(cfg, now) is None:
+        return False  # the camera isn't watching: an open session may be stale
     s = st.peek(cfg, today=now.date())
-    if pause.paused(s, now) or on_break(s, now):
+    if pause.paused(s, now) or stretch.on_break(s, now):
         return False
     found = due(s, now, every())
     if found is None:
@@ -113,10 +91,12 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None], focus_blocks: li
     minutes, n = found
     written = write(cfg, now, minutes, n)
     text = written["text"] if written else fixed_line(s, minutes)
-    say(text)
+    # Logged before it's said: if the speaker fails, the next try waits for
+    # the next nudge instead of asking the model again every 30 s.
     with st.locked_state(cfg, today=now.date()) as s:
         event = actions.log_event(s, st.PHONE_NUDGE, f"{minutes} min", at=now)
         if written:
             event["usage"] = written["usage"]
     log.info("Phone nudge %d after %d min: %s", n, minutes, text)
+    say(text)
     return True

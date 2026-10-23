@@ -587,6 +587,8 @@ def second_call_follows(events: queue.Queue, window_s: float = DOUBLE_PRESS_S) -
 def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> bool:
     """Say the latest check-in that was held while you were away or paused,
     once the camera sees you back and the pause is over."""
+    if not any(c.get("unheard") for c in st.peek(cfg, today=now.date()).checkins):
+        return False  # the usual case: no lock, and no state.json rewrite every 30 s
     with st.locked_state(cfg, today=now.date()) as s:
         unheard = [c for c in s.checkins if c.get("unheard")]
         if not unheard or not presence.back(cfg, now) or pause.paused(s, now):
@@ -599,14 +601,20 @@ def replay_missed(cfg: Config, speak: Callable[[str], None], now: datetime) -> b
     return True
 
 
+def between_turns(cfg: Config, say: Callable[[str], None], now: datetime,
+                  focus_blocks: list[blocks.Block]) -> None:
+    """Every 30 s between turns: a held check-in first, else a phone nudge if
+    one is due (never both at once; the nudge waits for the next tick)."""
+    if not replay_missed(cfg, say, now):
+        nudge.run(cfg, now, say, focus_blocks)
+
+
 def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
-        on_chunk: Callable[[bytes], None] | None = None,
         idle: Callable[[], None] | None = None, idle_every_s: float = 30.0,
         calls: Iterator[None] | None = None, on_call: Callable[[], None] | None = None,
         on_double_call: Callable[[], None] | None = None) -> None:
     """Start a turn on each play press or wake word, until the hardware goes away.
 
-    `on_chunk` sees every chunk (presence keeps only a loudness reading);
     `idle` runs between turns every `idle_every_s` (held check-ins, phone nudges);
     `on_call` runs on a call-button press between turns, `on_double_call`
     on two presses within DOUBLE_PRESS_S.
@@ -645,8 +653,6 @@ def run(voice: Voice, mic, presses: Iterator[None] | None, wake=None,
 
     while True:
         chunk = mic.read()
-        if on_chunk is not None:
-            on_chunk(chunk)
         if idle is not None and time.monotonic() >= next_idle:
             next_idle = time.monotonic() + idle_every_s
             try:
@@ -735,11 +741,8 @@ def main() -> int:
     focus_blocks = blocks.from_env()
 
     def idle() -> None:
-        now = datetime.now().astimezone()
-        replay_missed(cfg, spoken.say, now)
-        nudge.run(cfg, now, spoken.say, focus_blocks)
+        between_turns(cfg, spoken.say, datetime.now().astimezone(), focus_blocks)
 
-    extras = dict(idle=idle)
     key = int(os.environ.get("FOCUS_VOICE_KEY", KEY_PLAYPAUSE))
     ways = ([f'say "{wake_name.replace("_", " ")}"'] if wake else []) + ([f"press key {key}"] if button else [])
 
@@ -758,7 +761,7 @@ def main() -> int:
         log.info("Ready: %s, then speak", " or ".join(ways))
         run(voice, mic, presses, wake, calls=calls,
             on_call=lambda: (spoken.say(mark_suggested_done(cfg)), refresh()),
-            on_double_call=lambda: (spoken.say(undo_last_done(cfg)), refresh()), **extras)
+            on_double_call=lambda: (spoken.say(undo_last_done(cfg)), refresh()), idle=idle)
     return 0
 
 

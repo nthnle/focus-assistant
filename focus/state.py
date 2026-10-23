@@ -23,7 +23,7 @@ import os
 import tempfile
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterator
 
@@ -133,6 +133,12 @@ class State:
     def done_priorities(self) -> list[Priority]:
         return [p for p in self.priorities if p.done]
 
+    def held(self, now: datetime, within: timedelta) -> tuple[list[dict], list[dict]]:
+        """Spoken check-ins waiting for you: (held less than `within`, held longer)."""
+        unheard = [c for c in self.checkins if c.get("unheard")]
+        recent = [c for c in unheard if now - datetime.fromisoformat(c["at"]) < within]
+        return recent, [c for c in unheard if c not in recent]
+
     def find(self, priority_id: int) -> Priority:
         for p in self.priorities:
             if p.id == priority_id:
@@ -153,7 +159,9 @@ class State:
             checkins=data.get("checkins", []),
             events=data.get("events", []),
             chat=data.get("chat", []),
-            history=data.get("history", []),
+            # Days summed up before "phone_minutes_off" was renamed read like new ones.
+            history=[{("phone_minutes" if k == "phone_minutes_off" else k): v for k, v in h.items()}
+                     for h in data.get("history", [])],
             paused_until=data.get("paused_until"),
             # Files from when there were weekly goals keep loading; the goals are dropped.
             last_week={k: v for k, v in data["last_week"].items() if k != "goals"} if data.get("last_week") else None,
@@ -271,19 +279,26 @@ def _read(path: Path, today: date) -> State:
         raise StateError(f"{path} is not valid state JSON ({exc}); fix or move it aside") from exc
 
 
-def _write(path: Path, state: State) -> None:
-    # Write-then-rename so a power cut never leaves a half-written file.
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".state-", suffix=".json")
+def write_json(path: Path, data, indent: int | None = None, durable: bool = True) -> None:
+    """Write-then-rename, so a reader or a power cut never sees half a file.
+    `durable` also syncs it to the card before the rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}-", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(state.to_dict(), f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=indent, ensure_ascii=False)
             f.write("\n")
-            f.flush()
-            os.fsync(f.fileno())
+            if durable:
+                f.flush()
+                os.fsync(f.fileno())
         os.replace(tmp, path)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+
+
+def _write(path: Path, state: State) -> None:
+    write_json(path, state.to_dict(), indent=2)
 
 
 def peek(cfg: Config, today: date | None = None) -> State:

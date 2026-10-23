@@ -112,6 +112,35 @@ def test_camera_reads_whole_frames_and_says_when_it_stops():
         cam.read()
 
 
+class HungProc(FakeProc):
+    """ffmpeg alive, but the webcam has stopped sending frames."""
+
+    def __init__(self):
+        super().__init__()
+        self.stdout = HungPipe()
+
+    def poll(self):
+        return None
+
+
+class HungPipe:
+    def read(self, n):
+        threading.Event().wait()   # never returns
+
+
+def test_a_hung_camera_times_out_instead_of_blocking_forever():
+    cam = camera.Camera("/dev/video0", 0.01, popen=lambda cmd, **kw: HungProc(), timeout=0.2)
+    with pytest.raises(camera.CameraError, match="No frame from the camera"):
+        cam.read()
+
+
+def test_training_and_live_frames_read_the_webcam_the_same_way(monkeypatch):
+    live = camera.ffmpeg_command("/dev/video0", 2.0)
+    assert live[:len(camera.webcam_input("/dev/video0"))] == camera.webcam_input("/dev/video0")
+    monkeypatch.setenv("FOCUS_CAMERA_MJPEG", "0")
+    assert "mjpeg" not in camera.webcam_input("/dev/video0")
+
+
 class FakeCamera:
     def __init__(self):
         self.closed = False
@@ -149,7 +178,7 @@ def run_watch(cfg, labels, times, sleeps=None):
 
     times = list(times[:1]) + list(times)   # watch() first reads the clock to tidy up
     with pytest.raises(Done):
-        camera.watch(cfg, lambda frame: next(script), [P, W, A], open_camera, BLOCKS,
+        camera.watch(cfg, lambda frame: next(script), True, open_camera, BLOCKS,
                      clock=Clock(times), sleep=(sleeps.append if sleeps is not None else lambda s: None))
     return cams
 
@@ -227,7 +256,7 @@ def test_a_held_checkin_keeps_the_camera_on_for_two_hours(cfg):
     later = evening + timedelta(minutes=121)
     assert camera.why_off(cfg, later, BLOCKS) == "outside focus blocks"
     c = st.peek(cfg, today=START.date()).checkins[-1]
-    assert c["unheard"] is False and c["expired"] is True          # given up on, still on screen
+    assert c["unheard"] is False and c["reply"] == "Good day."     # given up on, still on screen
 
 
 def test_a_held_checkin_waits_out_a_pause(cfg):
@@ -245,10 +274,32 @@ def test_inside_its_window_a_held_checkin_is_never_given_up(cfg):
 
 
 def test_watch_closes_the_camera_when_the_window_ends(cfg):
-    end = START.replace(hour=12, minute=4, second=58)
-    times = [end, end, end + timedelta(seconds=2)]
+    # It checks whether it should be on every OFF_POLL_S, not every frame.
+    end = START.replace(hour=12, minute=4, second=50)
+    times = [end, end, end + timedelta(seconds=16)]
     cams = run_watch(cfg, [W], times)
     assert len(cams) == 1 and cams[0].closed
+
+
+def test_watch_reads_state_every_15_s_not_every_frame(cfg, monkeypatch):
+    calls = []
+    real = camera.why_off
+    monkeypatch.setattr(camera, "why_off", lambda *a: calls.append(a[1]) or real(*a))
+    labels = [W] * 20                                 # 40 s of frames
+    times = [START + timedelta(seconds=2 * i) for i in range(len(labels)) for _ in (0, 1)]
+    run_watch(cfg, labels, times)
+    assert [t - START for t in calls] == [timedelta(seconds=s) for s in (0, 16, 32)]
+
+
+def test_while_off_it_says_so_every_30_s(cfg, monkeypatch):
+    """So presence can tell "off on schedule" from "the service has stopped"."""
+    seen = []
+    monkeypatch.setattr(presence, "record_camera",
+                        lambda c, label, since, now, sees_away: seen.append((label, now)))
+    lunch = START.replace(hour=12, minute=30)
+    times = [lunch + timedelta(seconds=15 * i) for i in range(5)]
+    run_watch(cfg, [], times)
+    assert seen == [(presence.OFF, times[0]), (presence.OFF, times[2]), (presence.OFF, times[4])]
 
 
 def test_a_session_left_open_is_closed_at_start(cfg):
@@ -269,6 +320,14 @@ def test_a_stale_session_ends_when_the_camera_started_seeing_something_else(cfg)
     presence.record_camera(cfg, W, START + timedelta(minutes=2), START + timedelta(minutes=20), sees_away=True)
     camera.close_stale(cfg, START + timedelta(minutes=21))
     assert st.peek(cfg, today=START.date()).events[-1]["detail"] == "2 min"
+
+
+def test_a_stale_session_ends_when_the_camera_went_off(cfg):
+    camera.record(cfg, [(st.PHONE_OUT, START, None)])
+    presence.record_camera(cfg, presence.OFF, START + timedelta(minutes=4), START + timedelta(minutes=9),
+                           sees_away=True)
+    camera.close_stale(cfg, START + timedelta(minutes=10))
+    assert st.peek(cfg, today=START.date()).events[-1]["detail"] == "4 min"
 
 
 def test_a_stale_session_without_a_trace_closes_where_it_began(cfg):

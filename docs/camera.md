@@ -196,7 +196,13 @@ ssh <user>@focus.local sudo systemctl restart focus-camera
 
 - **`No model at ...`:** the service stops until there's one (step 5).
 - **`The camera stopped`:** another program has the camera (`--collect` or
-  `--check` while the service runs), or it's unplugged. Check
+  `--check` while the service runs), or it's unplugged.
+- **`No frame from the camera for 30 s`:** the webcam hung, which USB
+  webcams sometimes do. The service restarts itself after 30 seconds; if it
+  keeps happening, unplug the webcam and plug it back in.
+- **`focus status` says the camera is "not running":** the service has
+  stopped (`sudo systemctl status focus-camera`). Until it's back you count
+  as here, nothing is nudged, and a held check-in is said straight away. Check
   `v4l2-ctl --list-devices` and set `FOCUS_CAMERA_DEVICE` if it isn't
   `/dev/video0`.
 - **ffmpeg says the format isn't supported:** set `FOCUS_CAMERA_MJPEG=0`

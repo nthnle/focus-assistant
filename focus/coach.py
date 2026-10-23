@@ -16,6 +16,7 @@ stripped here, streamed or not, so it never reaches the screen or speaker.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass, field
@@ -24,10 +25,12 @@ from typing import Callable
 
 import openai
 
-from . import blocks, pause, state as st
+from . import blocks, feedback, pause, pricing, state as st
 from .days import monday_of
 from .config import Config
 from .state import State
+
+log = logging.getLogger(__name__)
 
 # Kept byte-stable so providers that cache prompts can reuse it. Per-run
 # data goes in the user message, not here.
@@ -416,3 +419,23 @@ def offline_reply(s: State, slot: str) -> str:
     done = len([p for p in s.today_list if p.done])
     left = f", {open_} still open." if open_ else "."
     return f"The coach is offline. {done} done today{left}"
+
+
+def short_reply(cfg: Config, kind: str, system: str, payload: dict, hint: str,
+                client: openai.OpenAI | None = None, timeout: float = 5.0) -> dict | None:
+    """One quick line from the chat model (a stretch reminder, a phone nudge)
+    as {"text", "usage"}, logged for `focus feedback`; or None if it can't
+    answer within `timeout`, so the caller says a fixed line instead."""
+    try:
+        client = client or make_client(hint, timeout=timeout, max_retries=0)
+        response = create(cfg, client, model=cfg.chat_model, system=system,
+                          messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}])
+        text = reply_text(response)
+        feedback.record(cfg, kind, payload, text, cfg.chat_model)
+        tokens_in, tokens_out = response.usage.input_tokens, response.usage.output_tokens
+        return {"text": text,
+                "usage": pricing.priced({"model": cfg.chat_model, "in": tokens_in, "out": tokens_out},
+                                        cfg.chat_model, tokens_in, tokens_out)}
+    except CoachError as exc:
+        log.warning("Coach unavailable (%s); using a fixed line", exc)
+        return None

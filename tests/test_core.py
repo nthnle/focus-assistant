@@ -189,3 +189,12 @@ def test_checkin_saves_its_cost_when_the_price_is_known(cfg, monkeypatch):
     checkin.run(cfg, "morning")
     with st.locked_state(cfg) as s:
         assert s.checkins[-1]["usd"] == pytest.approx((1000 * 0.15 + 100 * 0.60) / 1e6)
+
+
+def test_write_json_leaves_the_old_file_and_no_temp_file_on_failure(tmp_path):
+    path = tmp_path / "camera.json"
+    st.write_json(path, {"seen": "work"}, durable=False)
+    with pytest.raises(TypeError):
+        st.write_json(path, {"seen": object()})          # not JSON
+    assert json.loads(path.read_text()) == {"seen": "work"}
+    assert [p.name for p in tmp_path.iterdir()] == ["camera.json"]

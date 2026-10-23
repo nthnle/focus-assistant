@@ -118,8 +118,8 @@ The upper panel mirrors the e-ink display layout ([architecture.md](architecture
 So the coach doesn't talk to an empty desk, you count as **away** once the
 [desk camera](camera.md) has seen the empty chair for 5 minutes. The camera
 runs from 5 minutes before each focus block to 5 minutes after it, so every
-check-in and stretch reminder gets its answer. Without a camera, you always
-count as here.
+check-in and stretch reminder gets its answer. Without a camera, or while
+its service isn't running, you always count as here.
 
 While you're away:
 

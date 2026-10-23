@@ -94,6 +94,15 @@ def test_report_shows_the_day(cfg):
     assert "total      $0.0063" in text
 
 
+def test_camera_line_tells_off_from_not_running(cfg):
+    from focus import presence
+    assert "not running" in status.camera_line(cfg, NOW)
+    presence.record_camera(cfg, presence.OFF, NOW - timedelta(minutes=30), NOW, sees_away=True)
+    assert status.camera_line(cfg, NOW).startswith("off")
+    presence.record_camera(cfg, "work", NOW - timedelta(minutes=3), NOW, sees_away=True)
+    assert status.camera_line(cfg, NOW) == "work since 14:02"
+
+
 def test_report_without_systemd(cfg):
     text = status.report(cfg, st.State(date=NOW.date().isoformat()), NOW, systemctl=lambda *a: None)
     assert "systemctl not available" in text

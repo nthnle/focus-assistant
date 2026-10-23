@@ -20,6 +20,14 @@ def cfg(tmp_path, monkeypatch):
     return config.load()
 
 
+def test_the_page_wont_start_without_its_token(monkeypatch, capsys):
+    monkeypatch.delenv("FOCUS_DISPLAY_TOKEN", raising=False)
+    assert page.main() == 1
+    assert "FOCUS_DISPLAY_TOKEN" in capsys.readouterr().err
+    monkeypatch.setenv("FOCUS_DISPLAY_TOKEN", "short")
+    assert page.main() == 1
+
+
 def test_parse_blocks():
     assert BLOCKS == [(time(9), time(12)), (time(13), time(17, 30))]
     assert blocks.parse_blocks(" 08:30-10:00 , ") == [(time(8, 30), time(10))]

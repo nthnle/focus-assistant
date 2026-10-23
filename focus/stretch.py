@@ -22,7 +22,6 @@ needs no model, key or network.
 
 from __future__ import annotations
 
-import json
 import logging
 import sys
 from datetime import datetime, timedelta
@@ -30,7 +29,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, blocks, coach, config, feedback, pause, presence, pricing, state as st
+from . import actions, blocks, coach, config, pause, presence, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -39,6 +38,7 @@ STRETCH = st.STRETCH_REMINDER
 COACH_TIMEOUT = 5.0
 # How recent a reminder must be for :00 to count as the end of its break.
 BACK_AFTER = timedelta(minutes=15)
+BREAK = timedelta(minutes=10)
 
 SYSTEM_PROMPT = """\
 You are the user's focus coach on a small device on their desk. They work \
@@ -70,24 +70,9 @@ def compose(cfg: Config, now: datetime, client: openai.OpenAI | None = None) -> 
     """The coach's reminder as {"text", "usage"}, or None if it can't produce one quickly."""
     with st.locked_state(cfg, today=now.date()) as s:
         payload = coach.build_payload(s, "stretch_break", now.astimezone().isoformat(timespec="seconds"))
-    try:
-        # One short try: a late reminder is worse than a plain one.
-        client = client or coach.make_client("the stretch timer gets it from focus.env",
-                                             timeout=COACH_TIMEOUT, max_retries=0)
-        response = coach.create(
-            cfg, client, model=cfg.chat_model, system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-        )
-        text = coach.reply_text(response)
-        feedback.record(cfg, "stretch", payload, text, cfg.chat_model)
-        return {"text": text,
-                "usage": pricing.priced({"model": cfg.chat_model, "in": response.usage.input_tokens,
-                                         "out": response.usage.output_tokens},
-                                        cfg.chat_model, response.usage.input_tokens,
-                                        response.usage.output_tokens)}
-    except coach.CoachError as exc:
-        log.warning("Coach unavailable (%s); using a fixed phrase", exc)
-        return None
+    # One short try: a late reminder is worse than a plain one.
+    return coach.short_reply(cfg, "stretch", SYSTEM_PROMPT, payload,
+                             "the stretch timer gets it from focus.env", client, COACH_TIMEOUT)
 
 
 def run(cfg: Config, now: datetime, say: Callable[[str], None],
@@ -99,7 +84,7 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None],
         return False
     if not force:
         with st.locked_state(cfg, today=now.date()) as s:
-            gone = presence.away(cfg, s, now.astimezone())
+            gone = presence.away(cfg, now.astimezone())
             quiet = pause.describe(s, now.astimezone())
         if quiet:
             log.info("Paused %s; no reminder", quiet)
@@ -118,6 +103,16 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None],
     return True
 
 
+def reminder_played(s: st.State, now: datetime, within: timedelta) -> bool:
+    return any(e["kind"] == STRETCH and now - datetime.fromisoformat(e["at"]) <= within
+               for e in s.events)
+
+
+def on_break(s: st.State, now: datetime) -> bool:
+    """In the 10 minutes after a stretch reminder that played at :50."""
+    return now.minute >= 50 and reminder_played(s, now, BREAK)
+
+
 def back_line(s: st.State) -> str:
     n = len(s.open_priorities)
     left = {0: "Your list is clear.", 1: "One thing on your list."}.get(n, f"{n} things on your list.")
@@ -132,15 +127,14 @@ def back(cfg: Config, now: datetime, say: Callable[[str], None],
         return False
     aware = now.astimezone()
     s = st.peek(cfg, today=now.date())
-    if not any(e["kind"] == STRETCH and aware - datetime.fromisoformat(e["at"]) <= BACK_AFTER
-               for e in s.events):
+    if not reminder_played(s, aware, BACK_AFTER):
         log.info("No break reminder played at :50; nothing to come back from")
         return False
     quiet = pause.describe(s, aware)
     if quiet:
         log.info("Paused %s; no back-to-work line", quiet)
         return False
-    if presence.away(cfg, s, aware):
+    if presence.away(cfg, aware):
         log.info("Away from the desk; no back-to-work line")
         return False
     text = back_line(s)

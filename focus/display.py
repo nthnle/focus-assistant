@@ -181,18 +181,17 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     focus_blocks = blocks.from_env() if focus_blocks is None else focus_blocks
     chips = where_in_day(now, focus_blocks)
 
-    in_use = st.phone_in_use_since(state.events)
-    if in_use:
-        chips.append(("Phone", f"In use since {_hm(in_use)}", ALERT))
-    elif cfg is not None and presence.camera_seen(cfg, now) is not None:
-        chips.append(("Phone", "Not in use", GOOD))
+    if cfg is not None and presence.camera_seen(cfg, now) is not None:
+        in_use = presence.phone_in_use_since(cfg, state, now)
+        chips.append(("Phone", f"In use since {_hm(in_use)}", ALERT) if in_use
+                     else ("Phone", "Not in use", GOOD))
 
     quiet = pause.describe(state, now)
     if quiet:
         chips.append(("Paused", quiet, ALERT))
 
     if cfg is not None:
-        if presence.away(cfg, state, now):
+        if presence.away(cfg, now):
             chips.append(("You", "Away", ALERT))
         if any(c.get("unheard") for c in state.checkins):
             chips.append(("Check-in", "Waiting for you", ALERT))

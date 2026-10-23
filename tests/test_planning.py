@@ -119,6 +119,15 @@ def test_history_keeps_the_patterns_for_routine_suggestions(cfg):
     assert h["pickups_by_hour"] == {"14": 2}
 
 
+def test_history_from_before_the_rename_reads_like_new(cfg):
+    cfg.state_dir.mkdir(parents=True, exist_ok=True)
+    old = st.State(date="2026-10-20").to_dict()
+    old["history"] = [{"date": "2026-10-19", "phone_pickups": 3, "phone_minutes_off": 25}]
+    cfg.state_path.write_text(json.dumps(old))
+    h = st.peek(cfg, today=MON.replace(day=20)).history[0]
+    assert h["phone_minutes"] == 25 and "phone_minutes_off" not in h
+
+
 def test_chat_gets_routine_settings_and_can_plan(cfg):
     with st.locked_state(cfg) as s:
         actions.add_priority(s, "Book dentist")

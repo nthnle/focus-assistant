@@ -6,7 +6,7 @@ stays identical whichever input was used.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import state as st
 from .state import State
@@ -88,16 +88,13 @@ def log_event(s: State, kind: str, detail: str | None = None,
     return event
 
 
-def expire_held_checkins(s: State, before: datetime) -> int:
-    """Stop waiting to say check-ins held since before `before`. They stay
-    on the screen; they just won't be spoken."""
-    given_up = 0
-    for c in s.checkins:
-        if c.get("unheard") and datetime.fromisoformat(c["at"]) < before:
-            c["unheard"] = False
-            c["expired"] = True
-            given_up += 1
-    return given_up
+def expire_held_checkins(s: State, now: datetime, within: timedelta) -> int:
+    """Stop waiting to say check-ins held longer than `within`. They stay on
+    the screen; they just won't be spoken."""
+    _, stale = s.held(now, within)
+    for c in stale:
+        c["unheard"] = False
+    return len(stale)
 
 
 def report_on_track(s: State) -> dict:
