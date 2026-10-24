@@ -43,9 +43,10 @@ time). Reply with what helps them get through it.
 `facts` already has the counts and totals: open and done items, phone pickups \
 and minutes on the phone, what has carried over three days or more, and \
 whether they have paused. Use those numbers as given; never work them out \
-again from the events. phone_out means the camera saw them on the phone for \
-at least 30 seconds, phone_in that they put it down, and phone_nudge that the \
-device told them they had been on it a while.
+again from the events. Phone use is only in `facts`: pickups (the camera \
+saw them on the phone for 30 seconds or more), minutes on the phone, whether \
+it is in use now, and how often the device told them they had been on it a \
+while.
 
 `later` holds items scheduled for another day: leave them alone unless \
 asked.
@@ -150,6 +151,9 @@ class Response:
         return message
 
 
+PHONE_EVENTS = (st.PHONE_OUT, st.PHONE_IN, st.PHONE_NUDGE)
+
+
 def facts(s: State, now: str) -> dict:
     """Counts and totals worked out in code, so the model never has to do
     arithmetic on timestamps (open models get it wrong surprisingly often)."""
@@ -163,6 +167,7 @@ def facts(s: State, now: str) -> dict:
         "phone_pickups_today": phone["pickups"],
         "phone_minutes_today": phone["minutes"],
         "phone_in_use_now_since": phone["out_since"].strftime("%H:%M") if phone["out_since"] else None,
+        "phone_nudges_today": sum(1 for e in s.events if e["kind"] == st.PHONE_NUDGE),
         "last_self_report": reports[-1] if reports else None,
         "paused": pause.describe(s, datetime.fromisoformat(now)),
         "weekday": f"{datetime.fromisoformat(now):%A}",
@@ -198,7 +203,10 @@ def build_payload(s: State, slot: str, now: str) -> dict:
             {"slot": c["slot"], "at": c["at"], "reply": c.get("reply")} for c in s.checkins
         ],
         # "usage" is bookkeeping for `focus status`, not something the coach needs.
-        "events_today": [{k: v for k, v in e.items() if k != "usage"} for e in s.events],
+        # Phone events are in `facts` as totals: one event per pickup made every
+        # call grow with the day (and hit the host's tokens-per-minute limit).
+        "events_today": [{k: v for k, v in e.items() if k != "usage"} for e in s.events
+                         if e["kind"] not in PHONE_EVENTS],
         "chat_today": [{"at": c["at"], "user": c["user"], "reply": c["reply"]} for c in s.chat[-6:]],
         "recent_days": s.history[-(7 if slot == "chat" else 5):],
     }

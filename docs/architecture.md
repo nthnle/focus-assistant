@@ -85,7 +85,9 @@ a desktop PC that copies `state.json` at 18:00.
 - **The coach** (`coach.py`) is a single chat-completions call per check-in,
   to an open model on any OpenAI-compatible host. It gets a JSON payload:
   the list, today's check-ins, events and chat, and the last five daily
-  summaries. The lock is never held during a model call. `<think>` text from
+  summaries. Phone use goes in as totals (pickups, minutes, nudges), not
+  one event per pickup, so a call stays the same size however much the
+  phone came out. The lock is never held during a model call. `<think>` text from
   reasoning models is stripped, streamed or not. If the host can't be
   reached, the check-in is a fixed nudge built from the same data
   (`offline_reply`), recorded with model `offline`.
@@ -111,6 +113,7 @@ focus/
   presence.py     away or not, from the desk camera
   camera.py       the desk camera: phone use and an empty desk, in focus blocks
   nudge.py        "you've been on your phone 5 minutes", said by the voice service
+  onnx.py         turns off onnxruntime's telemetry (Piper, wake word, camera)
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
   days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later items
   feedback.py     replies.jsonl: every model reply with its payload, checks and ratings

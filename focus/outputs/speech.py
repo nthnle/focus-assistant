@@ -238,6 +238,9 @@ class Speech:
 def create() -> Speech:
     from piper import PiperVoice
 
+    from .. import onnx
+    onnx.no_telemetry()  # Piper runs on onnxruntime
+
     voice_path = os.environ.get("FOCUS_SPEECH_VOICE", DEFAULT_VOICE)
     if not Path(voice_path).is_file():
         raise FileNotFoundError(f"No Piper voice at {voice_path}; see the README's Speech section")

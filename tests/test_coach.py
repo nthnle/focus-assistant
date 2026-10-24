@@ -142,7 +142,7 @@ def test_facts_do_the_arithmetic():
         "open_count": 2, "done_count": 1,
         "carried_3_days_or_more": ["Report"],
         "phone_pickups_today": 3, "phone_minutes_today": 18 + 45 + 10,
-        "phone_in_use_now_since": "12:50", "last_self_report": "drifted",
+        "phone_in_use_now_since": "12:50", "phone_nudges_today": 0, "last_self_report": "drifted",
         "paused": None, "weekday": "Monday",
     }
 
@@ -152,3 +152,17 @@ def test_facts_survive_an_empty_day_and_odd_events():
                     "2026-10-12T09:00:00-05:00")
     assert "next_up" not in f and f["open_count"] == 0
     assert f["phone_minutes_today"] == 0
+
+
+def test_phone_use_reaches_the_coach_as_totals_not_events():
+    d = "2026-10-12"
+    s = State(date=d, events=[
+        {"at": f"{d}T09:40:00-05:00", "kind": "phone_out"},
+        {"at": f"{d}T09:45:00-05:00", "kind": "phone_nudge", "detail": "5 min"},
+        {"at": f"{d}T09:58:00-05:00", "kind": "phone_in", "detail": "18 min"},
+        {"at": f"{d}T10:00:00-05:00", "kind": "pause", "detail": "11:00"},
+    ])
+    payload = coach.build_payload(s, "midday", f"{d}T13:00:00-05:00")
+    assert [e["kind"] for e in payload["events_today"]] == ["pause"]
+    f = payload["facts"]
+    assert (f["phone_pickups_today"], f["phone_minutes_today"], f["phone_nudges_today"]) == (1, 18, 1)

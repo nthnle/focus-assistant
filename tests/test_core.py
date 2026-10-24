@@ -198,3 +198,18 @@ def test_write_json_leaves_the_old_file_and_no_temp_file_on_failure(tmp_path):
         st.write_json(path, {"seen": object()})          # not JSON
     assert json.loads(path.read_text()) == {"seen": "work"}
     assert [p.name for p in tmp_path.iterdir()] == ["camera.json"]
+
+
+def test_onnxruntime_telemetry_is_turned_off_when_it_is_there(monkeypatch):
+    import sys
+    import types
+    from focus import onnx
+    calls = []
+    monkeypatch.setitem(sys.modules, "onnxruntime",
+                        types.SimpleNamespace(disable_telemetry_events=lambda: calls.append(1)))
+    onnx.no_telemetry()
+    assert calls == [1]
+    monkeypatch.setitem(sys.modules, "onnxruntime", types.SimpleNamespace())   # an older version
+    onnx.no_telemetry()
+    monkeypatch.setitem(sys.modules, "onnxruntime", None)                     # not installed
+    onnx.no_telemetry()

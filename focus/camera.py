@@ -206,6 +206,9 @@ class Model:
         import numpy as np
         import onnxruntime as ort
 
+        from . import onnx
+        onnx.no_telemetry()
+
         opts = ort.SessionOptions()
         # One frame every 2 s needs no more than one core; leave the rest to speech.
         opts.intra_op_num_threads = 1

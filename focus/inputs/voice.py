@@ -55,7 +55,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import actions, blocks, chat, checkin, config, nudge, pause, presence, state as st
+from .. import actions, blocks, chat, checkin, config, nudge, onnx, pause, presence, state as st
 from ..coach import CoachError
 from ..config import Config
 
@@ -713,6 +713,7 @@ def main() -> int:
         log.warning("No button found; only the wake word starts a turn")
 
     log.info("Loading Whisper, Piper%s", " and the wake word" if wake_name else "")
+    onnx.no_telemetry()  # the wake word and Piper run on onnxruntime
     wake = WakeWord(
         wake_name,
         threshold=float(os.environ.get("FOCUS_VOICE_WAKE_THRESHOLD", "0.5")),
