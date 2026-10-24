@@ -12,7 +12,9 @@ def test_open_items_with_carried_tag():
     ])
     page = display.render_html(s, "2026-10-16T09:05:00-05:00")
     assert "Spec" in page and '<span class="c">3d</span>' in page
-    assert "Report" in page and "Fourth open" in page and "Done one" not in page
+    panel = page.split('<section class="strip">')[0]
+    assert "Report" in panel and "Fourth open" in panel and "Done one" not in panel
+    assert "Done one" in page.split('<section class="edit"')[1]  # the editor can reopen it
     assert "more</li>" not in page
     assert "NO CHECK-IN YET" in page
     assert "Fri 16 Oct" in page and "Updated 09:05" in page

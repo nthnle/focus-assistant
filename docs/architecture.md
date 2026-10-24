@@ -149,7 +149,7 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each weekday hour, after a reminder | **no** | none | sound cards |
-| `focus-page` | always (the status page: the e-ink panel's layout in a browser) | **no** | home network only, inbound | none |
+| `focus-page` | always (the status page: the e-ink panel's layout in a browser, and a list editor) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |

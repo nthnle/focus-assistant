@@ -37,7 +37,7 @@ More diagrams, including a weekday timeline, are in
 | A **to-do list** (not ranked) from the command line: `focus add`, `focus done`, `focus later` ... unfinished items carry over, each check-in suggests one to start with, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
-| A **status page**: the e-ink panel's view in any browser on your network (laptop, desktop or phone), with a status strip under it: focus block, phone, breaks | nothing extra |
+| A **status page**: the e-ink panel's view in any browser on your network (laptop, desktop or phone), with a status strip under it (focus block, phone, breaks) and a list editor for when voice mishears you | nothing extra |
 | **Phone use**: a desk camera notices when you pick up your phone during focus time, and after 5 minutes on it the coach says so | a USB webcam, and a PC to train its model once on your own desk |
 | **Chat** with the coach from your phone, typed or through Siri | an iOS Shortcut |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |

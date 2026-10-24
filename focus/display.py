@@ -4,13 +4,16 @@ The panel has the same content as `outputs/inky.py`: the latest check-in's
 slot and the date, today's open items (up to SHOWN, red tag = days carried)
 and the reply. Under it, a status strip the e-ink panel doesn't have: where you
 are in the day (focus block, break, between blocks), the next 50/10 break,
-the phone, presence, and today's counts.
+the phone, presence, and today's counts. Under that, the list editor: add,
+mark done, reword, move or remove items (POST /display/list, handled by
+`inputs/page.py`), for when voice mishears.
 
 The focus-page service serves it at /display, through `Page`. Every
 POLL_SECONDS the page asks for itself again with its version as an ETag;
 the answer is a bodyless 304 until the content changes, and then the new
 content is swapped in place, so a chat, voice, CLI or camera change shows
-up within a couple of seconds. `Page` re-renders only when a file the page reads, or the minute,
+up within a couple of seconds. The swap waits while you are typing in the
+editor, so it never throws away what you typed. `Page` re-renders only when a file the page reads, or the minute,
 has changed, so an unchanged poll costs two stat() calls.
 """
 
@@ -29,6 +32,8 @@ from .state import PHONE_OUT, STRETCH_REMINDER, State
 POLL_SECONDS = 2
 # Open items the screen lists before "+N more"; the 4" panel fits six.
 SHOWN = 6
+# The longest item the editor takes, in characters.
+MAX_TEXT = 200
 # A fallback in case the script can't run: a plain reload this often.
 REFRESH_SECONDS = 300
 
@@ -90,6 +95,32 @@ _PAGE = """<!doctype html>
   .chip.good .v::before {{ background: var(--green); }}
   .chip.alert .v::before {{ background: var(--red); }}
   footer {{ margin-top: 12px; font-size: 12px; color: var(--muted); text-align: center; }}
+  .edit {{ margin-top: 12px; background: var(--chip); color: var(--chip-ink); border: 1px solid var(--line);
+          border-radius: 8px; padding: 10px; font-size: 15px; }}
+  .edit h2 {{ font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+             font-weight: 400; margin: 12px 0 4px; }}
+  .edit h2:first-child {{ margin-top: 0; }}
+  .edit form {{ display: flex; gap: 8px; margin-bottom: 4px; }}
+  .edit input {{ flex: 1; min-width: 0; font: inherit; color: inherit; background: var(--page);
+                border: 1px solid var(--line); border-radius: 6px; padding: 8px; }}
+  .edit button, .edit select {{ font: inherit; font-size: 13px; color: inherit; background: var(--page);
+                               border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+                               cursor: pointer; flex: none; }}
+  .edit ul {{ list-style: none; padding: 0; font-weight: 400; font-size: 15px; line-height: 1.35; }}
+  .edit select {{ max-width: 92px; }}
+  .edit .x {{ font-size: 18px; line-height: 1; }}
+  .edit li {{ display: flex; align-items: center; gap: 6px; padding: 4px 0; border-top: 1px solid var(--line); }}
+  .edit li:first-child {{ border-top: 0; }}
+  .edit .t {{ flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 4px 0; }}
+  .edit span.t[data-op] {{ cursor: text; }}
+  .edit .tick {{ width: 30px; height: 30px; padding: 0; border-radius: 50%; }}
+  .edit .tick.on {{ background: var(--green); border-color: var(--green); color: #fff; }}
+  .edit li.done .t {{ text-decoration: line-through; color: var(--muted); }}
+  .edit .when {{ flex: none; font-size: 12px; color: var(--muted); }}
+  .edit .x {{ width: 30px; padding: 6px 0; }}
+  .edit .none {{ color: var(--muted); }}
+  .edit .err {{ color: var(--red); font-size: 13px; padding: 4px 0; }}
+  .edit .err:empty {{ display: none; }}
 </style>
 </head>
 <body>
@@ -102,6 +133,7 @@ _PAGE = """<!doctype html>
   <p class="since">{since}</p>
 </div></div>
 <section class="strip">{chips}</section>
+<section class="edit" aria-label="Edit the list">{editor}</section>
 <footer>Updated {updated} · live</footer>
 </main>
 <script>
@@ -116,8 +148,13 @@ function fit() {{
 fit();
 addEventListener("resize", fit);
 let version = "{version}";
-async function check() {{
-  if (document.hidden) return;
+// Typing in the editor (or rewording an item): swapping now would lose it.
+function typing() {{
+  return [...document.querySelectorAll(".edit input")].some(
+    i => i.value.trim() || i === document.activeElement);
+}}
+async function check(force) {{
+  if (!force && (document.hidden || typing())) return;
   try {{
     const r = await fetch(location.href, {{ cache: "no-store", headers: {{ "If-None-Match": '"' + version + '"' }} }});
     if (r.status !== 200) return;  // 304: nothing changed
@@ -133,7 +170,74 @@ async function check() {{
   }} catch (e) {{}}
 }}
 setInterval(check, {poll_ms});
-document.addEventListener("visibilitychange", check);
+document.addEventListener("visibilitychange", () => check());
+
+// The list editor: each change is one POST, then the page shows the result.
+async function send(change) {{
+  const err = document.querySelector(".edit .err");
+  try {{
+    const r = await fetch("/display/list" + location.search, {{
+      method: "POST", headers: {{ "Content-Type": "application/json" }}, body: JSON.stringify(change) }});
+    if (!r.ok) {{
+      let message = "That didn't save.";
+      try {{ message = (await r.json()).error || message; }} catch (e) {{}}
+      if (err) err.textContent = message;
+      return false;
+    }}
+    await check(true);
+    return true;
+  }} catch (e) {{
+    if (err) err.textContent = "Can't reach the Pi.";
+    return false;
+  }}
+}}
+function idOf(el) {{ return +el.closest("li").dataset.id; }}
+document.addEventListener("submit", async e => {{
+  if (!e.target.matches(".edit form")) return;
+  e.preventDefault();
+  const input = e.target.querySelector("input");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  if (!await send({{ op: "add", text }})) input.value = text;
+}});
+document.addEventListener("click", e => {{
+  const el = e.target.closest(".edit [data-op]");
+  if (!el || el.tagName === "SELECT") return;
+  const op = el.dataset.op, id = idOf(el);
+  if (op === "rename") return reword(el, id);
+  if (op === "drop" && !confirm("Remove " + el.closest("li").querySelector(".t").textContent + "?")) return;
+  send({{ op, id, on: el.dataset.on }});
+}});
+document.addEventListener("change", e => {{
+  const el = e.target.closest(".edit select[data-op]");
+  if (el && el.value) send({{ op: "move", id: idOf(el), on: el.value }});
+}});
+// Tap an item's text to reword it: Enter or tapping away saves, Escape cancels.
+function reword(span, id) {{
+  const input = document.createElement("input");
+  input.value = span.textContent;
+  input.maxLength = {max_text};
+  input.enterKeyHint = "done";
+  span.replaceWith(input);
+  input.focus();
+  let finished = false;
+  const finish = async save => {{
+    if (finished) return;
+    finished = true;
+    const text = input.value.trim();
+    if (save && text && text !== span.textContent) {{
+      input.disabled = true;
+      if (await send({{ op: "rename", id, text }})) return;
+    }}
+    input.replaceWith(span);
+  }};
+  input.addEventListener("keydown", e => {{
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  }});
+  input.addEventListener("blur", () => finish(true));
+}}
 </script>
 </body>
 </html>
@@ -205,6 +309,54 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     return chips
 
 
+def next_workday(day: date) -> date:
+    """The weekday after `day`: from a Friday, the Monday."""
+    day += timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
+
+
+def _on(p: st.Priority) -> str:
+    return "someday" if p.on == st.LATER else f"{date.fromisoformat(p.on):%a %d %b}"
+
+
+def editor(state: State) -> str:
+    """The list editor: today's open items, the ones done today, then the
+    later ones. Rows carry the priorities' own ids, so a tap always changes
+    the item it shows, even if the list changed meanwhile."""
+    nxt = next_workday(date.fromisoformat(state.date))
+    move = ('<select data-op="move" aria-label="Move"><option value="">Move</option>'
+            f'<option value="{nxt.isoformat()}">To {nxt:%a %d %b}</option>'
+            f'<option value="{st.LATER}">To later</option></select>')
+    remove = '<button class="x" data-op="drop" aria-label="Remove" title="Remove">&times;</button>'
+
+    def text(p: st.Priority, editable: bool = True) -> str:
+        tap = ' data-op="rename" title="Tap to reword"' if editable else ""
+        return f'<span class="t"{tap}>{escape(p.text)}</span>'
+
+    open_rows = "".join(
+        f'<li data-id="{p.id}"><button class="tick" data-op="done" aria-label="Mark done" '
+        f'title="Mark done"></button>{text(p)}{move}{remove}</li>' for p in state.open_priorities)
+    parts = ["<h2>Today</h2>",
+             f'<form><input name="text" maxlength="{MAX_TEXT}" placeholder="Add to today" '
+             'autocomplete="off" enterkeyhint="done" aria-label="Add to today"><button>Add</button></form>',
+             '<p class="err" role="alert"></p>',
+             f'<ul>{open_rows or "<li class=none>Nothing open</li>"}</ul>']
+    done = [p for p in state.today_list if p.done]
+    if done:
+        parts.append("<h2>Done today</h2><ul>" + "".join(
+            f'<li class="done" data-id="{p.id}"><button class="tick on" data-op="reopen" '
+            f'aria-label="Not done yet" title="Not done yet">&#10003;</button>{text(p, False)}</li>'
+            for p in done) + "</ul>")
+    if state.later:
+        parts.append("<h2>Later</h2><ul>" + "".join(
+            f'<li data-id="{p.id}">{text(p)}<span class="when">{_on(p)}</span>'
+            f'<button data-op="move" data-on="today">Today</button>{remove}</li>'
+            for p in state.later) + "</ul>")
+    return "".join(parts)
+
+
 def shown(state: State) -> tuple[list, int]:
     """The open items a screen lists, in the order they were added, and how
     many more there are. Over SHOWN, the last row becomes "+N more"."""
@@ -256,6 +408,7 @@ def _content(state: State, now: str, cfg: Config | None,
         "reply": escape(reply),
         "since": escape(since_note(state)),
         "chips": chips,
+        "editor": editor(state),
         "item_size": str(size),
         "item_line": str(line),
         "dot": str(layout.dot_size(size)),
@@ -273,6 +426,7 @@ def render(state: State, now: str, cfg: Config | None = None,
     return version, _PAGE.format(
         refresh=REFRESH_SECONDS,
         poll_ms=POLL_SECONDS * 1000,
+        max_text=MAX_TEXT,
         **_LAYOUT,
         version=version,
         updated=escape(now[11:16]),

@@ -14,14 +14,15 @@ ExecStart=/opt/focus-assistant/venv/bin/python -m focus.inputs.page
 Restart=on-failure
 RestartSec=5
 
-# Answers the home network only, and only reads the state folder.
+# Answers the home network only, and writes only the state folder (the list
+# editor). It can change priorities but cannot run commands or reach the API.
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
 # An empty home with only the state folder in it: nothing else there (SSH
 # keys included) is visible even if this service were compromised.
 ProtectHome=tmpfs
-BindReadOnlyPaths=@STATE_DIR@
+BindPaths=@STATE_DIR@
 PrivateTmp=yes
 PrivateDevices=yes
 IPAddressDeny=any

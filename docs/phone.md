@@ -4,7 +4,7 @@ Two services that talk to your phone or browser over your home network:
 
 - **[chat](#chat)** with the coach from your phone, typed or through Siri
 - the **[status page](#status-page)**, the e-ink panel's layout in a browser,
-  with a status strip under it
+  with a status strip and a list editor under it
 
 and **[presence](#presence)**, which tells whether you're at the desk.
 
@@ -23,7 +23,8 @@ example) should work the same way, but it's untested.
   phone an IP in the router and set `FOCUS_ALLOWED_CLIENTS` to it: then only
   that phone is answered, token or not.
 - The status page token is in its URL, so it is also in your browser's
-  history and in any screenshot of the address bar.
+  history and in any screenshot of the address bar. Anyone with the link
+  can read and change your list, though not spend money or run anything.
 - **Rotating a token:** delete its line from `focus.env`, run
   `sudo deploy/install.sh` (it writes a new one), and update the Shortcut
   or bookmark.
@@ -85,9 +86,22 @@ for any browser on your network: the latest check-in's slot and reply and
 today's open items, and under them a status strip the panel doesn't have: where you are in the day (focus
 until 12:00, break till 11:00, next block), the next break, the phone,
 whether you're away or have a check-in waiting, and today's done count,
-phone pickups and breaks. It's read-only, and live: it updates within two
-seconds of any change, whether from voice, chat, the CLI, the desk camera or
-a check-in.
+phone pickups and breaks. It's live: it updates within two seconds of any
+change, whether from voice, chat, the CLI, the desk camera or a check-in.
+
+Under the strip is the **list editor**, for when voice mishears you:
+
+- **Add** an item to today in the box at the top.
+- **Tap the circle** to mark an item done; tap the green tick under "Done
+  today" to undo it.
+- **Tap an item's text** to reword it. Enter (or tapping elsewhere) saves,
+  Escape cancels.
+- **Move** sends an item to the next workday or to "later" (no date); a
+  later item's **Today** button brings it back.
+- **×** removes an item, after asking.
+
+While you're typing, the page holds back its live update so it doesn't
+throw away what you typed, and catches up as soon as you're done.
 
 When you mark something done after a check-in, a red line under the reply
 says so straight away ("Since 16:20: done Mow the lawn"). If you marked it
@@ -95,7 +109,8 @@ by voice, phone chat or the call button, the coach then rewrites that
 check-in for the list as it is now, about ten seconds later. The rewrite is
 only shown, never spoken, and its cost counts with the check-ins in
 `focus status`. Friday's weekly review is never rewritten, and `focus done`
-from the CLI only gets the line, because the CLI can't read the API key.
+from the CLI or the page's editor only gets the line, because neither can
+read the API key.
 
 The `focus-page` service serves it. Enable it, then open:
 
@@ -108,7 +123,7 @@ http://focus.local:8765/display?k=<FOCUS_DISPLAY_TOKEN>
 ```
 
 The token goes in the URL because a browser bookmark can't send a header.
-Anyone with that link on your Wi-Fi can read your list. On an iPhone,
+Anyone with that link on your Wi-Fi can read and change your list. On an iPhone,
 Share > Add to Home Screen gives it an icon.
 
 The upper panel mirrors the e-ink display layout ([architecture.md](architecture.md#e-ink-display)).

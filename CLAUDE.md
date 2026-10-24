@@ -11,6 +11,6 @@
   `python docs/diagrams/render.py`; see docs/diagrams/README.md).
 - Phone use comes from the desk camera (`focus-camera`); there are no
   charger reports any more. The status page (`focus-page`) is the e-ink
-  panel's layout in a browser.
+  panel's layout in a browser, plus a list editor (no API key there).
 - Camera frames, and the model trained on them, are pictures of the user:
   never commit them (`frames/`, `*.onnx` are git-ignored).

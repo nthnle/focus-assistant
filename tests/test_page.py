@@ -1,7 +1,8 @@
+import json
 import threading
 import urllib.error
 import urllib.request
-from datetime import datetime, time
+from datetime import date, datetime, time
 from http.server import ThreadingHTTPServer
 
 import pytest
@@ -75,13 +76,87 @@ def test_page_needs_its_token(server):
     assert get(f"{server}/other?k={TOKEN}")[0] == 404
 
 
-def test_nothing_can_be_posted(server):
-    """The charger reports are gone: the page service only reads."""
-    req = urllib.request.Request(f"{server}/dock/out", method="POST", data=b"",
-                                 headers={"Authorization": f"Bearer {TOKEN}"})
-    with pytest.raises(urllib.error.HTTPError) as exc:
-        urllib.request.urlopen(req, timeout=5)
-    assert exc.value.code == 501
+def post(url, body, content_type="application/json"):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    req = urllib.request.Request(url, method="POST", data=data, headers={"Content-Type": content_type})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status, json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        return exc.code, json.loads(raw) if raw.startswith(b"{") else {}
+
+
+def test_the_editor_changes_the_list(server, cfg):
+    url = f"{server}/display/list?k={TOKEN}"
+    assert post(url, {"op": "add", "text": "  Email\n  Sam "}) == (200, {"ok": True})
+    s = st.peek(cfg)
+    spec, sam = s.priorities
+    assert sam.text == "Email Sam"  # one line, however it was pasted
+
+    assert post(url, {"op": "rename", "id": spec.id, "text": "Write the spec"})[0] == 200
+    assert post(url, {"op": "done", "id": spec.id})[0] == 200
+    assert st.peek(cfg).find(spec.id).done
+    assert post(url, {"op": "reopen", "id": spec.id})[0] == 200
+    assert post(url, {"op": "move", "id": sam.id, "on": "later"})[0] == 200
+    s = st.peek(cfg)
+    assert s.find(spec.id).text == "Write the spec" and not s.find(spec.id).done
+    assert s.find(sam.id).on == st.LATER
+    assert post(url, {"op": "move", "id": sam.id, "on": "today"})[0] == 200
+    assert st.peek(cfg).find(sam.id).on is None
+    assert post(url, {"op": "drop", "id": sam.id})[0] == 200
+    assert [p.text for p in st.peek(cfg).priorities] == ["Write the spec"]
+
+    # The page shows the change on its next poll.
+    status, html = get(f"{server}/display?k={TOKEN}")
+    assert 'data-op="rename" title="Tap to reword">Write the spec<' in html
+
+
+def test_the_editor_says_what_went_wrong(server, cfg):
+    url = f"{server}/display/list?k={TOKEN}"
+    assert post(url, {"op": "done", "id": 99}) == (400, {"error": "No priority with id 99"})
+    assert post(url, {"op": "done", "id": True})[0] == 400
+    assert post(url, {"op": "add", "text": "   "})[0] == 400
+    assert post(url, {"op": "add", "text": "x" * 201})[0] == 400
+    assert post(url, {"op": "move", "id": 1, "on": "2026-01-01"})[0] == 400  # not after today
+    assert post(url, {"op": "move", "id": 1, "on": "soon"}) == (400, {"error": "Which day?"})
+    assert post(url, {"op": "wipe"})[0] == 400
+    assert post(url, ["add"])[0] == 400
+    assert post(url, b"{not json")[0] == 400
+    assert [p.text for p in st.peek(cfg).priorities] == ["Write <spec>"]
+
+
+def test_only_the_page_can_post(server, cfg):
+    change = {"op": "add", "text": "Sneaky"}
+    assert post(f"{server}/display/list?k={'x' * 24}", change)[0] == 403
+    assert post(f"{server}/display/list", change)[0] == 403
+    # A form on another site can't send JSON without the browser asking first.
+    assert post(f"{server}/display/list?k={TOKEN}", b"op=add&text=Sneaky",
+                "application/x-www-form-urlencoded")[0] == 415
+    assert post(f"{server}/display/list?k={TOKEN}", {"text": "x" * 5000})[0] == 413
+    assert post(f"{server}/dock/out?k={TOKEN}", change)[0] == 404
+    assert [p.text for p in st.peek(cfg).priorities] == ["Write <spec>"]
+
+
+def test_editor_rows(cfg):
+    with st.locked_state(cfg, date(2026, 10, 16)) as s:  # a Friday
+        a = actions.add_priority(s, "Write <spec>")
+        b = actions.add_priority(s, "Email Sam")
+        c = actions.add_priority(s, "Plan trip", st.LATER)
+        actions.complete_priority(s, b.id)
+    html = display.editor(st.peek(cfg, date(2026, 10, 16)))
+    assert f'<li data-id="{a.id}"><button class="tick" data-op="done"' in html
+    assert "Write &lt;spec&gt;" in html
+    assert '<option value="2026-10-19">To Mon 19 Oct</option>' in html  # Friday's next workday
+    assert f'<li class="done" data-id="{b.id}">' in html and "Done today" in html
+    assert f'<li data-id="{c.id}"><span class="t" data-op="rename" title="Tap to reword">Plan trip</span>' in html
+    assert '<span class="when">someday</span><button data-op="move" data-on="today">' in html
+
+
+def test_next_workday():
+    assert display.next_workday(date(2026, 10, 14)) == date(2026, 10, 15)
+    assert display.next_workday(date(2026, 10, 16)) == date(2026, 10, 19)
+    assert display.next_workday(date(2026, 10, 17)) == date(2026, 10, 19)
 
 
 def get_if(url, etag):
