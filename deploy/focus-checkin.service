@@ -36,4 +36,13 @@ RestrictNamespaces=yes
 RestrictRealtime=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+# Kernel logs, the clock and the hostname are off limits; other processes in
+# /proc are hidden; no setuid files; only the system calls normal services use.
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
 UMask=0077

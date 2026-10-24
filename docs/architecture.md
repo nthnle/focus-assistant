@@ -136,8 +136,10 @@ imported only by the modules that use them, and only when used.
 ## Services and what they may do
 
 Each service is a systemd unit running as your user (never root) in a
-sandbox: a read-only system, an empty home directory with only the state
-directory in it (so not even `~/.ssh` is visible),
+sandbox: a read-only system, a filter allowing only the system calls
+ordinary services make, other processes hidden in `/proc`, an empty home
+directory with only the state directory in it (so not even `~/.ssh` is
+visible),
 no capabilities, no new privileges, and only the devices and network it
 needs. The API key lives in `/etc/focus-assistant/focus.env`, readable by
 root only; systemd reads it and passes it to the services that need it.
