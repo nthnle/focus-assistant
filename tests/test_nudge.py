@@ -62,6 +62,29 @@ def test_a_new_pickup_starts_the_count_again():
     assert nudge.due(s, at(10, 25), 5) == (5, 1)
 
 
+def test_a_quick_put_down_doesnt_restart_the_count():
+    """What happened on 2026-10-23: down at 10:16, up again the same minute."""
+    s = st.State(date="2026-10-12")
+    actions.log_event(s, st.PHONE_OUT, at=at(10, 3))
+    actions.log_event(s, st.PHONE_NUDGE, "5 min", at=at(10, 8))
+    actions.log_event(s, st.PHONE_NUDGE, "10 min", at=at(10, 13))
+    actions.log_event(s, st.PHONE_IN, "13 min", at=at(10, 16))
+    actions.log_event(s, st.PHONE_OUT, at=at(10, 17))
+    assert nudge.stretch_since(s.events) == at(10, 3)
+    assert nudge.due(s, at(10, 17), 5) is None
+    assert nudge.due(s, at(10, 18), 5) == (15, 3)                # not "5 minutes" again
+
+
+def test_a_put_down_of_more_than_two_minutes_ends_the_stretch():
+    s = st.State(date="2026-10-12")
+    actions.log_event(s, st.PHONE_OUT, at=at(10, 0))
+    actions.log_event(s, st.PHONE_IN, "6 min", at=at(10, 6))
+    actions.log_event(s, st.PHONE_OUT, at=at(10, 9))
+    assert nudge.stretch_since(s.events) == at(10, 9)
+    actions.log_event(s, st.PHONE_IN, "1 min", at=at(10, 10))
+    assert nudge.stretch_since(s.events) is None
+
+
 def test_says_a_fixed_line_and_logs_it(cfg):
     on_phone_since(cfg, at(10, 0), "Write the spec")
     said = []

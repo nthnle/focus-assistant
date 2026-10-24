@@ -40,7 +40,8 @@ def test_since_note_lists_what_was_done_after_the_check_in(cfg):
 
 
 def test_refresh_rewrites_the_latest_check_in(cfg, monkeypatch):
-    _checkin_at(cfg, st.now_iso())
+    # Midday, not evening: on a Friday the evening one is the weekly review and is never rewritten.
+    _checkin_at(cfg, st.now_iso(), slot="midday")
     seen = {}
 
     def fake_ask(_cfg, payload, client=None):
@@ -51,7 +52,7 @@ def test_refresh_rewrites_the_latest_check_in(cfg, monkeypatch):
     monkeypatch.setenv("FOCUS_MODEL_PRICE", "0.15,0.60")
     assert checkin.refresh(cfg) == "The lawn is done; the inspection is first tomorrow."
 
-    assert seen["checkin"] == "evening"
+    assert seen["checkin"] == "midday"
     assert set(seen["rewrite_of"]) == {"written_at", "done_since"}
     assert seen["earlier_checkins_today"] == []   # the stale reply isn't there to copy
     s = st.peek(cfg)
@@ -68,7 +69,7 @@ def test_refresh_rewrites_the_latest_check_in(cfg, monkeypatch):
 
 
 def test_a_rewrite_that_repeats_the_old_check_in_is_not_kept(cfg, monkeypatch):
-    _checkin_at(cfg, "2026-10-18T16:20:00-05:00")
+    _checkin_at(cfg, "2026-10-18T16:20:00-05:00", slot="midday")   # any weekday, Friday too
     _done_at(cfg, "Mow the lawn", "2026-10-18T21:41:00-05:00")
     seen = {}
 

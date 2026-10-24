@@ -164,8 +164,9 @@ page shows the phone as in use or not.
   one pickup.
 - After **5 minutes** on the phone (`FOCUS_PHONE_NUDGE_MIN`; 0 turns it
   off) the voice service has the coach say so, in a sentence that points
-  you back at your list, then again every 5 minutes. Not while you're
-  paused, and not in the break after a stretch reminder.
+  you back at your list, then again every 5 minutes. Putting the phone down
+  for under 2 minutes doesn't restart that count. Not while you're paused,
+  and not in the break after a stretch reminder.
 - The desk empty for **5 minutes** (`FOCUS_AWAY_CAMERA_MIN`) counts as
   [away](phone.md#presence): a spoken check-in is held, and stretch
   reminders skip you.
