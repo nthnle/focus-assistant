@@ -5,7 +5,7 @@ slot and the date, today's open items (up to SHOWN, red tag = days carried)
 and the reply. Under it, a status strip the e-ink panel doesn't have: where you
 are in the day (focus block, break, between blocks), the next 50/10 break,
 the phone, presence, and today's counts. Under that, the list editor: add,
-mark done, reword, move or remove items (POST /display/list, handled by
+mark done, reword, move (to any later day) or remove items (POST /display/list, handled by
 `inputs/page.py`), for when voice mishears.
 
 The focus-page service serves it at /display, through `Page`. Every
@@ -111,11 +111,12 @@ _PAGE = """<!doctype html>
   .edit .x {{ font-size: 18px; line-height: 1; }}
   .edit li {{ display: flex; align-items: center; gap: 6px; padding: 4px 0; border-top: 1px solid var(--line); }}
   .edit li:first-child {{ border-top: 0; }}
-  .edit .t {{ flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 4px 0; }}
+  .edit .t {{ flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 4px 0; white-space: normal; }}
   .edit span.t[data-op] {{ cursor: text; }}
   .edit .tick {{ width: 30px; height: 30px; padding: 0; border-radius: 50%; }}
   .edit .tick.on {{ background: var(--green); border-color: var(--green); color: #fff; }}
   .edit li.done .t {{ text-decoration: line-through; color: var(--muted); }}
+  .edit input[type=date] {{ flex: none; width: 150px; padding: 5px 6px; }}
   .edit .when {{ flex: none; font-size: 12px; color: var(--muted); }}
   .edit .x {{ width: 30px; padding: 6px 0; }}
   .edit .none {{ color: var(--muted); }}
@@ -207,12 +208,44 @@ document.addEventListener("click", e => {{
   const op = el.dataset.op, id = idOf(el);
   if (op === "rename") return reword(el, id);
   if (op === "drop" && !confirm("Remove " + el.closest("li").querySelector(".t").textContent + "?")) return;
-  send({{ op, id, on: el.dataset.on }});
+  send({{ op, id }});
 }});
 document.addEventListener("change", e => {{
   const el = e.target.closest(".edit select[data-op]");
-  if (el && el.value) send({{ op: "move", id: idOf(el), on: el.value }});
+  if (!el || !el.value) return;
+  if (el.value === "pick") return pickDay(el, idOf(el));
+  send({{ op: "move", id: idOf(el), on: el.value }});
 }});
+// "Pick a day": the browser's own date picker in place of the menu. A day
+// from tomorrow on saves; Escape, or leaving it empty, puts the menu back.
+function pickDay(select, id) {{
+  const input = document.createElement("input");
+  input.type = "date";
+  input.min = select.dataset.min;
+  input.setAttribute("aria-label", "Pick a day");
+  select.value = "";
+  select.replaceWith(input);
+  input.focus();
+  try {{ input.showPicker(); }} catch (e) {{}}
+  // While a year is still being typed it reads as 0002, 0020...: too early to save.
+  const ok = () => input.value && input.value >= input.min;
+  let finished = false;
+  const finish = async save => {{
+    if (finished) return;
+    finished = true;
+    if (save && ok()) {{
+      input.disabled = true;
+      if (await send({{ op: "move", id, on: input.value }})) return;
+    }}
+    input.replaceWith(select);
+  }};
+  input.addEventListener("change", () => {{ if (ok()) finish(true); }});
+  input.addEventListener("keydown", e => {{
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  }});
+  input.addEventListener("blur", () => finish(true));
+}}
 // Tap an item's text to reword it: Enter or tapping away saves, Escape cancels.
 function reword(span, id) {{
   const input = document.createElement("input");
@@ -325,10 +358,22 @@ def editor(state: State) -> str:
     """The list editor: today's open items, the ones done today, then the
     later ones. Rows carry the priorities' own ids, so a tap always changes
     the item it shows, even if the list changed meanwhile."""
-    nxt = next_workday(date.fromisoformat(state.date))
-    move = ('<select data-op="move" aria-label="Move"><option value="">Move</option>'
-            f'<option value="{nxt.isoformat()}">To {nxt:%a %d %b}</option>'
-            f'<option value="{st.LATER}">To later</option></select>')
+    today = date.fromisoformat(state.date)
+    nxt = next_workday(today)
+
+    def move(p: st.Priority) -> str:
+        """The Move menu, without the place the item already is."""
+        options = [("", "Move")]
+        if not p.due(state.date):
+            options.append(("today", "To today"))
+        if p.on != nxt.isoformat():
+            options.append((nxt.isoformat(), f"To {nxt:%a %d %b}"))
+        if p.on != st.LATER:
+            options.append((st.LATER, "To later"))
+        options.append(("pick", "Pick a day…"))
+        return (f'<select data-op="move" data-min="{today + timedelta(days=1)}" aria-label="Move">'
+                + "".join(f'<option value="{v}">{label}</option>' for v, label in options) + "</select>")
+
     remove = '<button class="x" data-op="drop" aria-label="Remove" title="Remove">&times;</button>'
 
     def text(p: st.Priority, editable: bool = True) -> str:
@@ -337,7 +382,7 @@ def editor(state: State) -> str:
 
     open_rows = "".join(
         f'<li data-id="{p.id}"><button class="tick" data-op="done" aria-label="Mark done" '
-        f'title="Mark done"></button>{text(p)}{move}{remove}</li>' for p in state.open_priorities)
+        f'title="Mark done"></button>{text(p)}{move(p)}{remove}</li>' for p in state.open_priorities)
     parts = ["<h2>Today</h2>",
              f'<form><input name="text" maxlength="{MAX_TEXT}" placeholder="Add to today" '
              'autocomplete="off" enterkeyhint="done" aria-label="Add to today"><button>Add</button></form>',
@@ -352,7 +397,7 @@ def editor(state: State) -> str:
     if state.later:
         parts.append("<h2>Later</h2><ul>" + "".join(
             f'<li data-id="{p.id}">{text(p)}<span class="when">{_on(p)}</span>'
-            f'<button data-op="move" data-on="today">Today</button>{remove}</li>'
+            f'{move(p)}{remove}</li>'
             for p in state.later) + "</ul>")
     return "".join(parts)
 

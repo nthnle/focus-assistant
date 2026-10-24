@@ -2,7 +2,7 @@ import json
 import threading
 import urllib.error
 import urllib.request
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from http.server import ThreadingHTTPServer
 
 import pytest
@@ -150,7 +150,23 @@ def test_editor_rows(cfg):
     assert '<option value="2026-10-19">To Mon 19 Oct</option>' in html  # Friday's next workday
     assert f'<li class="done" data-id="{b.id}">' in html and "Done today" in html
     assert f'<li data-id="{c.id}"><span class="t" data-op="rename" title="Tap to reword">Plan trip</span>' in html
-    assert '<span class="when">someday</span><button data-op="move" data-on="today">' in html
+    menus = html.split('<select data-op="move" data-min="2026-10-17" aria-label="Move">')[1:]
+    today_menu, later_menu = (m.split("</select>")[0] for m in menus)
+    # Today's item can go to Monday, later or a picked day; the later one back to today.
+    assert '"today"' not in today_menu and '"later"' in today_menu and '"pick"' in today_menu
+    assert html.count('<option value="pick">Pick a day…</option>') == 2
+    assert '<span class="when">someday</span>' in html
+    assert '<option value="today">To today</option>' in later_menu and '"later"' not in later_menu
+
+
+def test_a_picked_day_moves_the_item(server, cfg):
+    url = f"{server}/display/list?k={TOKEN}"
+    pid = st.peek(cfg).priorities[0].id
+    tomorrow = date.today() + timedelta(days=1)
+    assert post(url, {"op": "move", "id": pid, "on": (tomorrow + timedelta(days=10)).isoformat()})[0] == 200
+    assert st.peek(cfg).find(pid).on == (tomorrow + timedelta(days=10)).isoformat()
+    assert post(url, {"op": "move", "id": pid, "on": date.today().isoformat()}) == (
+        400, {"error": "Pick a day after today, or bring it back to today instead"})
 
 
 def test_next_workday():

@@ -96,8 +96,10 @@ Under the strip is the **list editor**, for when voice mishears you:
   today" to undo it.
 - **Tap an item's text** to reword it. Enter (or tapping elsewhere) saves,
   Escape cancels.
-- **Move** sends an item to the next workday or to "later" (no date); a
-  later item's **Today** button brings it back.
+- **Move** sends an item to the next workday, to "later" (no date), or to
+  any day you choose with **Pick a day…**, which opens your browser's date
+  picker. Later items have the same menu, with **To today** to bring one
+  back or a new day to reschedule it.
 - **×** removes an item, after asking.
 
 While you're typing, the page holds back its live update so it doesn't
