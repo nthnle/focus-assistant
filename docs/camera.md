@@ -22,12 +22,12 @@ PC, before it works.
   time you picked up and put down the phone, and what the camera sees now
   (`camera.json`, for presence and the status page). Nothing goes to the
   model host but those times, as part of a check-in.
-- **It only runs around focus blocks:** from 5 minutes before each block
-  (`FOCUS_BLOCKS`, weekdays) to 5 minutes after it, so the check-ins at its
-  edges know whether you're there. Phone use counts only inside the block.
-  It also stays on, for up to 2 hours, while a check-in held for you waits
-  (see [How it decides](#how-it-decides)). Never while you're paused. The
-  rest of the time the camera is closed, and its light is off.
+- **It only runs when it has something to watch for:** from 5 minutes
+  before each focus block (`FOCUS_BLOCKS`, on work days) to 5 minutes after
+  it, and, on any day, while a [check-in](install.md#schedule) waits for
+  you to sit down (until 20:00). Phone use counts only inside a focus
+  block. Never while you're paused. The rest of the time the camera is
+  closed, and its light is off.
 - The service gets the camera and nothing else: no network, no API key.
 - **The frames you record for training, and the model trained from them,
   are pictures of you.** Keep them on your own machines: the frames in your
@@ -167,13 +167,13 @@ page shows the phone as in use or not.
   you back at your list, then again every 5 minutes. Putting the phone down
   for under 2 minutes doesn't restart that count. Not while you're paused,
   and not in the break after a stretch reminder.
+- Check-ins wait for you: one comes once the camera has seen you at the
+  desk for **2 minutes**, and is written then ([Schedule](install.md#schedule)).
+  This needs the model's `away` label, as only that tells an empty desk;
+  without it, check-ins come at their times.
 - The desk empty for **5 minutes** (`FOCUS_AWAY_CAMERA_MIN`) counts as
-  [away](phone.md#presence): a spoken check-in is held, and stretch
-  reminders skip you.
-- A held check-in is said as soon as the camera sees you back. If that's
-  the 17:30 one, after the block, the camera stays on to watch for you, for
-  up to **2 hours**. After that it stops, and the check-in stays on the
-  screen and the status page without being spoken.
+  [away](phone.md#presence): stretch reminders skip you, and a check-in
+  you ran by hand while away is held until the camera sees you back.
 
 ## When it gets things wrong
 
@@ -203,7 +203,8 @@ ssh <user>@focus.local sudo systemctl restart focus-camera
   keeps happening, unplug the webcam and plug it back in.
 - **`focus status` says the camera is "not running":** the service has
   stopped (`sudo systemctl status focus-camera`). Until it's back you count
-  as here, nothing is nudged, and a held check-in is said straight away. Check
+  as here, nothing is nudged, and check-ins come at their times on work
+  days (none on days off). Check
   `v4l2-ctl --list-devices` and set `FOCUS_CAMERA_DEVICE` if it isn't
   `/dev/video0`.
 - **ffmpeg says the format isn't supported:** set `FOCUS_CAMERA_MJPEG=0`

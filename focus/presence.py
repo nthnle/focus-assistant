@@ -102,6 +102,15 @@ def back(cfg: Config, now: datetime) -> bool:
     return seen is None or (seen.looking and not seen.empty_desk)
 
 
+def at_desk(cfg: Config, now: datetime, settle: timedelta) -> bool:
+    """The camera has seen someone at the desk (working or on the phone) for
+    at least `settle`. False without a camera that knows the empty desk:
+    nothing then shows anyone sat down."""
+    seen = camera_seen(cfg, now)
+    return (seen is not None and seen.sees_away and seen.label != AWAY
+            and now - seen.since >= settle)
+
+
 def phone_in_use_since(cfg: Config, state: st.State, now: datetime) -> datetime | None:
     """When the phone was picked up, while the camera still sees it in use.
     An open session counts only while the camera is looking: one left open

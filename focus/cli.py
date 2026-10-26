@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focus", description="Desk focus coach")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("checkin", help="run a coach check-in (what the timer calls)")
+    p = sub.add_parser("checkin", help="run a coach check-in now")
     p.add_argument("--slot", choices=checkin.SLOTS, help="default: from the time of day")
 
     sub.add_parser("show", help="list today's items and later ones")

@@ -16,7 +16,7 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 | When | Do |
 |---|---|
 | Before 09:00 | Put what you need to get done on the list: `focus add Write the spec`, or "add email Sam". It isn't ranked. Phone out of reach. |
-| 09:00 | Listen to the morning check-in: it suggests one item to start with, and why. |
+| 09:00, or when you sit down | Listen to the morning check-in: it suggests one item to start with, and why. With the desk camera it comes once you're at the desk. |
 | Focus time | Leave the phone alone: the camera counts each pickup, and the coach speaks up after 5 minutes on it. Stand up when the :50 reminder says so. Finished something? Say "done with the report", or, if it's the one the check-in suggested, press the speakerphone's **Call** button. |
 | A meeting or call | "Quiet until 11", or `focus pause 11:00`. Check-ins wait until it ends; stretch reminders are skipped. |
 | 13:00 | Midday check-in. If you drifted, take the one reset it gives you. |
@@ -27,6 +27,7 @@ coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
 | When | Do |
 |---|---|
 | Monday | The first check-in opens the week and recalls Friday's tip. |
+| The weekend | Nothing, unless you sit down at the desk: then a two-sentence check-in about what you planned for that day (`focus add --on sat Fix the bike`, or **Pick a day** on the status page). Work days are set with `FOCUS_WORKDAYS`. |
 | Something not for today | `focus add --on wed Book the dentist`, or `focus later 3` (to "someday"). `focus now 3` brings it back. |
 | A day off | "Off until Monday", or `focus pause monday`. No check-ins, no cost, nothing counts as slipping. |
 | Friday 17:30 | The wrap-up: what got done, what slipped, and one routine tip. Try the tip the next week; to move focus blocks, edit `FOCUS_BLOCKS` in `/etc/focus-assistant/focus.env`. Ask for more any time: "how could I improve my routine?" |

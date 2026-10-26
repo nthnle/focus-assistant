@@ -1,8 +1,9 @@
 [Unit]
-Description=Focus assistant stretch reminder (:50 each weekday hour; quiet outside focus blocks)
+Description=Focus assistant stretch reminder (:50 each hour; quiet outside focus blocks)
 
 [Timer]
-OnCalendar=Mon..Fri 09..17:50
+# Every day: the code keeps to focus blocks on work days (FOCUS_WORKDAYS).
+OnCalendar=*-*-* 09..17:50
 AccuracySec=1s
 # A missed reminder is stale: don't play it late after a reboot.
 Persistent=false

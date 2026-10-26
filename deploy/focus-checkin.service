@@ -1,5 +1,5 @@
 [Unit]
-Description=Focus assistant check-in
+Description=Focus assistant check-in, now (sudo systemctl start focus-checkin)
 Wants=network-online.target
 After=network-online.target
 

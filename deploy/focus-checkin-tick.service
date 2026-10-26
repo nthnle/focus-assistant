@@ -1,0 +1,50 @@
+[Unit]
+Description=Focus assistant check-in tick: runs one if it's due and you're at the desk
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@USER@
+# Root-only (0600) file; systemd reads it as root before dropping to @USER@.
+EnvironmentFile=/etc/focus-assistant/focus.env
+Environment=FOCUS_STATE_DIR=@STATE_DIR@
+Environment=PYTHONUNBUFFERED=1
+# What focus-checkin.timer runs every 5 minutes; it exits quietly when no
+# check-in is due (focus/schedule.py).
+ExecStart=/opt/focus-assistant/venv/bin/python -m focus.schedule
+TimeoutStartSec=5min
+
+# Outbound HTTPS is the only thing this needs.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+# An empty home with only the state folder in it: nothing else there (SSH
+# keys included) is visible even if this service were compromised.
+ProtectHome=tmpfs
+BindPaths=@STATE_DIR@
+PrivateTmp=yes
+# Sound cards only, for the speech output. The e-ink panel is drawn by
+# focus-display, which has the SPI, I2C and GPIO access this unit lacks.
+DevicePolicy=closed
+DeviceAllow=char-alsa rw
+SupplementaryGroups=audio
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# Kernel logs, the clock and the hostname are off limits; other processes in
+# /proc are hidden; no setuid files; only the system calls normal services use.
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

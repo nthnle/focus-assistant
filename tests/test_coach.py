@@ -115,7 +115,7 @@ def test_friday_evening_is_the_weekly_wrap_up():
     payload = coach.build_payload(_week_state("2026-10-16"), "evening", "2026-10-16T17:30:00-05:00")
     assert payload["weekly_review"] is True
     assert [h["date"] for h in payload["this_week"]] == ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]
-    assert "Friday evening (weekly_review is true)" in coach.SYSTEM_PROMPT
+    assert "the week's last work day, evening (weekly_review is true)" in coach.SYSTEM_PROMPT
 
 
 @pytest.mark.parametrize("today, slot", [("2026-10-16", "midday"), ("2026-10-15", "evening")],
@@ -143,7 +143,7 @@ def test_facts_do_the_arithmetic():
         "carried_3_days_or_more": ["Report"],
         "phone_pickups_today": 3, "phone_minutes_today": 18 + 45 + 10,
         "phone_in_use_now_since": "12:50", "phone_nudges_today": 0, "last_self_report": "drifted",
-        "paused": None, "weekday": "Monday",
+        "paused": None, "weekday": "Monday", "workday": True, "next_workday": "Tuesday",
     }
 
 

@@ -33,7 +33,7 @@ More diagrams, including a weekday timeline, are in
 
 | | Needs |
 |---|---|
-| **Check-ins** at 09:00, 13:00 and 17:30 on weekdays; a **weekly wrap-up** on Friday evening with a suggested change to your routine, and a Monday check-in that opens the week | a Pi and a key for a hosted open model |
+| **Check-ins** morning, midday and evening (from 09:00, 13:00 and 17:30), each written when you sit down at the desk, or at those times without the desk camera; short ones on days off, about what you planned for them; a **weekly wrap-up** on the week's last work day with a suggested change to your routine, and a check-in that opens the next week | a Pi and a key for a hosted open model |
 | A **to-do list** (not ranked) from the command line: `focus add`, `focus done`, `focus later` ... unfinished items carry over, each check-in suggests one to start with, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
@@ -104,31 +104,38 @@ focus status          # services, next timers, today, presence and API cost
 
 Each morning, unfinished items carry over with a "days carried" count,
 and finished ones go into a 14-day history the coach uses for context. A
-day counts only if a check-in ran on it, and only for items that were
-on the list by its last check-in: weekends, days off and tomorrow's plan
-added in the evening don't make anything look like it slipped. After
+day counts only if it was a work day (`FOCUS_WORKDAYS`, Monday to Friday)
+and a check-in ran on it, and only for items that were on the list by its
+last check-in: weekends, days off and tomorrow's plan added in the evening
+don't make anything look like it slipped. After
 three days carried, the coach suggests shrinking, rescheduling or dropping
 the item.
 
 **Pausing.** `focus pause` (or telling the coach "quiet until 11" or "I'm
-off until Monday", by chat or voice) holds stretch reminders and spoken
-check-ins. A check-in during a short pause still runs and shows on the
-screen; it's spoken once the pause ends. On days you're paused through,
-check-ins are skipped entirely, so a holiday costs nothing and doesn't count
-toward carried days.
+off until Monday", by chat or voice) holds stretch reminders and check-ins. A check-in that comes due during a
+short pause waits, and comes once the pause is over. On days you're paused
+through there are none, so a holiday costs nothing and doesn't count toward
+carried days.
 
-**Weeks.** On Friday evening the check-in becomes a wrap-up: what got
+**Days off.** Saturday and Sunday by default (`FOCUS_WORKDAYS`). With the
+desk camera, a check-in still comes if you sit down at the desk; it's two
+sentences, about what you planned for that day (scheduled for it, or added
+on it), never the work waiting for Monday. With nothing planned it just looks
+ahead. No stretch reminders, phone counting or nudges, and nothing counts as
+slipping.
+
+**Weeks.** On the week's last work day (Friday) the evening check-in becomes a wrap-up: what got
 done, what kept slipping, and one concrete change to your routine, grounded
 in a pattern from the week (pickups bunching after lunch, things getting
-done late). Monday's first check-in recalls that suggestion. If Friday's
+done late). The next week's first check-in recalls that suggestion. If the
 wrap-up didn't happen (a day off, the Pi was
-off), Monday morning does a short version first. You can also ask for
+off), the next morning check-in does a short version first. You can also ask for
 routine suggestions any time, by chat or voice.
 
 **Improving the coach.** Every reply the model writes is kept on the Pi for
 60 days in `replies.jsonl`, next to exactly what the coach was given, and
 checked against the rules code can verify (length, no markdown, a morning
-check-in that suggests an item, short on weekends). Rate replies with
+check-in that suggests an item, short on days off). Rate replies with
 `focus rate good|bad`, or tell the coach "that was wrong". `focus feedback`
 lists what was rated bad or failed a check: bring those to the next round
 of changes to the prompts or code. The loop is drawn in

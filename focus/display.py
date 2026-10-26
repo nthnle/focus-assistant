@@ -24,7 +24,7 @@ import threading
 from datetime import date, datetime, timedelta
 from html import escape
 
-from . import blocks, layout, pause, presence
+from . import blocks, days, layout, pause, presence
 from .config import Config
 from . import state as st
 from .state import PHONE_OUT, STRETCH_REMINDER, State
@@ -293,8 +293,8 @@ def _hm(t) -> str:
 
 def where_in_day(now: datetime, focus_blocks: list[blocks.Block]) -> list[tuple[str, str, str]]:
     """The "Now" chip and, inside a block, the next 50/10 break."""
-    if now.weekday() >= 5:
-        return [("Now", "Weekend", PLAIN)]
+    if not days.is_workday(now.date()):
+        return [("Now", "Day off", PLAIN)]
     t = now.time()
     for start, end in focus_blocks:
         if start <= t < end:
@@ -342,14 +342,6 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     return chips
 
 
-def next_workday(day: date) -> date:
-    """The weekday after `day`: from a Friday, the Monday."""
-    day += timedelta(days=1)
-    while day.weekday() >= 5:
-        day += timedelta(days=1)
-    return day
-
-
 def _on(p: st.Priority) -> str:
     return "someday" if p.on == st.LATER else f"{date.fromisoformat(p.on):%a %d %b}"
 
@@ -359,7 +351,7 @@ def editor(state: State) -> str:
     later ones. Rows carry the priorities' own ids, so a tap always changes
     the item it shows, even if the list changed meanwhile."""
     today = date.fromisoformat(state.date)
-    nxt = next_workday(today)
+    nxt = days.next_workday(today)
 
     def move(p: st.Priority) -> str:
         """The Move menu, without the place the item already is."""

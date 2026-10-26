@@ -6,9 +6,10 @@ daemon and the check-in timer both write the same file.
 
 Day rollover happens here, in code, not in the model: unfinished priorities
 carry over with a counter, finished ones are archived into `history`. A day
-counts toward that counter only if a check-in ran on it, so weekends, days
-off and planning the next day in the evening don't make a priority look
-like it is slipping. Each day's summary also keeps the patterns the coach
+counts toward that counter only if it was a work day (FOCUS_WORKDAYS) and
+a check-in ran on it, so weekends (even with a check-in), days off and
+planning the next day in the evening don't make a priority look like it is
+slipping. Each day's summary also keeps the patterns the coach
 needs to suggest changes to your routine: when the phone came out, when
 things got done, when check-ins ran.
 
@@ -33,7 +34,7 @@ except ImportError:  # Windows dev machines; the Pi always has fcntl
     fcntl = None
 
 from .config import Config
-from .days import monday_of
+from .days import is_workday, monday_of
 
 SCHEMA_VERSION = 1
 
@@ -236,10 +237,11 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     })
     state.history = state.history[-history_days:]
 
-    # The day counts only if a check-in ran on it, and only for priorities
-    # that were already there at its last check-in: one added in the evening
-    # is tomorrow's plan, not something that slipped.
-    last_checkin = state.checkins[-1].get("at") if state.checkins else None
+    # The day counts only if it was a work day and a check-in ran on it, and
+    # only for priorities that were already there at its last check-in: one
+    # added in the evening is tomorrow's plan, not something that slipped.
+    workday = is_workday(date.fromisoformat(state.date))
+    last_checkin = state.checkins[-1].get("at") if state.checkins and workday else None
     for p in state.open_priorities:
         if last_checkin and (p.added_at is None or _before(p.added_at, last_checkin)):
             p.carried_days += 1

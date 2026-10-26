@@ -1,14 +1,15 @@
 [Unit]
-Description=Focus assistant check-ins (morning, midday, end of day)
+Description=Focus assistant check-ins (morning, midday, end of day; once you sit down at the desk)
 
 [Timer]
-# The slot is picked from the time of day (before 11, before 16, after),
-# so keep each time inside its window if you change these.
-OnCalendar=Mon..Fri 09:00
-OnCalendar=Mon..Fri 13:00
-OnCalendar=Mon..Fri 17:30
-# If the Pi was off at a scheduled time, run once when it comes back.
-Persistent=true
+# A tick, not a check-in: every 5 minutes focus.schedule looks whether one is
+# due (FOCUS_CHECKINS, FOCUS_CHECKIN_UNTIL) and whether you're at the desk,
+# and exits quietly when not. Keep those times inside these hours.
+OnCalendar=*-*-* 07..21:00/5
+AccuracySec=10s
+# A missed tick is stale: the next one is 5 minutes away.
+Persistent=false
+Unit=focus-checkin-tick.service
 
 [Install]
 WantedBy=timers.target

@@ -57,7 +57,7 @@ def mon(h, m):
     (mon(12, 30), [("Now", "Next block at 13:00", "plain")]),
     (mon(8, 15), [("Now", "Starts at 09:00", "plain")]),
     (mon(18, 0), [("Now", "Done for the day", "good")]),
-    (datetime(2026, 10, 17, 10, 0, tzinfo=TZ), [("Now", "Weekend", "plain")]),
+    (datetime(2026, 10, 17, 10, 0, tzinfo=TZ), [("Now", "Day off", "plain")]),
 ], ids=["in block", "break", "last break before lunch", "late in block", "lunch", "morning", "evening", "saturday"])
 def test_where_in_day(when, expected):
     assert display.where_in_day(when, BLOCKS) == expected

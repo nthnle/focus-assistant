@@ -1,8 +1,9 @@
 """Stretch reminder: at :50 each hour of a focus block, say a short line.
 
 50 minutes of work, then a 10-minute break. The focus-stretch timer fires at
-:50 every weekday hour; this checks FOCUS_BLOCKS and stays quiet outside
-them (12:50 lunch, 17:50 after the last block, weekends).
+:50 every hour of every day; this checks FOCUS_BLOCKS and FOCUS_WORKDAYS
+and stays quiet outside them (12:50 lunch, 17:50 after the last block,
+days off).
 
 The coach writes the line (FOCUS_CHAT_MODEL, so it is quick and cheap) from
 the same data as a check-in, so it can tie the break to what you are doing.

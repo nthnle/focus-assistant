@@ -1,4 +1,4 @@
-"""Focus blocks: the weekday times when phone use counts and stretch reminders play.
+"""Focus blocks: the times on work days (FOCUS_WORKDAYS) when phone use counts and stretch reminders play.
 
 Set with FOCUS_BLOCKS, e.g. "09:00-12:00,13:00-17:30" (the default).
 """
@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, time as dtime
+
+from . import days
 
 DEFAULT_BLOCKS = "09:00-12:00,13:00-17:30"
 
@@ -34,7 +36,7 @@ def from_env() -> list[Block]:
 
 
 def in_block(now: datetime, blocks: list[Block]) -> bool:
-    if now.weekday() >= 5:
+    if not days.is_workday(now.date()):
         return False
     t = now.time()
     return any(start <= t < end for start, end in blocks)

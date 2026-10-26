@@ -26,7 +26,7 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/week-simple-dark.png">
-  <img alt="A week at a glance: Monday opens the week with last Friday's tip, a later item shows up on its day, a paused day off, Friday's wrap-up with one routine tip, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
+  <img alt="A week at a glance: Monday opens the week with last Friday's tip, a later item shows up on its day, a paused day off, Friday's wrap-up with one routine tip, a weekend check-in only if you sit down at the desk, carried into next Monday; below, where the routine tip comes from" src="diagrams/week-simple.png">
 </picture>
 
 <picture>
@@ -146,14 +146,15 @@ root only; systemd reads it and passes it to the services that need it.
 
 | Unit | Runs | API key | Network | Devices |
 |---|---|---|---|---|
-| `focus-checkin` | timer: 09:00, 13:00, 17:30 weekdays | yes | outbound | sound cards |
-| `focus-stretch` | timer: :50 each weekday hour | yes | outbound | sound cards |
-| `focus-back` | timer: :00 each weekday hour, after a reminder | **no** | none | sound cards |
+| `focus-checkin-tick` | timer: every 5 minutes, 07:00-21:55; a check-in when one is due and you're at the desk (`focus/schedule.py`) | yes | outbound | sound cards |
+| `focus-checkin` | by hand: a check-in now | yes | outbound | sound cards |
+| `focus-stretch` | timer: :50 each hour, in focus blocks on work days | yes | outbound | sound cards |
+| `focus-back` | timer: :00 each hour, after a reminder | **no** | none | sound cards |
 | `focus-page` | always (the status page: the e-ink panel's layout in a browser, and a list editor) | **no** | home network only, inbound | none |
 | `focus-chat` | always | yes | home network inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |
-| `focus-camera` | always; the camera is open around focus blocks, or while a held check-in waits | **no** | none | the webcam |
+| `focus-camera` | always; the camera is open around focus blocks, while a check-in waits for you, or while a held one does | **no** | none | the webcam |
 
 Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.

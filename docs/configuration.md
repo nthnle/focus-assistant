@@ -23,7 +23,10 @@ point that `install.sh` copies.
 | `FOCUS_OUTPUTS` | `console` | Where check-ins go, comma-separated, in order: `console`, `speech`, `inky`. With the `focus-display` service running, leave out `inky`: the service redraws the panel on every change. |
 | `FOCUS_HISTORY_DAYS` | `14` | Days of daily summaries kept for the coach's context. |
 | `FOCUS_STATE_DIR` | `~/.local/state/focus-assistant` | Where `state.json` lives. The systemd units set this; you normally don't. |
-| `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Weekday focus blocks. Phone use counts only in them, and the desk camera runs from 5 minutes before each to 5 after; also used by stretch reminders, phone nudges and the status page. |
+| `FOCUS_WORKDAYS` | `mon-fri` | Work days, e.g. `sun-thu` or `mon-thu,sat`. Only these have focus blocks, stretch reminders, phone counting and nudges, and count toward "days carried"; the last one of the week has the wrap-up. On the others a check-in comes only if you sit down at the desk (with the camera), and is about what you planned for that day. |
+| `FOCUS_CHECKINS` | `09:00,13:00,17:30` | When the morning, midday and evening check-ins open. Each comes once you sit down at the desk after its time (with the desk camera), or at its time (without). Keep them between 07:00 and 21:55, when `focus-checkin.timer` checks. |
+| `FOCUS_CHECKIN_UNTIL` | `20:00` | No check-in from this time on; the camera stops waiting for you then. |
+| `FOCUS_BLOCKS` | `09:00-12:00,13:00-17:30` | Focus blocks on work days. Phone use counts only in them, and the desk camera runs from 5 minutes before each to 5 after; also used by stretch reminders, phone nudges and the status page. |
 | `FOCUS_LOG_WORDS` | (off) | `1` writes what you say, type or mark done into the system journal. Off, the journal gets only the length (`<16 chars>`). Turn it on while tuning voice. |
 
 **When the host can't be reached** (or a setting is missing), check-ins

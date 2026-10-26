@@ -11,7 +11,7 @@ import subprocess
 from datetime import datetime
 from typing import Callable
 
-from . import blocks, feedback, pause, presence, stretch
+from . import blocks, feedback, pause, presence, schedule, stretch
 from . import state as st
 from .pricing import cost, prices  # noqa: F401  (tests use these here)
 from .config import Config
@@ -19,6 +19,8 @@ from .state import State
 
 UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-page", "focus-chat", "focus-voice",
          "focus-camera", "focus-display"]
+# Ticks every few minutes to see whether a check-in is due: its next tick says nothing.
+NO_NEXT = ("focus-checkin.timer",)
 
 
 def usage_today(cfg: Config, s: State) -> list[tuple[str, int, int, int, float | None]]:
@@ -65,7 +67,7 @@ def service_lines(systemctl: Callable[..., str | None] = _systemctl) -> list[str
         if state is None:
             return ["  (systemctl not available here)"]
         line = f"  {unit:<20} {state or 'unknown'}"
-        if unit.endswith(".timer") and state == "active":
+        if unit.endswith(".timer") and state == "active" and unit not in NO_NEXT:
             nxt = systemctl("show", unit, "-p", "NextElapseUSecRealtime", "--value")
             if nxt:
                 line += f"   next {nxt}"
@@ -99,6 +101,10 @@ def report(cfg: Config, s: State, now: datetime,
     done = len([p for p in s.today_list if p.done])
     checkins = ", ".join(f"{c['slot']} {_hm(c['at'])}" + (" (held, away)" if c.get("unheard") else "")
                          for c in s.checkins) or "none yet"
+    try:
+        next_checkin = schedule.waiting_line(cfg, s, now, schedule.from_env())
+    except ValueError as exc:
+        next_checkin = str(exc)
     focus_blocks = blocks.from_env()
     current = next((f"{a:%H:%M}-{b:%H:%M}" for a, b in focus_blocks
                     if blocks.in_block(now, [(a, b)])), None)
@@ -114,7 +120,7 @@ def report(cfg: Config, s: State, now: datetime,
         "",
         "Today",
         f"  Priorities   {open_} open, {done} done" + (f", {len(s.later)} later" if s.later else ""),
-        f"  Check-ins    {checkins}",
+        f"  Check-ins    {checkins}; {next_checkin}",
         f"  Focus block  {'yes, ' + current if current else 'no'}",
         f"  Phone        {phone_line(cfg, in_use, now)}"
         + (f", {nudges} nudge{'s' if nudges != 1 else ''}" if nudges else ""),

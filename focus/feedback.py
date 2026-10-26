@@ -90,10 +90,11 @@ def check(kind: str, payload: dict, reply: str) -> list[str]:
     if _EMOJI.search(text):
         problems.append("emoji")
     facts = payload.get("facts", {})
-    weekend = facts.get("weekday") in ("Saturday", "Sunday")
-    if kind == "checkin" and weekend and count > 45:
-        problems.append("long for a weekend check-in (asked for two sentences)")
-    if kind == "checkin" and payload.get("checkin") == "morning" and not weekend:
+    # Older payloads only have the weekday's name.
+    day_off = not facts.get("workday", facts.get("weekday") not in ("Saturday", "Sunday"))
+    if kind == "checkin" and day_off and count > 45:
+        problems.append("long for a day-off check-in (asked for two sentences)")
+    if kind == "checkin" and payload.get("checkin") == "morning" and not day_off:
         open_ = [p["text"] for p in payload.get("priorities", []) if not p.get("done")]
         said = _words(text)
         if open_ and not any(_words(p) & said for p in open_):

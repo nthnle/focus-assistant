@@ -6,13 +6,12 @@ import logging
 import threading
 from datetime import date, datetime
 
-from . import coach, feedback, outputs, pause, pricing, state as st
+from . import coach, days, feedback, outputs, pause, pricing, state as st
 from .config import Config
 from .days import monday_of
+from .schedule import SLOTS
 
 log = logging.getLogger(__name__)
-
-SLOTS = ("morning", "midday", "evening")
 
 
 def slot_for(now: datetime) -> str:
@@ -89,8 +88,8 @@ def refresh(cfg: Config, client=None, today: date | None = None) -> str | None:
         if not s.checkins:
             return None
         last = s.checkins[-1]
-        if last["slot"] == "evening" and date.fromisoformat(s.date).weekday() == 4:
-            return None  # Friday's weekly review stays as written
+        if last["slot"] == "evening" and days.last_workday_of_week(date.fromisoformat(s.date)):
+            return None  # the week's wrap-up stays as written
         written, stale = last["at"], last.get("reply")
         payload = coach.build_payload(s, last["slot"], st.now_iso())
         # Not the stale reply itself: given it, the model tends to copy it.

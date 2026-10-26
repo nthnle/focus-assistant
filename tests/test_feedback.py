@@ -26,7 +26,7 @@ MORNING = {"checkin": "morning", "facts": {"weekday": "Tuesday"},
     ("checkin", MORNING, " ".join(["spec"] * 90), "over the 70-word limit"),
     ("checkin", {**MORNING, "weekly_review": True}, " ".join(["spec"] * 90), None),
     ("stretch", {}, " ".join(["up"] * 40), "over the 25-word limit"),
-    ("checkin", {"checkin": "evening", "facts": {"weekday": "Sunday"}}, " ".join(["rest"] * 50), "weekend"),
+    ("checkin", {"checkin": "evening", "facts": {"weekday": "Sunday"}}, " ".join(["rest"] * 50), "day-off"),
     ("chat", {}, "  ", "empty"),
 ])
 def test_check(kind, payload, reply, problem):

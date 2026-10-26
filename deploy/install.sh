@@ -51,7 +51,7 @@ if [ -f /etc/systemd/system/focus-dock.service ]; then
 fi
 # Desk sound no longer counts for presence; the camera decides.
 rm -f "$STATE_DIR/presence.json"
-for unit in focus-checkin.service focus-checkin.timer focus-page.service focus-chat.service \
+for unit in focus-checkin.service focus-checkin-tick.service focus-checkin.timer \n            focus-page.service focus-chat.service \
             focus-voice.service focus-display.service focus-camera.service \
             focus-stretch.service focus-stretch.timer \
             focus-back.service focus-back.timer \
@@ -62,6 +62,13 @@ for unit in focus-checkin.service focus-checkin.timer focus-page.service focus-c
 done
 systemctl daemon-reload
 systemctl enable --now focus-checkin.timer
+# The check-in times used to be set by overriding this timer; they are
+# FOCUS_CHECKINS now, and the timer only ticks.
+if [ -d /etc/systemd/system/focus-checkin.timer.d ]; then
+    echo "NOTE: focus-checkin.timer has an override from an older setup. Check-in times"
+    echo "      are FOCUS_CHECKINS in focus.env now; remove the override with:"
+    echo "      sudo systemctl revert focus-checkin.timer"
+fi
 # Voice off overnight (00:00-08:00); harmless if voice isn't set up.
 systemctl enable --now focus-voice-sleep.timer focus-voice-wake.timer
 # These open ports or the microphone, or need the speaker set up first, so they

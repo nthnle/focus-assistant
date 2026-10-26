@@ -134,26 +134,26 @@ The upper panel mirrors the e-ink display layout ([architecture.md](architecture
 
 So the coach doesn't talk to an empty desk, you count as **away** once the
 [desk camera](camera.md) has seen the empty chair for 5 minutes. The camera
-runs from 5 minutes before each focus block to 5 minutes after it, so every
-check-in and stretch reminder gets its answer. Without a camera, or while
-its service isn't running, you always count as here.
+runs from 5 minutes before each focus block to 5 minutes after it, and
+while a check-in waits for you. Without a camera, or while its service
+isn't running, you always count as here.
 
-While you're away:
+- **Check-ins wait for you to sit down**, and are written then
+  ([Schedule](install.md#schedule)), so they're never said to an empty room.
+- **Stretch reminders are skipped** while you're away (you're already up).
+- A check-in you run by hand (`sudo systemctl start focus-checkin`) while
+  away is held, and the voice service says it within 30 seconds of the
+  camera seeing you back ("You missed the midday check-in. It said: ...").
+  For up to 2 hours; after that it stays on the screen, unsaid.
 
-- **stretch reminders are skipped** (you're already up)
-- **a spoken check-in is held**, and the voice service says it within 30
-  seconds of the camera seeing you back ("You missed the midday check-in.
-  It said: ..."). The status page shows it meanwhile. For the 17:30
-  check-in, the camera stays on to watch for you for up to 2 hours; after
-  that it stays on the screen, unsaid.
-
-The same happens while you're paused (`focus pause 11:00`, or "quiet until
-11" to the coach): reminders are skipped, and a check-in is held until the
-pause ends. See [Pausing](../README.md#using-it).
+While you're paused (`focus pause 11:00`, or "quiet until 11" to the
+coach), reminders are skipped and a check-in that comes due waits for the
+pause to end. See [Pausing](../README.md#using-it).
 
 **Its blind spots:** someone else in your chair looks like you, and so may
 you, standing at the desk.
 
 Tune it with `FOCUS_AWAY_CAMERA_MIN`;
 `journalctl -u focus-stretch -u focus-checkin -u focus-voice | grep -i away`
+(and `focus status` for what the next check-in waits for)
 shows its decisions.

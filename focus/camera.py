@@ -16,13 +16,13 @@ away: none is saved, sent or logged. What is kept:
   off, the service still writes "off" every 30 s, so a camera that is off
   on schedule can be told from a service that isn't running at all.
 
-It runs from 5 minutes before each focus block (FOCUS_BLOCKS, weekdays) to
-5 minutes after it, so the check-ins at the edges of a block get its answer
-too; phone use counts only inside the block itself. When a spoken check-in
-is held because you're away, it stays on (or comes on) until it sees you
-back, for up to 2 hours; after that the check-in stays on the screen,
-unsaid. Never while paused. The rest of the time the camera is closed and
-its light is off.
+It runs from 5 minutes before each focus block (FOCUS_BLOCKS, on work days)
+to 5 minutes after it; phone use counts only inside the block itself. On any
+day it also runs while a check-in waits for you to sit down
+(focus.schedule), and, when a spoken check-in was held because you were
+away, until it sees you back, for up to 2 hours; after that the check-in
+stays on the screen, unsaid. Never while paused. The rest of the time the
+camera is closed and its light is off.
 
     python -m focus.camera              the service (what focus-camera runs)
     python -m focus.camera --check      what the model sees in a few frames, and how fast
@@ -48,7 +48,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import actions, blocks, config, pause, presence, state as st
+from . import actions, blocks, config, days, pause, presence, schedule, state as st
 from .config import Config
 
 log = logging.getLogger(__name__)
@@ -229,15 +229,16 @@ class Model:
 # --- the service ----------------------------------------------------------
 
 def in_window(now: datetime, focus_blocks: list[blocks.Block], margin: timedelta = MARGIN) -> bool:
-    """A weekday, from `margin` before a focus block to `margin` after it."""
-    if now.weekday() >= 5:
+    """A work day, from `margin` before a focus block to `margin` after it."""
+    if not days.is_workday(now.date()):
         return False
     return any(datetime.combine(now.date(), start, now.tzinfo) - margin <= now
                < datetime.combine(now.date(), end, now.tzinfo) + margin
                for start, end in focus_blocks)
 
 
-def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block]) -> str | None:
+def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block],
+            checkin_times: schedule.Times | None = None) -> str | None:
     """Why the camera should be off at `now` (timezone-aware), or None to run it.
 
     Outside its window, a check-in held more than WAIT is given up on here:
@@ -245,7 +246,7 @@ def why_off(cfg: Config, now: datetime, focus_blocks: list[blocks.Block]) -> str
     s = st.peek(cfg, today=now.date())
     if pause.paused(s, now):
         return "paused"
-    if in_window(now, focus_blocks):
+    if in_window(now, focus_blocks) or schedule.due(s, now, checkin_times):
         return None
     waiting, stale = s.held(now, WAIT)
     if stale:
@@ -275,6 +276,7 @@ def close_stale(cfg: Config, now: datetime) -> None:
 
 def watch(cfg: Config, model: Callable[[bytes], str], sees_away: bool,
           open_camera: Callable[[], Camera], focus_blocks: list[blocks.Block],
+          checkin_times: schedule.Times | None = None,
           clock: Callable[[], datetime] = lambda: datetime.now().astimezone(),
           sleep: Callable[[float], None] = time.sleep) -> None:
     """Run the camera whenever it should be on, until something fails."""
@@ -302,7 +304,7 @@ def watch(cfg: Config, model: Callable[[bytes], str], sees_away: bool,
         while True:
             now = clock()
             if camera is None or (now - checked).total_seconds() >= OFF_POLL_S:
-                off = why_off(cfg, now, focus_blocks)
+                off = why_off(cfg, now, focus_blocks, checkin_times)
                 checked = now
                 if off:
                     if camera is not None:
@@ -460,7 +462,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.check:
             return check(model, Camera(device, every, model.size), args.check)
-        watch(cfg, model, AWAY in model.labels, lambda: Camera(device, every, model.size), blocks.from_env())
+        sees_away = AWAY in model.labels
+        # Check-ins wait for you to sit down only when the model knows the
+        # empty desk; otherwise they come at their times, camera or not.
+        watch(cfg, model, sees_away, lambda: Camera(device, every, model.size), blocks.from_env(),
+              schedule.from_env() if sees_away else None)
     except CameraError as exc:
         log.error("%s", exc)
         return 1

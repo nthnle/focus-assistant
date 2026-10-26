@@ -25,7 +25,7 @@ from typing import Callable
 
 import openai
 
-from . import blocks, feedback, pause, pricing, state as st
+from . import blocks, days, feedback, pause, pricing, state as st
 from .days import monday_of
 from .config import Config
 from .state import State
@@ -67,12 +67,13 @@ more days, say so and suggest shrinking, rescheduling or dropping it.
 phone came out often, name it plainly once, without guilt, and give one \
 concrete reset.
 - evening: acknowledge what got done, name what carries over, and suggest \
-the first thing for tomorrow. Mention the phone only if phone_pickups_today \
+the first thing for the next work day (facts.next_workday). Mention the phone only if phone_pickups_today \
 is 3 or more (pickups during focus time), and then only about \
 focus time tomorrow. Where the phone is in the evening is their own \
 business: never suggest charging it before bed or keeping it away \
 overnight.
-- Friday evening (weekly_review is true): look back at the whole week \
+- the week's last work day, evening (weekly_review is true): look back at \
+the whole week \
 instead, using this_week and today: what got done, what kept carrying \
 over, how the phone and breaks went. Then suggest \
 one concrete change to their routine, grounded in a pattern you can point \
@@ -80,7 +81,7 @@ to in this_week (pickups bunching at one hour, things getting done late in \
 the day, check-ins missed): a different focus block, a break at another \
 time, the phone elsewhere during focus time, or a shorter list. `routine` \
 has the current settings. End the week on something they did well.
-- a weekly_review at a morning check-in (late is true) means Friday's \
+- a weekly_review at a morning check-in (late is true) means last week's \
 wrap-up was missed: look back at last week in two or three sentences, \
 suggest the routine change, then suggest one item to start with.
 - rewrite_of is present: this check-in already ran at \
@@ -88,11 +89,17 @@ rewrite_of.written_at, and since then the list changed (done_since was \
 marked done). Write it again for the list as it is now, at the same \
 length, acknowledging what got done. Don't say it is an update.
 
-facts.weekday says what day it is. Check-ins only run by themselves on \
-weekdays; on a Saturday or Sunday they asked for one, so keep it to two \
-sentences, don't judge what got done that day, and look ahead to Monday.
+facts.weekday says what day it is, and facts.workday whether it is a work \
+day. On a day off (workday is false) keep it to two sentences. `priorities` \
+then holds only what they planned for this day off; facts.work_items_waiting \
+counts the work items left for facts.next_workday, which you never push on \
+a day off. With something planned, help with it like a short check-in of \
+that kind: suggest one to start with in the morning, acknowledge what got \
+done in the evening. With nothing planned, don't judge the day, and look \
+ahead to the next work day.
 
-If the list is empty, ask what they need to get done, in one sentence. \
+If the list is empty on a work day, ask what they need to get done, in one \
+sentence. \
 Never call an item "next" or rank the list.
 Be warm and direct. Do not invent tasks, progress or events that are not in \
 the data.
@@ -154,15 +161,34 @@ class Response:
 PHONE_EVENTS = (st.PHONE_OUT, st.PHONE_IN, st.PHONE_NUDGE)
 
 
-def facts(s: State, now: str) -> dict:
+def day_off_items(s: State) -> list[st.Priority]:
+    """On a day off, the items for it: planned for one of the days off so far
+    (scheduled for it, or added on it with no day), plus anything done today.
+    Work left from the last work day isn't among them."""
+    today = date.fromisoformat(s.date)
+    since = days.days_off_since(today).isoformat()
+
+    def planned(p: st.Priority) -> bool:
+        if p.on not in (None, st.LATER):
+            return since <= p.on <= s.date
+        return p.on is None and p.added_at is not None and since <= p.added_at[:10] <= s.date
+
+    return [p for p in s.today_list if planned(p) or (p.done and p.done_at[:10] == s.date)]
+
+
+def facts(s: State, now: str, items: list[st.Priority] | None = None) -> dict:
     """Counts and totals worked out in code, so the model never has to do
-    arithmetic on timestamps (open models get it wrong surprisingly often)."""
-    open_ = s.open_priorities
+    arithmetic on timestamps (open models get it wrong surprisingly often).
+    `items`: the list the check-in is about, if not all of today's."""
+    items = s.today_list if items is None else items
+    open_ = [p for p in items if not p.done]
+    today = date.fromisoformat(s.date)
+    workday = days.is_workday(today)
     phone = st.phone_summary(s.events, now)
     reports = [e.get("detail") for e in s.events if e["kind"] == st.SELF_REPORT]
     return {
         "open_count": len(open_),
-        "done_count": len([p for p in s.today_list if p.done]),
+        "done_count": len([p for p in items if p.done]),
         "carried_3_days_or_more": [p.text for p in open_ if p.carried_days >= 3],
         "phone_pickups_today": phone["pickups"],
         "phone_minutes_today": phone["minutes"],
@@ -171,12 +197,16 @@ def facts(s: State, now: str) -> dict:
         "last_self_report": reports[-1] if reports else None,
         "paused": pause.describe(s, datetime.fromisoformat(now)),
         "weekday": f"{datetime.fromisoformat(now):%A}",
+        "workday": workday,
+        "next_workday": f"{days.next_workday(today):%A}",
+        **({} if workday else {"work_items_waiting": len(s.open_priorities) - len(open_)}),
     }
 
 
 def routine() -> dict:
     """The settings a routine suggestion would change."""
     return {
+        "work_days": [days.WEEKDAYS[d].title() for d in sorted(days.workdays())],
         "focus_blocks": [f"{a:%H:%M}-{b:%H:%M}" for a, b in blocks.from_env()],
         "stretch_reminders": "at :50 past each hour of a focus block",
         "voice_quiet_hours": "00:00-08:00",
@@ -184,10 +214,13 @@ def routine() -> dict:
 
 
 def build_payload(s: State, slot: str, now: str) -> dict:
+    today = date.fromisoformat(s.date)
+    # On a day off the check-in is about what was planned for it, never the work waiting.
+    items = s.today_list if slot == "chat" or days.is_workday(today) else day_off_items(s)
     payload = {
         "checkin": slot,
         "now": now,
-        "facts": facts(s, now),
+        "facts": facts(s, now, items),
         "priorities": [
             {
                 "id": p.id,
@@ -196,7 +229,7 @@ def build_payload(s: State, slot: str, now: str) -> dict:
                 "done_at": p.done_at,
                 "carried_days": p.carried_days,
             }
-            for p in s.today_list
+            for p in items
         ],
         "later": [{"id": p.id, "text": p.text, "on": p.on} for p in s.later],
         "earlier_checkins_today": [
@@ -210,12 +243,11 @@ def build_payload(s: State, slot: str, now: str) -> dict:
         "chat_today": [{"at": c["at"], "user": c["user"], "reply": c["reply"]} for c in s.chat[-6:]],
         "recent_days": s.history[-(7 if slot == "chat" else 5):],
     }
-    today = date.fromisoformat(s.date)
     monday = monday_of(today)
     if slot == "chat":
         payload["routine"] = routine()
-    if slot == "evening" and today.weekday() == 4:
-        # Friday: the evening check-in becomes the week's wrap-up.
+    if slot == "evening" and days.last_workday_of_week(today):
+        # The week's last work day: the evening check-in becomes its wrap-up.
         payload["weekly_review"] = True
         payload["this_week"] = [h for h in s.history if h["date"] >= monday.isoformat()]
         payload["routine"] = routine()
@@ -224,12 +256,12 @@ def build_payload(s: State, slot: str, now: str) -> dict:
         last = s.last_week
         payload["week_start"] = True
         payload["last_week"] = {"review": last.get("review")}
-        days = [h for h in s.history if last["week"] <= h["date"] < monday.isoformat()]
-        if last.get("review") is None and any(h.get("checkins") for h in days):
-            # Friday's wrap-up didn't happen (a day off, the Pi was off): do it now, briefly.
+        week = [h for h in s.history if last["week"] <= h["date"] < monday.isoformat()]
+        if last.get("review") is None and any(h.get("checkins") for h in week):
+            # Last week's wrap-up didn't happen (a day off, the Pi was off): do it now, briefly.
             payload["weekly_review"] = True
             payload["late"] = True
-            payload["this_week"] = days
+            payload["this_week"] = week
             payload["routine"] = routine()
     return payload
 

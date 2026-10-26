@@ -169,10 +169,6 @@ def test_a_picked_day_moves_the_item(server, cfg):
         400, {"error": "Pick a day after today, or bring it back to today instead"})
 
 
-def test_next_workday():
-    assert display.next_workday(date(2026, 10, 14)) == date(2026, 10, 15)
-    assert display.next_workday(date(2026, 10, 16)) == date(2026, 10, 19)
-    assert display.next_workday(date(2026, 10, 17)) == date(2026, 10, 19)
 
 
 def get_if(url, etag):

@@ -72,8 +72,8 @@ sudo systemctl start focus-checkin
 journalctl -u focus-checkin -n 20      # or: focus last
 ```
 
-The core is running: check-ins come at 09:00, 13:00 and 17:30 on their
-own. For how to use it day to day, see [routine.md](routine.md).
+The core is running: check-ins come at 09:00, 13:00 and 17:30 on work days
+(with the desk camera, once you sit down after those times). For how to use it day to day, see [routine.md](routine.md).
 
 ## 4. What next
 
@@ -90,34 +90,50 @@ this order, each one builds on the ones before it:
 | Phone use, the phone nudge, and presence | a USB webcam, and a PC to train its model once | [camera.md](camera.md) |
 | A daily copy of your list on another computer | a PC or Mac that's on at 18:00 | [backup.md](backup.md) |
 
-The phone nudge and held check-ins are spoken, so the camera is most
+The phone nudge and check-ins are spoken, so the camera is most
 useful with a speaker set up first. Every setting is in
 [configuration.md](configuration.md).
 
 ## Schedule
 
-Check-ins run Monday to Friday at **09:00, 13:00 and 17:30**. Which kind of
-check-in it is depends on the time: before 11:00 is the morning check-in,
-before 16:00 midday, otherwise evening. Friday's evening check-in is the
+There are three check-ins a day: **morning from 09:00, midday from 13:00,
+evening from 17:30**. On the week's last work day the evening one is the
 weekly wrap-up.
 
-To change the times:
+**With the [desk camera](camera.md)**, each one waits for you: it comes
+once the camera has seen you at the desk for 2 minutes, and is written
+then, so it's about the day as it is. Every day works this way.
+
+- Each comes at most once a day, at least an hour after the one before.
+  Sit down at 15:00 and you get the midday one, not a backlog.
+- Not after 20:00, and not while you're paused: one that comes due in a
+  pause comes once it's over.
+- The camera stays on while a check-in is waiting for you, so on a day off
+  it's on only until you've sat down for one, or 20:00. The rest of the
+  day off it's off.
+
+**Without the camera**, nothing can tell that you sat down: on work days
+the check-ins come at their times, and on days off there are none.
+
+**Work days** are Monday to Friday unless you set `FOCUS_WORKDAYS` (e.g.
+`sun-thu`, or `mon-thu,sat`). Only work days have focus blocks, stretch
+reminders, phone counting and nudges, and count toward "days carried". On a
+day off a check-in is two sentences about what you planned for that day:
+items scheduled for it (by voice, chat, `focus add --on sat`, or **Pick a
+day** on the status page) or added on it. Work left over isn't mentioned.
+With nothing planned it looks ahead to the next work day.
+
+To change the times, set them in `/etc/focus-assistant/focus.env`:
 
 ```bash
-sudo systemctl edit focus-checkin.timer
+FOCUS_CHECKINS=08:30,12:30,17:00   # when morning, midday and evening open
+FOCUS_CHECKIN_UNTIL=19:00          # none after this
 ```
 
-```ini
-[Timer]
-OnCalendar=
-OnCalendar=Mon..Fri 08:30
-OnCalendar=Mon..Fri 12:30
-OnCalendar=Mon..Fri 17:00
-```
-
-The empty `OnCalendar=` clears the defaults. Keep each time inside its
-window (morning, midday, evening). If the Pi was off at a scheduled time,
-the check-in runs once when it comes back.
+then `sudo systemctl restart focus-camera`. `focus-checkin.timer` checks
+every 5 minutes from 07:00 to 21:55, so keep the times inside that.
+`sudo systemctl start focus-checkin` runs a check-in straight away,
+whatever the time.
 
 Focus blocks, used by the desk camera, stretch reminders and the status page,
 are set separately with `FOCUS_BLOCKS` (default `09:00-12:00,13:00-17:30`).
@@ -138,14 +154,15 @@ To keep a copy of the state off the Pi as well, see [backup.md](backup.md).
 ```bash
 focus status                                   # the overview
 systemctl list-timers 'focus-*' --no-pager     # what runs when
-journalctl -u focus-checkin -n 30              # recent check-ins
+journalctl -u focus-checkin -u focus-checkin-tick -n 30   # recent check-ins
 ```
 
 ## Troubleshooting
 
 | Problem | Try |
 |---|---|
-| Check-in says "The coach is offline" | The journal says why: `journalctl -u focus-checkin -n 20`. |
+| Check-in says "The coach is offline" | The journal says why: `journalctl -u focus-checkin -u focus-checkin-tick -n 20`. |
+| No check-in today | `focus status` says what the next one waits for. With the camera, it waits for you to sit down; see [Schedule](#schedule). |
 | `FOCUS_LLM_BASE_URL and FOCUS_LLM_API_KEY must be set` | Check-ins get them from systemd. Run them with `sudo systemctl start focus-checkin`, not `focus checkin`. |
 | `API key rejected` | Check `FOCUS_LLM_API_KEY` in `/etc/focus-assistant/focus.env`, with no quotes or spaces. |
 | `Model provider error 404` or `400` | Usually a wrong `FOCUS_MODEL` name (copy it exactly from the host's model list), a model without tool calling, or `FOCUS_EFFORT` set for a model that isn't a reasoning model. |

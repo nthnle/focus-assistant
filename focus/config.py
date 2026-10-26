@@ -11,6 +11,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import days
+
 
 def _default_state_dir() -> Path:
     xdg = os.environ.get("XDG_STATE_HOME")
@@ -39,6 +41,7 @@ class Config:
 def load() -> Config:
     state_dir = os.environ.get("FOCUS_STATE_DIR")
     outputs = os.environ.get("FOCUS_OUTPUTS", "console")
+    days.workdays()  # a bad FOCUS_WORKDAYS stops everything here, not halfway through a day
     return Config(
         state_dir=Path(state_dir) if state_dir else _default_state_dir(),
         # The provider's model name; there is no default, as every host names models differently.
