@@ -53,6 +53,16 @@ def test_due_every_five_minutes_on_the_phone():
     assert nudge.due(s, at(10, 30), 5) is None                    # put down
 
 
+def test_a_late_nudge_doesnt_bring_the_next_straight_after():
+    """Held back past 10 minutes (the camera restarting, say): one now, the next 5 later."""
+    s = st.State(date="2026-10-12")
+    actions.log_event(s, st.PHONE_OUT, at=at(10, 0))
+    assert nudge.due(s, at(10, 11), 5) == (11, 1)
+    actions.log_event(s, st.PHONE_NUDGE, "11 min", at=at(10, 11))
+    assert nudge.due(s, at(10, 12), 5) is None
+    assert nudge.due(s, at(10, 16), 5) == (16, 2)
+
+
 def test_a_new_pickup_starts_the_count_again():
     s = st.State(date="2026-10-12")
     actions.log_event(s, st.PHONE_OUT, at=at(10, 0))

@@ -4,7 +4,9 @@ The desk camera (focus.camera) logs when you pick the phone up in a focus
 block. Between turns, every 30 seconds, the voice service asks this module
 whether a nudge is due: once you've been on it for FOCUS_PHONE_NUDGE_MIN
 minutes (5; 0 turns nudges off), it says a short line, and again every 5
-minutes while you stay on it. Putting the phone down for under 2 minutes
+minutes while you stay on it, never sooner than 5 after the last one (a
+nudge held back, say while the camera restarted, doesn't bring a second
+straight after it). Putting the phone down for under 2 minutes
 doesn't restart the count: to the nudges, that's the same stretch on the
 phone. Only while the camera sees the phone right now: a session stays
 open for 30 s after you put it down, and that's no time for a nudge. Not
@@ -73,11 +75,13 @@ def due(s: st.State, now: datetime, every_min: int) -> tuple[int, int] | None:
     if since is None or every_min <= 0:
         return None
     minutes = int((now - since).total_seconds() // 60)
-    given = sum(1 for e in s.events
-                if e["kind"] == st.PHONE_NUDGE and datetime.fromisoformat(e["at"]) >= since)
-    if minutes < every_min * (given + 1):
+    said = [datetime.fromisoformat(e["at"]) for e in s.events
+            if e["kind"] == st.PHONE_NUDGE and datetime.fromisoformat(e["at"]) >= since]
+    if minutes < every_min * (len(said) + 1):
         return None
-    return minutes, given + 1
+    if said and now - max(said) < timedelta(minutes=every_min):
+        return None  # one held back past its time doesn't bring the next one straight after
+    return minutes, len(said) + 1
 
 
 def fixed_line(s: st.State, minutes: int) -> str:
