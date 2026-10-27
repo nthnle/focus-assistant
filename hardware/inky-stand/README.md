@@ -1,38 +1,43 @@
 # Inky stand
 
-A printable desk stand for the Inky Impression 4.0" (Spectra 6) e-ink panel.
-It holds the panel 20° back from upright, in a thin frame.
+A printable desk stand for the Inky Impression 4.0" (Spectra 6) e-ink panel:
+a frame with an even border, leaning 20° back on a slim two-armed foot.
 
 <img alt="The stand with the panel in it, from the front" src="inky-stand.png" width="600">
 
+- **Only the screen shows.** The window is the size of the active area. The
+  frame sits 2 mm in front of the board, so it covers the glass's edge and
+  the display's own ribbon without touching them.
 - **Only the four corners touch the board.** The panel screws on from
-  behind through its M2 corner holes into the frame's corner tabs. The
-  screen starts 7 mm in from the edge, so the tabs miss it. Everywhere else
-  the frame stays outside the board's outline, so whatever is on the back
-  can't hit it, whether that's the Mini Black HAT Hack3r or just a ribbon
-  plug.
-- **The buttons' side is open**, so A to D can be pressed from the side or
-  behind.
-- **The other side leaves 4 mm** for the display's own ribbon, which bends
-  around that edge, and carries the brace that holds the frame up.
-- **The middle of the base is open**, so the ribbon to the Pi can drop
+  behind, through its M2 corner holes into posts under the frame. The back
+  stays open, so the Hack3r (or a ribbon plug) and the buttons on the back
+  are free.
+- **The foot is two arms, open between them**, so the ribbon to the Pi drops
   straight down.
 
 ## Print
 
-`inky-stand.stl` is ready to print as it is: it lies on the frame's front
-face, with the base and the brace rising from it, leaning at most 20° past
-vertical. No supports are needed.
+`inky-stand.stl` is ready to print as it is. It lies on the frame's front
+face, and the two arms rise from it, leaning 20° past vertical. No supports
+are needed.
 
-- PLA or PETG, 0.2 mm layers, 3 walls, 20% infill
-- About 122 × 97 mm on the bed and 79 mm tall
+- PLA or PETG, 0.2 mm layers, 3 walls, 20% infill. Matte black matches the
+  panel's black border.
+- About 118 × 90 mm on the bed and 73 mm tall.
+- The arms are tall and thin while printing. If your printer shakes, a brim
+  helps them stay put.
 
 ## Put it together
 
-1. Four **M2 × 6 mm** screws, from behind, through the board's corner holes
-   into the tabs. They cut their own thread, so stop when they're snug. A
-   longer screw would come out of the front.
-2. Plug the ribbon back in and let it drop through the base.
+1. Lay the panel face down in the frame. Its corner holes sit over the four
+   posts.
+2. Four **M2 × 6 mm** screws, from behind. They cut their own thread, so stop
+   when they're snug. A longer screw would come out of the front.
+3. Plug the ribbon back in and let it drop between the arms.
+
+**Pressing the buttons:** the stand is light, so a one-finger push on a
+button from behind can tip it forward. Pinch instead, with your thumb on the
+front and your finger on the button, or stick the arms down with museum gel.
 
 ## Change it
 
@@ -44,10 +49,13 @@ upright, with the board in place to check the fit.
 | Setting | Default | |
 |---|---|---|
 | `tilt` | `20` | Degrees back from upright |
-| `buttons_side` | `left` | The open side, as you face the screen. Set `right` if your buttons are on the other side |
-| `ribbon_gap` | `4` | Room for the display's ribbon around the far edge |
+| `buttons_side` | `left` | As you face the screen. Set `right` if your buttons and the screen's wider margin are on the other side |
+| `glass_clear` | `2` | Gap between the board's face and the frame. Raise it if the frame touches the glass |
+| `window_margin` | `1` | How much bigger than the screen the window is, each side |
 | `pilot_d` | `1.7` | Screw holes. Use `1.6` if the screws are loose, `1.8` if they're hard to turn |
-| `base_depth` | `75` | Front to back |
+| `foot_depth` | `70` | How far the arms reach back |
 
-The board's size and hole positions come from Pimoroni's dimensional
-drawing: 103 × 78 mm, with holes 3 mm in from each corner.
+The board's size, hole positions and screen position come from Pimoroni's
+dimensional drawing: 103 × 78 mm, with holes 3 mm in from each corner. The
+active area is 84.6 × 56.4 mm, 7.1 mm from the buttons' edge and 10.8 mm
+from the bottom.
