@@ -53,8 +53,8 @@ from .config import Config
 
 log = logging.getLogger(__name__)
 
-PHONE, WORK = "phone", "work"
-AWAY = presence.AWAY
+WORK = "work"
+PHONE, AWAY = presence.PHONE, presence.AWAY
 SIZE = 224               # the model's input: 224x224 RGB, squashed from the camera's 4:3
 WINDOW = 5               # frames a label needs a majority of
 SETTLE = timedelta(seconds=30)

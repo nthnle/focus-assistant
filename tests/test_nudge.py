@@ -144,6 +144,16 @@ def test_quiet_when_the_camera_isnt_watching(cfg, monkeypatch):
     assert not nudge.run(cfg, at(10, 30), [].append, BLOCKS, write=NO_COACH)
 
 
+@pytest.mark.parametrize("label", ["work", "away"])
+def test_quiet_once_the_phone_is_put_down(cfg, monkeypatch, label):
+    """The session stays open 30 s after the put-down; no nudge in them."""
+    on_phone_since(cfg, at(10, 0))
+    seen = presence.Seen(label, at(10, 4), at(10, 5), True)
+    monkeypatch.setattr(nudge.presence, "camera_seen", lambda cfg, now: seen)
+    assert not nudge.run(cfg, at(10, 5), [].append, BLOCKS, write=NO_COACH)
+    assert not any(e["kind"] == st.PHONE_NUDGE for e in events(cfg, at(10, 5)))
+
+
 def test_a_speaker_failure_doesnt_repeat_the_model_call(cfg):
     on_phone_since(cfg, at(10, 0))
     asked = []

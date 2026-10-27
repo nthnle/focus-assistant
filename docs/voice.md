@@ -234,7 +234,8 @@ sudo systemd-run --pipe --wait -p User=$USER -p EnvironmentFile=/etc/focus-assis
 service also speaks up when you've been on your phone for 5 minutes of
 focus time ("Five minutes on the phone. Back to the spec?"), and again
 every 5 minutes after; a put-down of under 2 minutes doesn't restart the
-count. The coach writes it, with a fixed line as the fallback; never while
+count, and once the camera sees the phone put down there's no nudge, even
+in the 30 s before the put-down is logged. The coach writes it, with a fixed line as the fallback; never while
 you're paused or in the break after a reminder.
 `FOCUS_PHONE_NUDGE_MIN` changes the 5, and `0` turns it off.
 

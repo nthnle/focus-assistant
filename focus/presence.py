@@ -29,6 +29,7 @@ from .config import Config
 # The camera rewrites camera.json at least every 30 s while it runs; older means it stopped.
 CAMERA_FRESH = timedelta(seconds=90)
 AWAY = "away"
+PHONE = "phone"
 OFF = "off"        # the service runs, the camera is off (outside its hours, or paused)
 
 

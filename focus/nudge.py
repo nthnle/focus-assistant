@@ -6,8 +6,10 @@ whether a nudge is due: once you've been on it for FOCUS_PHONE_NUDGE_MIN
 minutes (5; 0 turns nudges off), it says a short line, and again every 5
 minutes while you stay on it. Putting the phone down for under 2 minutes
 doesn't restart the count: to the nudges, that's the same stretch on the
-phone. Not while paused, and not in the break after a stretch reminder,
-when the phone is fair game.
+phone. Only while the camera sees the phone right now: a session stays
+open for 30 s after you put it down, and that's no time for a nudge. Not
+while paused, and not in the break after a stretch reminder, when the phone
+is fair game.
 
 The coach writes the line (FOCUS_CHAT_MODEL, quick and cheap) from the same
 data as a check-in, so it can point you back at something on your list. If
@@ -31,7 +33,6 @@ log = logging.getLogger(__name__)
 
 COACH_TIMEOUT = 5.0
 JOIN = timedelta(minutes=2)   # a put-down shorter than this doesn't end a stretch on the phone
-
 SYSTEM_PROMPT = """\
 You are the user's focus coach on a small device on their desk. Its camera \
 has seen them on their phone for `minutes_on_phone` minutes of focus time. \
@@ -101,8 +102,11 @@ def run(cfg: Config, now: datetime, say: Callable[[str], None], focus_blocks: li
     """Say a nudge if one is due. `now` must be timezone-aware. Returns whether it did."""
     if not blocks.in_block(now, focus_blocks):
         return False
-    if presence.camera_seen(cfg, now) is None:
+    seen = presence.camera_seen(cfg, now)
+    if seen is None:
         return False  # the camera isn't watching: an open session may be stale
+    if seen.label != presence.PHONE:
+        return False  # just put down: the session stays open 30 s more, but not for a nudge
     s = st.peek(cfg, today=now.date())
     if pause.paused(s, now) or stretch.on_break(s, now):
         return False
