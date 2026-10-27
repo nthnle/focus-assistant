@@ -416,6 +416,13 @@ def since_note(state: State) -> str:
     return f"Since {written:%H:%M}: done {'; '.join(done)}" if done else ""
 
 
+def panel_note(state: State, now: datetime) -> str:
+    """The panel's bottom line: a pause (the C button), then since_note.
+    `now` must be timezone-aware."""
+    quiet = pause.describe(state, now)
+    return " · ".join(n for n in (f"Paused {quiet}" if quiet else "", since_note(state)) if n)
+
+
 def _content(state: State, now: str, cfg: Config | None,
              focus_blocks: list[blocks.Block] | None) -> dict[str, str]:
     """What the page shows, without the clock in its footer."""
@@ -443,7 +450,7 @@ def _content(state: State, now: str, cfg: Config | None,
         "day": date.fromisoformat(state.date).strftime("%a %d %b"),
         "priorities": "".join(rows),
         "reply": escape(reply),
-        "since": escape(since_note(state)),
+        "since": escape(panel_note(state, datetime.fromisoformat(now))),
         "chips": chips,
         "editor": editor(state),
         "item_size": str(size),

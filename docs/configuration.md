@@ -107,3 +107,4 @@ See [camera.md](camera.md).
 |---|---|---|
 | `FOCUS_INKY_PNG` | (unset) | Save the display image to this PNG instead of drawing on the panel (600x400). |
 | `FOCUS_INKY_FONT` | (DejaVu Sans) | A TrueType font file to use instead. |
+| `FOCUS_INKY_BUTTONS` | `5,6,16,24` | GPIO pins of the panel's buttons A to D ([what they do](architecture.md#e-ink-display)). Empty turns them off. |

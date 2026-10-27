@@ -200,13 +200,28 @@ token check and server loop that the status page and chat use.
 attached panel reports. It shows the same as the status page's upper panel:
 the slot and date, today's open items (up to six, then "+N more"; a red tag
 shows days carried), the reply, shrinking from 24 px to 16 px to fit, and
-the red "Since 16:20: done ..." line.
+the red note line: "Paused until 11:30" and "Since 16:20: done ...".
 
 The `focus-display` service runs it as a watcher. It reads state.json every
 5 seconds and redraws once changes have settled for 30 seconds, so marking
 three things done is one refresh, not three. A refresh takes about 20
 seconds and flashes, and the panel keeps its picture without power. The
 service has SPI, I2C and GPIO access and nothing else: no network, no key.
+
+It also reads the four buttons on the panel's edge (`inputs/buttons.py`),
+and redraws straight after a press instead of waiting for quiet:
+
+| Button | Does |
+|---|---|
+| A | Marks done the item the check-in suggested, as the speakerphone's Call button does |
+| B | Undoes the last "done" |
+| C | Pauses for 30 minutes (a call, a meeting), or resumes if paused |
+| D | Redraws the panel now |
+
+With no speaker and no network, the panel is its only answer: a press that
+changes nothing (A with no suggested item) leaves the picture as it is, and
+the check-in isn't rewritten after A, so the note line says what was done.
+The pins are `FOCUS_INKY_BUTTONS`, A to D (5, 6, 16, 24 on the 4" panel).
 
 Preview it on any machine, without the panel or an API call:
 
@@ -226,7 +241,7 @@ cd ~/focus-assistant
 sudo /opt/focus-assistant/venv/bin/pip install ".[display]"
 sudo deploy/install.sh
 sudo systemctl enable --now focus-display
-journalctl -u focus-display -f             # "Found a ... panel", then "Redrawing the panel"
+journalctl -u focus-display -f             # "Found a ... panel", "Listening to the panel's buttons", "Redrawing the panel"
 ```
 
 The panel can sit directly on the Pi, or away from it on a 40-pin ribbon

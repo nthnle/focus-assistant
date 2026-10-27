@@ -7,7 +7,8 @@
                                 state.json into a PNG (no API call)
     python -m focus.outputs.inky --watch
                                 the focus-display service: redraws the
-                                panel whenever what it shows changes
+                                panel whenever what it shows changes, and
+                                reads its buttons (focus.inputs.buttons)
 
 The layout is drawn at the panel's own size (the 4.0" Spectra 6 is 600x400,
 the older 4" model 640x400). A refresh takes 20-30 s and flashes, so the
@@ -23,14 +24,15 @@ import logging
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont
 
 from .. import config, state as st
-from ..display import shown, since_note
+from ..inputs import buttons
+from ..display import panel_note, shown
 from ..layout import (HEADER_HEIGHT, HEADER_SIZE, MARGIN, NOTE_LINE, NOTE_SIZE, REPLY_LINE,
                       REPLY_MAX_SIZE, REPLY_MIN_SIZE, RULE, RULE_ABOVE, RULE_BELOW, SIZE,
                       TAG_SIZE, bullet_width, dot_size, item_size)
@@ -121,12 +123,14 @@ def fit_reply(
     return font, lines, line_height, True
 
 
-def view(state: State) -> tuple[str | None, str, str]:
-    """(slot or None, reply, since-note): what the panel shows for this state."""
+def view(state: State, now: datetime) -> tuple[str | None, str, str]:
+    """(slot or None, reply, note line): what the panel shows for this state.
+    `now` must be timezone-aware."""
     last = state.checkins[-1] if state.checkins else None
+    note = panel_note(state, now)
     if last is None:
-        return None, "The first check-in of the day will appear here.", ""
-    return last["slot"], last.get("reply") or "", since_note(state)
+        return None, "The first check-in of the day will appear here.", note
+    return last["slot"], last.get("reply") or "", note
 
 
 def render(state: State, slot: str | None, reply: str, since: str = "",
@@ -238,7 +242,7 @@ class InkyOutput:
         self.panel = panel
 
     def checkin(self, state: State, slot: str, reply: str) -> None:
-        since = since_note(state)
+        since = panel_note(state, datetime.now().astimezone())
         key = fingerprint(state, slot, reply, since)
         if self.marker.is_file() and self.marker.read_text() == key:
             log.info("Display unchanged; skipping refresh")
@@ -258,14 +262,21 @@ def create() -> InkyOutput:
 
 def watch(cfg: config.Config, panel: Panel, *, quiet_s: float = QUIET_S, poll_s: float = POLL_S,
           clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
-          running: Callable[[], bool] = lambda: True) -> None:
+          running: Callable[[], bool] = lambda: True,
+          presses: Callable[[float], list[str]] | None = None,
+          now: Callable[[], datetime] = lambda: datetime.now().astimezone()) -> None:
     """Redraw the panel whenever what it shows changes, once changes have
     settled for `quiet_s`. It always draws once after starting: something
     else may have drawn on the panel meanwhile (a test, the `inky` output),
-    so a remembered fingerprint can't be trusted."""
+    so a remembered fingerprint can't be trusted.
+
+    `presses` waits up to the given seconds for button presses and returns
+    them (buttons.Presses.wait). After one, the panel redraws without
+    waiting for quiet: you're standing there for the answer."""
     marker = cfg.state_dir / "inky.last"
     drawn = None
     pending, since_change = None, 0.0
+    hurry = False
     while running():
         try:
             s = st.peek(cfg)
@@ -273,13 +284,14 @@ def watch(cfg: config.Config, panel: Panel, *, quiet_s: float = QUIET_S, poll_s:
             log.warning("Can't read the state: %s", exc)
             sleep(poll_s)
             continue
-        slot, reply, since = view(s)
+        slot, reply, since = view(s, now())
         key = fingerprint(s, slot, reply, since)
         if key == drawn:
-            pending = None
-        elif key != pending:
+            pending, hurry = None, False
+        elif not hurry and key != pending:
             pending, since_change = key, clock()
-        elif clock() - since_change >= quiet_s:
+        elif hurry or clock() - since_change >= quiet_s:
+            hurry = False
             log.info("Redrawing the panel")
             try:
                 panel.show(render(s, slot, reply, since, panel.size))
@@ -289,7 +301,14 @@ def watch(cfg: config.Config, panel: Panel, *, quiet_s: float = QUIET_S, poll_s:
             else:
                 drawn, pending = key, None
                 marker.write_text(key)
-        sleep(poll_s)
+        if presses is None:
+            sleep(poll_s)
+            continue
+        for label in presses(poll_s):
+            log.info("Button %s: %s", label, buttons.press(cfg, label, now()))
+            hurry = True
+            if label == "D":
+                drawn = None   # redraw even if nothing changed
 
 
 def main(argv: list[str]) -> int:
@@ -298,11 +317,13 @@ def main(argv: list[str]) -> int:
         cfg = config.load()
         panel = _panel()
         log.info("Watching %s; redrawing %d s after changes settle", cfg.state_path, QUIET_S)
-        watch(cfg, panel)
+        pins = buttons.pins()
+        presses = buttons.Presses(buttons.read_presses(pins)).wait if pins and not panel.png_path else None
+        watch(cfg, panel, presses=presses)
         return 0
     out = Path(argv[0] if argv else "inky-preview.png")
     s = st.peek(config.load())
-    slot, reply, since = view(s)
+    slot, reply, since = view(s, datetime.now().astimezone())
     render(s, slot, reply, since).save(out)
     print(f"Saved {out}")
     return 0

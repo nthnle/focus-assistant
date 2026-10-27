@@ -55,9 +55,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .. import actions, blocks, chat, checkin, config, nudge, onnx, pause, presence, state as st
+from .. import blocks, chat, checkin, config, nudge, onnx, pause, presence, state as st
 from ..coach import CoachError
 from ..config import Config
+from .buttons import mark_suggested_done, undo_last_done  # the Call button does what A and B do
 
 log = logging.getLogger(__name__)
 
@@ -105,33 +106,6 @@ def call_presses(stream: io.BufferedReader, report: bytes = CALL_REPORT) -> Iter
     while chunk := stream.read(64):  # hidraw hands over one report per read
         if chunk.startswith(report):
             yield None
-
-
-def mark_suggested_done(cfg: Config) -> str:
-    """The call button: mark done the item the latest check-in suggested
-    starting with; returns what to say."""
-    with st.locked_state(cfg) as s:
-        if not s.open_priorities:
-            return "Nothing left to mark done."
-        item = s.suggested
-        if item is None:
-            return "Tell me which one is done."
-        actions.complete_priority(s, item.id)
-        left = len(s.open_priorities)
-    log.info("Call button: marked %s done", config.words(item.text))
-    return f"Done: {item.text}. " + (f"{left} left on your list." if left else "That's everything on your list.")
-
-
-def undo_last_done(cfg: Config) -> str:
-    """A double press on the call button: reopen whatever was marked done most recently."""
-    with st.locked_state(cfg) as s:
-        done = [p for p in s.priorities if p.done]
-        if not done:
-            return "Nothing to undo."
-        last = max(done, key=lambda p: p.done_at)
-        actions.reopen_priority(s, last.id)
-    log.info("Call button double press: reopened %s", config.words(last.text))
-    return f"Undone: {last.text} is back on your list."
 
 
 DOUBLE_PRESS_S = 0.4  # a second call press this soon after the first means "undo"

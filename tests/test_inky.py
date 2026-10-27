@@ -170,6 +170,49 @@ def test_watch_waits_out_a_steady_stream_of_changes(cfg):
     assert panel.drawn == []
 
 
+class Pressing(Script):
+    """A Script whose polls are button waits: press `label` on poll `at`."""
+
+    def __init__(self, presses, *steps):
+        super().__init__(*steps)
+        self.presses = dict(presses)
+        self.polls = 0
+
+    def wait(self, seconds):
+        self.now += seconds
+        self.polls += 1
+        return [self.presses[self.polls]] if self.polls in self.presses else []
+
+
+def test_a_press_redraws_without_waiting_for_quiet(cfg):
+    from datetime import datetime, timedelta, timezone
+    noon = datetime(2026, 10, 12, 12, 0, tzinfo=timezone(timedelta(hours=-5)))
+    panel = FakePanel()
+    # The first draw comes once things have been quiet for 30 s (poll 7).
+    # A change would wait another 30 s; after C (pause), the next poll redraws.
+    script = Pressing({8: "C"}, *[None] * 9)
+    inky.watch(cfg, panel, quiet_s=30, poll_s=5, clock=script.clock, sleep=script.sleep,
+               running=script.running, presses=script.wait, now=lambda: noon)
+    assert len(panel.drawn) == 2
+    assert st.peek(cfg, today=noon.date()).paused_until is not None
+
+
+def test_d_redraws_even_with_nothing_changed(cfg):
+    panel = FakePanel()
+    script = Pressing({8: "D"}, *[None] * 9)
+    inky.watch(cfg, panel, quiet_s=30, poll_s=5, clock=script.clock, sleep=script.sleep,
+               running=script.running, presses=script.wait)
+    assert len(panel.drawn) == 2
+
+
+def test_a_press_that_changes_nothing_doesnt_redraw(cfg):
+    panel = FakePanel()
+    script = Pressing({8: "A"}, *[None] * 9)   # nothing on the list to mark done
+    inky.watch(cfg, panel, quiet_s=30, poll_s=5, clock=script.clock, sleep=script.sleep,
+               running=script.running, presses=script.wait)
+    assert len(panel.drawn) == 1
+
+
 def test_watch_keeps_going_when_the_panel_fails(cfg):
     class Flaky(FakePanel):
         def show(self, img):
