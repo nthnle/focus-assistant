@@ -39,8 +39,6 @@ glass_clear = 2;              // gap between the board's face and the frame: roo
 face_t = 2;                   // the frame's face
 lip = 1.2;                    // the lip behind the face's edge, where there's room for one
 gap = 1;                      // clearance around the board
-overlap = 1;                  // how far the face reaches past the board's edge, to hide it
-ribbon_gap = 2.5;             // on the display ribbon's side: it bends around the edge
 chin = 4;                     // the bottom border is this much wider than the others
 corner_r = 6;
 window_r = 1.5;
@@ -76,10 +74,11 @@ back_z = -board_t;
 
 win = [active[0] - window_margin, active[1] - window_margin,
        active[0] + active[2] + window_margin, active[1] + active[3] + window_margin];
-// One border width all round: as narrow as the widest side allows, which is
-// the ribbon's (the board, the ribbon around its edge).
-border = max(board_w + ribbon_gap - win[2], win[0] + overlap,
-             board_h + overlap - win[3], win[1] + overlap);
+// One border width all round: as narrow as the widest side allows (the
+// board, its clearance and the lip outside it). The display's ribbon goes
+// through a slot in the board, inside its outline, so it needs nothing extra.
+border = max(board_w + gap + lip - win[2], win[0] + gap + lip,
+             board_h + gap + lip - win[3], win[1] + gap + lip);
 // The bottom is `chin` wider, as framers do (it looks centred to the eye):
 // that strip below the board is where the foot joins the frame.
 outer = [win[0] - border, win[1] - border - chin, win[2] + border, win[3] + border];
@@ -107,12 +106,11 @@ module face() {
 
 module rim() {
     // A lip behind the face's edge, across the gap in front of the board, so
-    // the frame looks like one plate from the side. Only where it clears the
-    // board (and none on the ribbon's side).
+    // the frame looks like one plate from the side, all the way round.
     linear_extrude(glass_clear) difference() {
         rrect(outer, corner_r);
         offset(-lip) rrect(outer, corner_r);
-        translate([-gap, -gap]) square([board_w + gap + ribbon_gap, board_h + 2 * gap]);
+        translate([-gap, -gap]) square([board_w + 2 * gap, board_h + 2 * gap]);
     }
 }
 
@@ -165,12 +163,12 @@ module clear_of_board() {
     // 1 mm round the board's bottom edge, back and front, and a screwdriver's
     // path behind each hole.
     stood() translate([-gap, -gap, back_z - 1])
-        cube([board_w + 2 * gap + ribbon_gap, board_h + 2 * gap, glass_clear + 1 - back_z]);
+        cube([board_w + 2 * gap, board_h + 2 * gap, glass_clear + 1 - back_z]);
     // Below the board's bottom edge the cut slopes at 45° rather than leaving a
     // flat ledge, which would print as an unsupported ceiling.
     stood() hull() {
-        translate([-gap, -gap, back_z - 1]) cube([board_w + 2 * gap + ribbon_gap, 6, 0.01]);
-        translate([-gap, -gap, back_z - 7]) cube([board_w + 2 * gap + ribbon_gap, 0.01, 0.01]);
+        translate([-gap, -gap, back_z - 1]) cube([board_w + 2 * gap, 6, 0.01]);
+        translate([-gap, -gap, back_z - 7]) cube([board_w + 2 * gap, 0.01, 0.01]);
     }
     stood() for (h = holes) translate([h[0], h[1], back_z - 100]) cylinder(d = driver_d, h = 100);
 }
@@ -224,7 +222,8 @@ side(buttons_side == "right") {
         // The board (solid, as it is) and the Hack3r stack behind it (see-through),
         // to check the fit. Only for looking: never part of an export.
         color("dimgray") stood() translate([0, 0, back_z]) cube([board_w, board_h, board_t]);
-        %stood() translate([13, 16, back_z - 35]) cube([65, 56, 35]);
+        // (The Hack3r as measured: 8-83 mm across, 7.6-73 mm up, 16 mm off the back.)
+        %stood() translate([8, 7.6, back_z - 16]) cube([75, 65.4, 16]);
     } else if (layout == "flat") {
         // Both parts as they print, and pack.
         translate([0, 0, front_z]) rotate([180, 0, 0]) unstood() frame_standing();

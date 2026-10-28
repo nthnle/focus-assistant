@@ -7,10 +7,11 @@ two pack flat to travel.
 <img alt="The stand with the panel in it, from the front" src="inky-stand.png" width="600">
 
 - **Only the screen shows.** The window is the size of the active area,
-  with an even 13 mm border and a slightly wider bottom, as framers do. The
-  frame sits 2 mm in front of the board, so it covers the glass's edge and
-  the display's own ribbon without touching them; a lip behind its edge
-  hides that gap, so from the side it's one thin plate.
+  with an even 12.5 mm border and a slightly wider bottom, as framers do.
+  The frame sits 2 mm in front of the board, so it covers the glass's edge
+  and the display's own ribbon (where it goes through the board) without
+  touching them; a lip all round its edge hides that gap, so from the side
+  it's one thin plate.
 - **Only the four corners touch the board.** The panel screws on from
   behind, through its M2 corner holes into posts under the frame. The back
   stays open, so the Hack3r (or a ribbon plug) and the buttons on the back
@@ -53,9 +54,10 @@ Two parts, both ready to print as they are, with no supports:
 **To travel:** pull the foot straight out backwards. The frame (with the
 panel in it) and the foot lie flat.
 
-**Pressing the buttons:** the stand is light, so a one-finger push on a
-button from behind can tip it forward. Pinch instead, with your thumb on the
-front and your finger on the button, or stick the foot down with museum gel.
+**Pressing the buttons:** A to D are on the back, along the left edge (as you
+face the screen). The stand is light, so a one-finger push on a button from
+behind can tip it forward. Pinch instead, with your thumb on the front and
+your finger on the button, or stick the foot down with museum gel.
 
 ## Change it
 
