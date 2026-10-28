@@ -1,135 +1,143 @@
 // A desk stand for the Pimoroni Inky Impression 4.0" (Spectra 6), in two
-// parts: a thin frame, and a foot that slides into it and out again, so the
-// two pack flat to travel.
+// parts: a slim bumper around the board, and a foot that slides into it and
+// out again, so the two pack flat to travel.
 //
-// The frame has an even border and a window the size of the screen's active
-// area. It sits a little in front of the board, so it covers the glass's
-// edge and the display's ribbon without touching them; a short lip behind its
-// edge hides that gap from the side, so the frame reads as one 4 mm plate.
-// The board screws on from behind through its four M2 corner holes into
-// posts under the frame; nothing else touches it, the back stays open (the
-// Hack3r and the buttons on the back are free), and a screwdriver has a clear
-// path to every hole.
+// The bumper covers nothing on the front: the panel's own thin black border,
+// its glass and its print all show, inside a rim `wall` wide, flush with the
+// board's face. The board drops in from the front and screws through its four
+// M2 corner holes into pads behind its corners, so the screw heads show at the
+// corners as on the bare board. Nothing else touches it: the back stays open,
+// so the Hack3r and the buttons on the back are free.
 //
 // The foot is a U: two arms, joined at the back, open at the front for the
 // cable to the Pi. The arms are dovetails that slide into two sockets behind
-// the frame's bottom edge, which set the lean (`tilt`) and keep the foot from
-// dropping out when you lift the stand; it pulls straight out backwards.
+// the board's bottom edge, which set the lean (`tilt`) and keep the foot from
+// dropping out when you lift the stand; it pulls straight out backwards. A
+// sloped rail behind the board's bottom edge joins the sockets to the rim, so
+// the bottom of the rim is as slim as the rest.
 //
-// Dimensions from Pimoroni's drawing: board 103 x 78 mm, holes 3 mm in from
-// each corner, active area 84.6 x 56.4 mm starting 7.1 mm from the buttons'
-// edge and 10.8 mm from the bottom.
+// Measured: the board is 103 x 78 mm (Pimoroni's drawing) with holes 3 mm in
+// from each corner; the screen stands under 1.5 mm proud of it; the Hack3r on
+// the back starts 7.6 mm up from the bottom edge, and nothing else on the back
+// is lower than that.
 //
-// Printing: `layout = "frame"` lies on its front face, with the sockets
-// rising from it; `layout = "foot"` lies flat, upside down. Neither needs
-// supports. `layout = "desk"` shows them together, standing.
-// Screws: four M2 x 5 mm, from behind; they cut their own thread.
+// Printing: `layout = "frame"` lies on its front, with the pads and sockets
+// rising from it; `layout = "foot"` lies flat, upside down. `layout = "desk"`
+// shows them together, standing; `"flat"` both, as they print and pack.
+// Screws: four M2 x 5 mm, from the front; they cut their own thread.
 
 /* [Panel] */
 board_w = 103;
 board_h = 78;
 board_t = 1.6;
+board_r = 3;                  // the board's corner radius
 hole_inset = 3;               // corner hole centres, from both edges
-active = [7.1, 10.8, 84.6, 56.4];  // x, y, width, height, from the bottom corner on the buttons' side
 buttons_side = "left";        // as you look at the screen
 
-/* [Frame] */
-window_margin = 1;            // the window is this much bigger than the active area, each side
-glass_clear = 2;              // gap between the board's face and the frame: room for the glass
-face_t = 2;                   // the frame's face
-lip = 1.2;                    // the lip behind the face's edge, where there's room for one
-gap = 1;                      // clearance around the board
-chin = 4;                     // the bottom border is this much wider than the others
-corner_r = 6;
-window_r = 1.5;
-chamfer = 0.6;                // on the front edges
-post_d = 5.5;
+/* [Bumper] */
+gap = 0.5;                    // clearance around the board
+wall = 2;                     // the rim's width, all round
+rim_back = 2;                 // how far the rim reaches behind the board
+pad = 7.5;                    // the corner pads behind the board, from its corner
+pad_t = 4;                    // their thickness: what the screws bite into (and the bottom rail's)
+chamfer = 0.6;                // on the rim's front edge
 pilot_d = 1.7;                // M2 self-tapping into PLA/PETG
-skin = 0.6;                   // left in front of the screw holes
 
 /* [Stand] */
 layout = "frame";             // "frame" or "foot" (the parts to print), "desk" (standing) or "flat" (both, packed)
 tilt = 20;                    // leans back this far from upright
 foot_depth = 70;              // front to back
-foot_t = 4;                   // the foot's thickness
+foot_t = 3;                   // the foot's thickness
 foot_arm = 12;                // width of each arm, at its top
-dovetail = 15;                // degrees each arm's sides lean in, towards the desk
+arm_inset = 14;               // each arm's centre, in from the board's side
+dovetail = 20;                // degrees each arm's sides lean in, towards the desk (what holds the foot on)
 foot_bar = 12;                // the bar joining the arms at the back
-socket_len = 16;              // how far the arms go into the frame
+socket_len = 12;              // how far the arms go into the frame (longer would reach the Hack3r)
 socket_front = 2;             // the wall the arms stop against
 socket_wall = 2.4;
 socket_roof = 1.6;
 fit = 0.2;                    // gap around each arm in its socket: more if it won't go in, less if loose
-driver_d = 9;                 // kept clear behind each screw hole, for a screwdriver
 
 $fn = 64;
 
 holes = [for (x = [hole_inset, board_w - hole_inset], y = [hole_inset, board_h - hole_inset]) [x, y]];
 
 // --- panel space: x right, y up, z towards you. The board's front is at
-// z = 0, its back at -board_t; the frame's face runs from glass_clear to front_z.
+// z = 0 (the rim's front too), its back at -board_t.
 
-front_z = glass_clear + face_t;
 back_z = -board_t;
+rim_z = back_z - rim_back;    // the rim's back
+pad_z = back_z - pad_t;       // the pads' and the rail's back: the deepest part
 
-win = [active[0] - window_margin, active[1] - window_margin,
-       active[0] + active[2] + window_margin, active[1] + active[3] + window_margin];
-// One border width all round: as narrow as the widest side allows (the
-// board, its clearance and the lip outside it). The display's ribbon goes
-// through a slot in the board, inside its outline, so it needs nothing extra.
-border = max(board_w + gap + lip - win[2], win[0] + gap + lip,
-             board_h + gap + lip - win[3], win[1] + gap + lip);
-// The bottom is `chin` wider, as framers do (it looks centred to the eye):
-// that strip below the board is where the foot joins the frame.
-outer = [win[0] - border, win[1] - border - chin, win[2] + border, win[3] + border];
+inner = [-gap, -gap, board_w + gap, board_h + gap];
+outer = [inner[0] - wall, inner[1] - wall, inner[2] + wall, inner[3] + wall];
 
 module rrect(r4, r) {
     // A rounded rectangle from [x0, y0, x1, y1].
     translate([r4[0] + r, r4[1] + r]) offset(r) square([r4[2] - r4[0] - 2 * r, r4[3] - r4[1] - 2 * r]);
 }
 
-module grow(r4, d) { rrect([r4[0] - d, r4[1] - d, r4[2] + d, r4[3] + d], corner_r); }
+module outline() { rrect(outer, board_r + gap + wall); }
+module opening() { rrect(inner, board_r + gap); }
 
-module face() {
-    // The front, with its outer edge and the window's edge chamfered.
+module rim() {
+    // Around the board's edge, flush with its face, with the front edge chamfered.
     difference() {
         hull() {
-            translate([0, 0, glass_clear]) linear_extrude(face_t - chamfer) rrect(outer, corner_r);
-            translate([0, 0, front_z - chamfer]) linear_extrude(chamfer) offset(-chamfer) rrect(outer, corner_r);
+            translate([0, 0, rim_z]) linear_extrude(-rim_z - chamfer) outline();
+            translate([0, 0, -chamfer]) linear_extrude(chamfer) offset(-chamfer) outline();
         }
-        hull() {
-            translate([0, 0, glass_clear - 1]) linear_extrude(face_t - chamfer + 1) rrect(win, window_r);
-            translate([0, 0, front_z - 0.01]) linear_extrude(0.02) offset(chamfer) rrect(win, window_r);
+        translate([0, 0, rim_z - 1]) linear_extrude(-rim_z + 2) opening();
+    }
+}
+
+module pads() {
+    // Behind each corner, the board's back rests on a pad, and its screw bites
+    // into it. Printed face down, a pad is a short bridge across the corner,
+    // held by the rim on two sides.
+    for (h = holes) {
+        cx = h[0] < board_w / 2 ? outer[0] : outer[2];
+        cy = h[1] < board_h / 2 ? outer[1] : outer[3];
+        intersection() {
+            translate([0, 0, pad_z]) linear_extrude(-pad_z) outline();
+            hull() {
+                translate([h[0], h[1], pad_z]) cylinder(d = 2 * hole_inset + 1, h = pad_t);
+                translate([min(cx, h[0]), min(cy, h[1]), pad_z])
+                    cube([abs(cx - h[0]), abs(cy - h[1]), pad_t]);
+            }
         }
     }
 }
 
-module rim() {
-    // A lip behind the face's edge, across the gap in front of the board, so
-    // the frame looks like one plate from the side, all the way round.
-    linear_extrude(glass_clear) difference() {
-        rrect(outer, corner_r);
-        offset(-lip) rrect(outer, corner_r);
-        translate([-gap, -gap]) square([board_w + 2 * gap, board_h + 2 * gap]);
+module rail() {
+    // Behind the board's bottom edge, the length of the rim: it joins the
+    // sockets to the rim. Its face towards the board slopes at 45° (up to
+    // 3.5 mm behind the board, clear of the Hack3r at 7.6), so it prints face
+    // down without supports and never touches the board's back.
+    intersection() {
+        translate([0, 0, pad_z]) linear_extrude(-pad_z) outline();
+        hull() {
+            translate([outer[0], outer[1], pad_z]) cube([outer[2] - outer[0], inner[1] + pad_t - outer[1], 0.01]);
+            translate([outer[0], outer[1], back_z - 0.01]) cube([outer[2] - outer[0], inner[1] - outer[1], 0.01]);
+        }
     }
 }
 
 module frame() {
     difference() {
         union() {
-            face();
             rim();
-            for (h = holes) translate([h[0], h[1], 0]) cylinder(d = post_d, h = glass_clear + 0.01);
+            pads();
+            rail();
         }
-        for (h = holes) translate([h[0], h[1], back_z - 1]) cylinder(d = pilot_d, h = front_z - skin - back_z + 1);
+        for (h = holes) translate([h[0], h[1], pad_z - 1]) cylinder(d = pilot_d, h = -pad_z + 1);
     }
 }
 
 // --- standing it up: panel y becomes up and panel z towards you (-y),
-// leaning back by `tilt`. The frame's back bottom edge rests on the desk.
+// leaning back by `tilt`. The rail's back bottom edge rests on the desk.
 
-// The frame's back face (the lip and the posts) is at z = 0.
-drop = -outer[1] * cos(tilt);
+drop = -(outer[1] * cos(tilt) + pad_z * sin(tilt));
 
 module stood() {
     translate([0, 0, drop]) rotate([-tilt, 0, 0]) rotate([90, 0, 0]) children();
@@ -139,13 +147,10 @@ module unstood() {
     rotate([-90, 0, 0]) rotate([tilt, 0, 0]) translate([0, 0, -drop]) children();
 }
 
-// Where the frame's back meets the desk, in desk coordinates.
-heel_y = outer[1] * sin(tilt);
+// Where the frame's back bottom edge meets the desk, in desk coordinates.
+heel_y = outer[1] * sin(tilt) - pad_z * cos(tilt);
 
-// The arms, centred as close to the corners as a screwdriver at the bottom
-// holes allows.
-arm_off = hole_inset + driver_d / 2 + 1 + socket_wall + fit + foot_arm / 2;
-arm_x = [arm_off, board_w - arm_off];
+arm_x = [arm_inset, board_w - arm_inset];
 arm_bottom = foot_arm - 2 * foot_t * tan(dovetail);
 
 module dove(x, extra = 0) {
@@ -160,27 +165,25 @@ module along(y0, y1) {
 }
 
 module clear_of_board() {
-    // 1 mm round the board's bottom edge, back and front, and a screwdriver's
-    // path behind each hole.
-    stood() translate([-gap, -gap, back_z - 1])
-        cube([board_w + 2 * gap, board_h + 2 * gap, glass_clear + 1 - back_z]);
-    // Below the board's bottom edge the cut slopes at 45° rather than leaving a
-    // flat ledge, which would print as an unsupported ceiling.
-    stood() hull() {
-        translate([-gap, -gap, back_z - 1]) cube([board_w + 2 * gap, 6, 0.01]);
-        translate([-gap, -gap, back_z - 7]) cube([board_w + 2 * gap, 0.01, 0.01]);
+    // The sockets keep out of the opening, and behind the board they stay
+    // under the rail's 45° face: they merge into the rail, never come near the
+    // board, and leave no flat ledge to print over air.
+    stood() {
+        translate([outer[0] - 1, inner[1], back_z]) cube([outer[2] - outer[0] + 2, board_h + 2 * gap, 10]);
+        hull() {
+            translate([outer[0] - 1, inner[1], back_z]) cube([outer[2] - outer[0] + 2, board_h + 2 * gap, 0.01]);
+            translate([outer[0] - 1, inner[1] + 50, back_z - 50]) cube([outer[2] - outer[0] + 2, board_h + 2 * gap, 0.01]);
+        }
     }
-    stood() for (h = holes) translate([h[0], h[1], back_z - 100]) cylinder(d = driver_d, h = 100);
 }
 
 module sockets() {
-    // A block behind the frame's bottom edge for each arm, joined to the strip
-    // below the board (into the face, not just up to it: touching faces
-    // wouldn't fuse), with a dovetail slot open at the back and at the desk.
+    // A block for each arm, joined to the rail behind the board's bottom edge,
+    // with a dovetail slot open at the back and at the desk.
     w = foot_arm + 2 * (fit + socket_wall);
     difference() {
         union() for (x = arm_x) hull() {
-            stood() translate([x - w / 2, outer[1], 0]) cube([w, -gap - outer[1], glass_clear + face_t / 2]);
+            stood() translate([x - w / 2, outer[1], pad_z]) cube([w, inner[1] - outer[1], -pad_z]);
             translate([x - w / 2, heel_y, 0]) cube([w, socket_len, foot_t + fit + socket_roof]);
         }
         for (x = arm_x) along(heel_y + socket_front, heel_y + socket_len + 1) dove(x, fit);
@@ -205,8 +208,8 @@ module frame_standing() {
             stood() frame();
             sockets();
         }
-        // Nothing in front of the frame's face, so it lies flat to print.
-        stood() translate([outer[0] - 50, outer[1] - 100, back_z - 200]) cube([outer[2] - outer[0] + 100, 400, front_z - back_z + 200]);
+        // Nothing in front of the rim's face, so it lies flat to print.
+        stood() translate([outer[0] - 50, outer[1] - 100, -200]) cube([outer[2] - outer[0] + 100, 400, 200]);
     }
 }
 
@@ -219,19 +222,19 @@ side(buttons_side == "right") {
     if (layout == "desk") {
         frame_standing();
         foot();
-        // The board (solid, as it is) and the Hack3r stack behind it (see-through),
-        // to check the fit. Only for looking: never part of an export.
+        // The board (solid, as it is), its screen, and the Hack3r behind it
+        // (see-through, as measured), to check the fit. Never part of an export.
         color("dimgray") stood() translate([0, 0, back_z]) cube([board_w, board_h, board_t]);
-        // (The Hack3r as measured: 8-83 mm across, 7.6-73 mm up, 16 mm off the back.)
+        color("whitesmoke") stood() translate([3, 7, 0]) cube([92, 64, 1.4]);
         %stood() translate([8, 7.6, back_z - 16]) cube([75, 65.4, 16]);
     } else if (layout == "flat") {
         // Both parts as they print, and pack.
-        translate([0, 0, front_z]) rotate([180, 0, 0]) unstood() frame_standing();
+        rotate([180, 0, 0]) unstood() frame_standing();
         translate([0, -outer[3] - 15, foot_t]) rotate([180, 0, 0]) translate([0, -heel_y, 0]) foot();
     } else if (layout == "foot") {
         // Upside down: the arms' wide tops on the bed, their sides leaning in.
         translate([0, 0, foot_t]) rotate([180, 0, 0]) translate([0, -heel_y, 0]) foot();
     } else {
-        translate([0, 0, front_z]) rotate([180, 0, 0]) unstood() frame_standing();
+        rotate([180, 0, 0]) unstood() frame_standing();
     }
 }

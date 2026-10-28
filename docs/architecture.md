@@ -249,8 +249,8 @@ and a Pimoroni Mini Black HAT Hack3r. On the Hack3r, seat the panel on the
 **top** header, the HAT connector; on the second, labelled header the
 panel's ID chip is still read but every refresh times out after 40 s.
 
-For a printable desk stand, a frame that shows only the screen and leaves
-the buttons free, with a foot that slides out to travel, see
+For a printable desk stand, a slim bumper that leaves the panel's front
+and buttons free, with a foot that slides out to travel, see
 [hardware/inky-stand](../hardware/inky-stand/README.md).
 
 Leave `inky` out of `FOCUS_OUTPUTS`: the service already redraws after every
