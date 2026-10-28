@@ -3,10 +3,12 @@
 // out again, so the two pack flat to travel.
 //
 // The bumper covers nothing on the front: the panel's own thin black border,
-// its glass and its print all show, inside a rim `wall` wide, flush with the
-// board's face. The board drops in from the front and screws through its four
-// M2 corner holes into pads behind its corners, so the screw heads show at the
-// corners as on the bare board. Nothing else touches it: the back stays open,
+// its glass and its print all show, inside a rim `wall` wide, standing just
+// proud of the board's face. The board snaps in from the front, no screws: a
+// pin on each corner pad goes through its corner hole, which keeps it from
+// sliding, and a small lip at the middle of each side reaches over its front
+// edge, which keeps it in. The side walls flex to let it past. Push it out
+// from behind to take it off. Nothing else touches it: the back stays open,
 // so the Hack3r and the buttons on the back are free.
 //
 // The foot is a U: two arms, joined at the back, open at the front for the
@@ -22,9 +24,9 @@
 // is lower than that.
 //
 // Printing: `layout = "frame"` lies on its front, with the pads and sockets
-// rising from it; `layout = "foot"` lies flat, upside down. `layout = "desk"`
-// shows them together, standing; `"flat"` both, as they print and pack.
-// Screws: four M2 x 5 mm, from the front; they cut their own thread.
+// rising from it (the pins stand on the bed and hold the pads up); `layout =
+// "foot"` lies flat, upside down. `layout = "desk"` shows them together,
+// standing; `"flat"` both, as they print and pack.
 
 /* [Panel] */
 board_w = 103;
@@ -39,9 +41,14 @@ gap = 0.5;                    // clearance around the board
 wall = 2;                     // the rim's width, all round
 rim_back = 2;                 // how far the rim reaches behind the board
 pad = 7.5;                    // the corner pads behind the board, from its corner
-pad_t = 4;                    // their thickness: what the screws bite into (and the bottom rail's)
+pad_t = 4;                    // their thickness (and the bottom rail's)
 chamfer = 0.6;                // on the rim's front edge
-pilot_d = 1.7;                // M2 self-tapping into PLA/PETG
+
+/* [Snap] */
+pin_d = 1.9;                  // the pins in the board's M2 holes: less if they won't go in
+snap = 0.7;                   // how far each lip reaches over the board's edge: more if it pops out, less if too stiff
+lip_t = 0.8;                  // the lips' thickness, in front of the board (the rim stands this proud of it)
+lip_len = 14;                 // each lip's length
 
 /* [Stand] */
 layout = "frame";             // "frame" or "foot" (the parts to print), "desk" (standing) or "flat" (both, packed)
@@ -63,8 +70,9 @@ $fn = 64;
 holes = [for (x = [hole_inset, board_w - hole_inset], y = [hole_inset, board_h - hole_inset]) [x, y]];
 
 // --- panel space: x right, y up, z towards you. The board's front is at
-// z = 0 (the rim's front too), its back at -board_t.
+// z = 0, its back at -board_t; the rim's front is at front_z.
 
+front_z = lip_t;
 back_z = -board_t;
 rim_z = back_z - rim_back;    // the rim's back
 pad_z = back_z - pad_t;       // the pads' and the rail's back: the deepest part
@@ -81,20 +89,37 @@ module outline() { rrect(outer, board_r + gap + wall); }
 module opening() { rrect(inner, board_r + gap); }
 
 module rim() {
-    // Around the board's edge, flush with its face, with the front edge chamfered.
+    // Around the board's edge, just proud of its face, with the front edge chamfered.
     difference() {
         hull() {
-            translate([0, 0, rim_z]) linear_extrude(-rim_z - chamfer) outline();
-            translate([0, 0, -chamfer]) linear_extrude(chamfer) offset(-chamfer) outline();
+            translate([0, 0, rim_z]) linear_extrude(front_z - rim_z - chamfer) outline();
+            translate([0, 0, front_z - chamfer]) linear_extrude(chamfer) offset(-chamfer) outline();
         }
-        translate([0, 0, rim_z - 1]) linear_extrude(-rim_z + 2) opening();
+        translate([0, 0, rim_z - 1]) linear_extrude(front_z - rim_z + 2) opening();
     }
 }
 
+module lips() {
+    // At the middle of each side, a lip over the board's front edge: flat
+    // behind (it holds the board), sloped in front (the board pushes the wall
+    // aside on its way in). Printed face down, the slope is under 45°.
+    y0 = board_h / 2 - lip_len / 2;
+    along(y0, y0 + lip_len) {
+        polygon([[inner[0] - 0.01, 0], [snap, 0], [inner[0] - 0.01, front_z]]);
+        polygon([[inner[2] + 0.01, 0], [board_w - snap, 0], [inner[2] + 0.01, front_z]]);
+    }
+}
+
+module pins() {
+    // Through the board's corner holes, from the pads to the rim's front:
+    // they keep the board from sliding, and stand on the print bed.
+    for (h = holes) translate([h[0], h[1], back_z - 0.01]) cylinder(d = pin_d, h = front_z - back_z + 0.01, $fn = 24);
+}
+
 module pads() {
-    // Behind each corner, the board's back rests on a pad, and its screw bites
-    // into it. Printed face down, a pad is a short bridge across the corner,
-    // held by the rim on two sides.
+    // Behind each corner, the board's back rests on a pad. Printed face down,
+    // a pad is a short bridge across the corner, held by the rim on two sides
+    // and by its pin in the middle.
     for (h = holes) {
         cx = h[0] < board_w / 2 ? outer[0] : outer[2];
         cy = h[1] < board_h / 2 ? outer[1] : outer[3];
@@ -124,14 +149,11 @@ module rail() {
 }
 
 module frame() {
-    difference() {
-        union() {
-            rim();
-            pads();
-            rail();
-        }
-        for (h = holes) translate([h[0], h[1], pad_z - 1]) cylinder(d = pilot_d, h = -pad_z + 1);
-    }
+    rim();
+    lips();
+    pads();
+    pins();
+    rail();
 }
 
 // --- standing it up: panel y becomes up and panel z towards you (-y),
@@ -209,7 +231,7 @@ module frame_standing() {
             sockets();
         }
         // Nothing in front of the rim's face, so it lies flat to print.
-        stood() translate([outer[0] - 50, outer[1] - 100, -200]) cube([outer[2] - outer[0] + 100, 400, 200]);
+        stood() translate([outer[0] - 50, outer[1] - 100, -200]) cube([outer[2] - outer[0] + 100, 400, 200 + front_z]);
     }
 }
 
@@ -229,12 +251,12 @@ side(buttons_side == "right") {
         %stood() translate([8, 7.6, back_z - 16]) cube([75, 65.4, 16]);
     } else if (layout == "flat") {
         // Both parts as they print, and pack.
-        rotate([180, 0, 0]) unstood() frame_standing();
+        translate([0, 0, front_z]) rotate([180, 0, 0]) unstood() frame_standing();
         translate([0, -outer[3] - 15, foot_t]) rotate([180, 0, 0]) translate([0, -heel_y, 0]) foot();
     } else if (layout == "foot") {
         // Upside down: the arms' wide tops on the bed, their sides leaning in.
         translate([0, 0, foot_t]) rotate([180, 0, 0]) translate([0, -heel_y, 0]) foot();
     } else {
-        rotate([180, 0, 0]) unstood() frame_standing();
+        translate([0, 0, front_z]) rotate([180, 0, 0]) unstood() frame_standing();
     }
 }

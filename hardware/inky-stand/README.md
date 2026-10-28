@@ -8,11 +8,11 @@ so the two pack flat to travel.
 
 - **The panel shows as it is.** The bumper covers nothing on the front: the
   panel's own thin black border, its glass and its print all show, inside a
-  2 mm rim, flush with the board's face.
-- **Only the four corners touch the board.** The board drops in from the
-  front and screws through its corner holes into pads behind its corners;
-  the screw heads show at the corners, as on the bare board. The back stays
-  open, so the Hack3r and the buttons on the back are free.
+  2 mm rim standing just proud of the board's face.
+- **It snaps in, no screws.** A pin on a pad behind each corner goes through
+  the board's corner hole, so it can't slide, and a small lip at the middle
+  of each side reaches 0.7 mm over its front edge, so it can't fall out. The
+  back stays open, so the Hack3r and the buttons on the back are free.
 - **The foot slides in and out.** It's a U: two arms joined at the back,
   open at the front for the cable to the Pi. The arms are dovetails that
   slide into two sockets behind the board's bottom edge. They set the lean,
@@ -27,15 +27,16 @@ Two parts, both ready to print as they are, with no supports:
 
 | File | Lies on | Size |
 |---|---|---|
-| `inky-stand-frame.stl` | its front, the pads and sockets rising from it | 108 × 83 mm, 17 mm tall |
+| `inky-stand-frame.stl` | its front, the pads and sockets rising from it | 108 × 83 mm, 18 mm tall |
 | `inky-stand-foot.stl` | its top, upside down | 87 × 68 mm, 3 mm thick |
 
 <img alt="The two parts flat: the bumper face down with its corner pads and two sockets, and the U-shaped foot" src="inky-stand-flat.png" width="600">
 
 - PLA or PETG, 0.2 mm layers, 3 walls, 20% infill. Matte black matches the
   panel's black border.
-- The four corner pads print as short bridges across the corners; the rail
-  along the bottom slopes at 45°. Neither needs supports.
+- The four corner pads print as short bridges across the corners, held up
+  by their pins, which stand on the bed; the rail along the bottom slopes at
+  45°. Nothing needs supports.
 - **Try the fit before anything else:** slide the foot into the sockets. It
   should go in with a firm push and not wobble. If it won't go in, set
   `fit` to `0.3` and print the foot again (only the foot); if it's loose,
@@ -43,13 +44,19 @@ Two parts, both ready to print as they are, with no supports:
 
 ## Put it together
 
-1. Lay the bumper face down, with the foot out. Lay the panel face down in
-   it: the board drops into the rim, its corners on the four pads.
-2. Turn it over, keeping the board in place. Four **M2 × 5 mm** screws, from
-   the front, through the board's corner holes into the pads. They cut their
-   own thread, so stop when they're snug.
+1. With the foot out, hold the bumper face up and line the board's corner
+   holes up with the four pins.
+2. Press the board straight in, near each side's middle, until each side
+   clicks under its lip. The side walls flex a little to let it past.
 3. Plug the cable back in.
 4. Slide the foot's arms into the sockets until they stop, and stand it up.
+
+**To take the board out:** press it out from behind, near the middle of one
+side, while easing that side's wall outwards.
+
+**If the fit is off:** if the pins won't go into the holes, set `pin_d` to
+`1.7`. If the board won't click in, set `snap` to `0.5`; if it pops out,
+`0.9`. Then print the bumper again.
 
 **To travel:** pull the foot straight out backwards. The bumper (with the
 panel in it) and the foot lie flat.
@@ -75,7 +82,8 @@ they print.
 | `buttons_side` | `left` | As you face the screen. Set `right` if your buttons are on the other side |
 | `wall` | `2` | The rim's width, all round |
 | `gap` | `0.5` | Clearance around the board. More if it won't drop in |
-| `pilot_d` | `1.7` | Screw holes. Use `1.6` if the screws are loose, `1.8` if they're hard to turn |
+| `pin_d` | `1.9` | The pins in the board's M2 holes. Less if they won't go in |
+| `snap` | `0.7` | How far each lip reaches over the board's edge. More if the board pops out, less if it won't click in |
 | `foot_depth` | `70` | How far the foot reaches back |
 
 Measured on a real panel: the board is 103 × 78 mm (Pimoroni's drawing),
