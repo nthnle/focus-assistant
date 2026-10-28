@@ -89,7 +89,9 @@ focus add Finish the quarterly report
 focus show            # the list, numbered in the order you added things (not a ranking)
 focus done 1          # numbers are positions in `focus show`
 focus edit 2 Email Sam the budget
-focus drop 3
+focus drop 3          # removed items are kept a week:
+focus removed         #   list them
+focus restore         #   bring back the latest (or: focus restore 2)
 focus report drifted  # or on-track: tell the coach how the block is going
 focus pause 11:00     # quiet for a meeting; also 45m, 2pm, tomorrow, monday, 2026-10-24
 focus resume

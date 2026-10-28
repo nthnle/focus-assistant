@@ -100,7 +100,10 @@ Under the strip is the **list editor**, for when voice mishears you:
   any day you choose with **Pick a day…**, which opens your browser's date
   picker. Later items have the same menu, with **To today** to bring one
   back or a new day to reschedule it.
-- **×** removes an item, after asking.
+- **×** removes an item, after asking. Removed items stay under "Removed
+  this week" for 7 days, with a **Restore** button that brings one back as
+  it was. Items removed by voice or chat land there too, including
+  anything the coach removed by mistake; "bring back the dentist" works too.
 
 While you're typing, the page holds back its live update so it doesn't
 throw away what you typed, and catches up as soon as you're done.

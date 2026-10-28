@@ -87,7 +87,8 @@ suggests one item, with a reason.
 After each reply a soft chime means it's still listening for 5 seconds:
 speak again and it's another turn, with no button or wake word. Say nothing
 and it stops. The coach is the same one as [phone chat](phone.md#chat): it
-can add, rename, schedule, complete, reopen and drop items, log how a
+can add, rename, schedule, complete, reopen, drop and restore items
+("bring back the dentist", for a week after it was removed), log how a
 block is going, and pause ("quiet until 11", "I'm off
 until Monday"). It's built for quick commands.
 

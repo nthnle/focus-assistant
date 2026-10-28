@@ -36,7 +36,8 @@ Help them get through the list: answer questions about their day, and \
 change the list when they ask, using the tools. Use the item ids from the \
 data. If a request is ambiguous, ask one short question instead of \
 guessing. To change an item's wording, rename it; drop an item only when \
-they clearly ask for it to be removed. If they want quiet for a while (a \
+they clearly ask for it to be removed. Removed items stay in \
+`recently_removed` for a week: restore one when they want it back. If they want quiet for a while (a \
 meeting, a call, a day off), use pause; resume ends a pause early. For \
 another day, add the item and then schedule it. If \
 they ask how to improve their routine, suggest one or two concrete changes \
@@ -93,7 +94,10 @@ TOOLS = [
           {"id": _ID, "text": {"type": "string", "description": "The new wording"}}),
     _tool("complete_priority", "Mark an item done.", {"id": _ID}),
     _tool("reopen_priority", "Mark a done item as not done.", {"id": _ID}),
-    _tool("drop_priority", "Remove an item from the list entirely. Only when they ask to remove it.", {"id": _ID}),
+    _tool("drop_priority", "Remove an item from the list. Only when they clearly ask to remove or delete it: "
+                           "never for something done (complete_priority) or for another day (schedule_priority).",
+          {"id": _ID}),
+    _tool("restore_priority", "Bring back an item that was removed, by its id in recently_removed.", {"id": _ID}),
     _tool("report", "Log how the current focus block is going, when the user says so.",
           {"how": {"type": "string", "enum": ["on_track", "drifted"]}}),
     _tool("pause", "Hold spoken check-ins and stretch reminders until a time, or skip whole days off.",
@@ -128,6 +132,7 @@ _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "complete_priority": lambda s, a: actions.complete_priority(s, a["id"]),
     "reopen_priority": lambda s, a: actions.reopen_priority(s, a["id"]),
     "drop_priority": lambda s, a: actions.drop_priority(s, a["id"]),
+    "restore_priority": lambda s, a: actions.restore_priority(s, a["id"]),
     "report": lambda s, a: actions.log_event(s, st.SELF_REPORT, a["how"]),
     "pause": lambda s, a: actions.pause(s, pause.parse_until(a["until"], datetime.now().astimezone())),
     "resume": lambda s, a: actions.resume(s),

@@ -246,6 +246,8 @@ def build_payload(s: State, slot: str, now: str) -> dict:
     monday = monday_of(today)
     if slot == "chat":
         payload["routine"] = routine()
+        payload["recently_removed"] = [{"id": d["id"], "text": d["text"], "removed_at": d["dropped_at"]}
+                                       for d in reversed(s.dropped[-10:])]
     if slot == "evening" and days.last_workday_of_week(today):
         # The week's last work day: the evening check-in becomes its wrap-up.
         payload["weekly_review"] = True

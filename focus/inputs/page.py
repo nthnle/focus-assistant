@@ -4,7 +4,7 @@
     POST http://<pi>.local:8765/display/list?k=<FOCUS_DISPLAY_TOKEN>
          {"op": "add", "text": "..."}
          {"op": "rename", "id": 3, "text": "..."}
-         {"op": "done" | "reopen" | "drop", "id": 3}
+         {"op": "done" | "reopen" | "drop" | "restore", "id": 3}
          {"op": "move", "id": 3, "on": "today" | "later" | "2026-10-26"}
 
 The page (focus.display) polls with If-None-Match and gets a bodyless 304
@@ -86,6 +86,8 @@ def edit_list(cfg: Config, change) -> str:
             p = actions.reopen_priority(s, _id(change))
         elif op == "drop":
             p = actions.drop_priority(s, _id(change))
+        elif op == "restore":
+            p = actions.restore_priority(s, _id(change))
         elif op == "move":
             p = actions.schedule_priority(s, _id(change), _on(change))
         else:

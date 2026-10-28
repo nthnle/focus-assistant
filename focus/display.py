@@ -5,7 +5,7 @@ slot and the date, today's open items (up to SHOWN, red tag = days carried)
 and the reply. Under it, a status strip the e-ink panel doesn't have: where you
 are in the day (focus block, break, between blocks), the next 50/10 break,
 the phone, presence, and today's counts. Under that, the list editor: add,
-mark done, reword, move (to any later day) or remove items (POST /display/list, handled by
+mark done, reword, move (to any later day), remove or restore items (POST /display/list, handled by
 `inputs/page.py`), for when voice mishears.
 
 The focus-page service serves it at /display, through `Page`. Every
@@ -32,6 +32,8 @@ from .state import PHONE_OUT, STRETCH_REMINDER, State
 POLL_SECONDS = 2
 # Open items the screen lists before "+N more"; the 4" panel fits six.
 SHOWN = 6
+# Removed items the editor offers to restore, newest first.
+SHOWN_REMOVED = 5
 # The longest item the editor takes, in characters.
 MAX_TEXT = 200
 # A fallback in case the script can't run: a plain reload this often.
@@ -116,6 +118,7 @@ _PAGE = """<!doctype html>
   .edit .tick {{ width: 30px; height: 30px; padding: 0; border-radius: 50%; }}
   .edit .tick.on {{ background: var(--green); border-color: var(--green); color: #fff; }}
   .edit li.done .t {{ text-decoration: line-through; color: var(--muted); }}
+  .edit li.removed .t {{ color: var(--muted); }}
   .edit input[type=date] {{ flex: none; width: 150px; padding: 5px 6px; }}
   .edit .when {{ flex: none; font-size: 12px; color: var(--muted); }}
   .edit .x {{ width: 30px; padding: 6px 0; }}
@@ -391,6 +394,12 @@ def editor(state: State) -> str:
             f'<li data-id="{p.id}">{text(p)}<span class="when">{_on(p)}</span>'
             f'{move(p)}{remove}</li>'
             for p in state.later) + "</ul>")
+    if state.dropped:
+        parts.append("<h2>Removed this week</h2><ul>" + "".join(
+            f'<li class="removed" data-id="{d["id"]}"><span class="t">{escape(d["text"])}</span>'
+            f'<span class="when">{datetime.fromisoformat(d["dropped_at"]):%a %H:%M}</span>'
+            f'<button data-op="restore">Restore</button></li>'
+            for d in reversed(state.dropped[-SHOWN_REMOVED:])) + "</ul>")
     return "".join(parts)
 
 

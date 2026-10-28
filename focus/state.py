@@ -85,6 +85,9 @@ class State:
     checkins: list[dict] = field(default_factory=list)
     events: list[dict] = field(default_factory=list)
     chat: list[dict] = field(default_factory=list)
+    # Removed items, newest last, each a priority plus "dropped_at": kept
+    # KEEP_DROPPED_DAYS so a removal (by you or the coach) can be undone.
+    dropped: list[dict] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
     # Check-ins and stretch reminders wait until then (focus.pause). Unlike
     # the rest of the day, it survives rollover: a pause can last for days.
@@ -160,6 +163,7 @@ class State:
             checkins=data.get("checkins", []),
             events=data.get("events", []),
             chat=data.get("chat", []),
+            dropped=data.get("dropped", []),
             # Days summed up before "phone_minutes_off" was renamed read like new ones.
             history=[{("phone_minutes" if k == "phone_minutes_off" else k): v for k, v in h.items()}
                      for h in data.get("history", [])],
@@ -168,6 +172,9 @@ class State:
             last_week={k: v for k, v in data["last_week"].items() if k != "goals"} if data.get("last_week") else None,
             week_review=data.get("week_review"),
         )
+
+
+KEEP_DROPPED_DAYS = 7
 
 
 def now_iso() -> str:
@@ -236,6 +243,8 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
         "pickups_by_hour": phone["by_hour"],
     })
     state.history = state.history[-history_days:]
+    keep_from = (today - timedelta(days=KEEP_DROPPED_DAYS)).isoformat()
+    state.dropped = [d for d in state.dropped if d["dropped_at"][:10] >= keep_from]
 
     # The day counts only if it was a work day and a check-in ran on it, and
     # only for priorities that were already there at its last check-in: one

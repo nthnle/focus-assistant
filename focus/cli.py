@@ -31,6 +31,15 @@ def _show(s: st.State) -> None:
         print(f"[{mark}] {i}. {p.text}{carried}{when}")
 
 
+def _removed(s: st.State) -> None:
+    """Newest first: the numbers `focus restore` takes."""
+    if not s.dropped:
+        print(f"Nothing removed in the last {st.KEEP_DROPPED_DAYS} days.")
+        return
+    for i, d in enumerate(reversed(s.dropped), 1):
+        print(f"{i}. {d['text']}  (removed {datetime.fromisoformat(d['dropped_at']):%a %H:%M})")
+
+
 def _on(on: str) -> str:
     return "someday" if on == st.LATER else f"{date.fromisoformat(on):%a %d %b}"
 
@@ -84,6 +93,10 @@ def main(argv: list[str] | None = None) -> int:
     for name, help_ in [("done", "mark done"), ("undo", "mark not done"), ("drop", "remove")]:
         p = sub.add_parser(name, help=f"{help_} an item (its number in `focus show`)")
         p.add_argument("number", type=int)
+    sub.add_parser("removed", help="items removed this week, to restore")
+    p = sub.add_parser("restore", help="bring back a removed item")
+    p.add_argument("number", type=int, nargs="?", default=1,
+                   help="its number in `focus removed` (default 1: the latest)")
     p = sub.add_parser("edit", help="change an item's wording")
     p.add_argument("number", type=int)
     p.add_argument("text", nargs="+")
@@ -137,7 +150,17 @@ def main(argv: list[str] | None = None) -> int:
             elif args.cmd == "undo":
                 actions.reopen_priority(s, _at(s, args.number).id)
             elif args.cmd == "drop":
-                actions.drop_priority(s, _at(s, args.number).id)
+                p = actions.drop_priority(s, _at(s, args.number).id)
+                print(f"Removed {p.text} (focus restore brings it back)")
+            elif args.cmd == "removed":
+                _removed(s)
+                return 0
+            elif args.cmd == "restore":
+                removed = list(reversed(s.dropped))
+                if not 1 <= args.number <= len(removed):
+                    raise st.StateError("Nothing to restore with that number; `focus removed` lists them")
+                p = actions.restore_priority(s, removed[args.number - 1]["id"])
+                print(f"Restored {p.text}")
             elif args.cmd == "edit":
                 actions.rename_priority(s, _at(s, args.number).id, " ".join(args.text))
             elif args.cmd == "pause":

@@ -6,6 +6,7 @@ stays identical whichever input was used.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import date, datetime, timedelta
 
 from . import state as st
@@ -72,9 +73,24 @@ def reopen_priority(s: State, priority_id: int) -> st.Priority:
 
 
 def drop_priority(s: State, priority_id: int) -> st.Priority:
+    """Remove an item. It is kept for a week, for restore_priority."""
     p = s.find(priority_id)
     s.priorities.remove(p)
+    s.dropped.append({**asdict(p), "dropped_at": st.now_iso()})
     return p
+
+
+def restore_priority(s: State, priority_id: int) -> st.Priority:
+    """Bring back a removed item as it was: its day, carried days, done or not."""
+    for d in s.dropped:
+        if d["id"] == priority_id:
+            s.dropped.remove(d)
+            p = st.Priority(**{k: v for k, v in d.items() if k != "dropped_at"})
+            if any(q.id == p.id for q in s.priorities):  # never two items with one id
+                p.id, s.next_id = s.next_id, s.next_id + 1
+            s.priorities.append(p)
+            return p
+    raise st.StateError(f"No removed item with id {priority_id}")
 
 
 def log_event(s: State, kind: str, detail: str | None = None,
