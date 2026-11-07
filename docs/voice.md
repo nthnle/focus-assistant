@@ -86,11 +86,14 @@ suggests one item, with a reason.
 
 After each reply a soft chime means it's still listening for 5 seconds:
 speak again and it's another turn, with no button or wake word. Say nothing
-and it stops. The coach is the same one as [phone chat](phone.md#chat): it
-can add, rename, schedule, complete, reopen, drop and restore items
-("bring back the dentist", for a week after it was removed), log how a
-block is going, and pause ("quiet until 11", "I'm off
-until Monday"). It's built for quick commands.
+and it stops. The coach sees the same data as a check-in, and changes your
+list only through a fixed set of tools: it can add, rename, schedule,
+complete, reopen, drop and restore items ("bring back the dentist", for a
+week after it was removed), log how a block is going, pause ("quiet until
+11", "I'm off until Monday"), and note when a reply was wrong or spot on.
+Ask it "how could I improve my routine?" and it suggests one or two
+changes from your last week. Today's conversation is kept, so follow-ups
+work, and the next check-in sees it. It's built for quick commands.
 
 **Talk mode,** for thinking something through out loud: say **"let's talk"**
 (or "can we chat", or "let's talk about the exam plan" to start right in).

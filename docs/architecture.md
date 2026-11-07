@@ -16,12 +16,12 @@ At a glance:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone for chat, any browser for the status page, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="diagrams/architecture-simple.png">
+  <img alt="At a glance: any browser for the status page, the Pi's shared core and seven services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="diagrams/architecture-simple.png">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-simple-dark.png">
-  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, chat and phone use as icons on You, Pi and Groq lanes, a mark wherever the e-ink panel redraws, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
+  <img alt="A weekday at a glance: check-ins, stretch reminders, voice, a status page edit and phone use as icons on You, Pi and Groq lanes, a mark wherever the e-ink panel redraws, with a voice turn and the offline fallback" src="diagrams/workflow-simple.png">
 </picture>
 
 <picture>
@@ -38,12 +38,12 @@ In detail:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-dark.png">
-  <img alt="Architecture: the phone, the Pi's eight sandboxed services, the shared core, the webcam, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
+  <img alt="Architecture: the phone, the Pi's seven sandboxed services, the shared core, the webcam, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/workflow-dark.png">
-  <img alt="One weekday: check-ins, stretch reminders, phone use seen by the desk camera, voice and chat across You, Pi and model host lanes, marking each change the e-ink panel redraws for, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
+  <img alt="One weekday: check-ins, stretch reminders, phone use seen by the desk camera, voice and a status page edit across You, Pi and model host lanes, marking each change the e-ink panel redraws for, with insets for one voice turn and the offline fallback" src="diagrams/workflow.png">
 </picture>
 
 The sources are the HTML files in [`diagrams/`](diagrams/) (1600x1000, light
@@ -61,8 +61,8 @@ a desktop PC that copies `state.json` at 18:00.
   timers                    │   inputs     │      outputs  │
   ───────                   │   ──────     │      ───────  │
   focus-checkin  ──► coach ─┤   camera ────┤      console ◄┤
-  focus-stretch  ──► coach ─┤   chat  ─────┤      speech  ◄┤
-                            │   voice ─────┤      inky    ◄┘
+  focus-stretch  ──► coach ─┤   voice ─────┤      speech  ◄┤
+                            │   page  ─────┤      inky    ◄┘
   you ─► focus CLI ─────────┘   (all call focus.actions)
 ```
 
@@ -123,7 +123,7 @@ focus/
   bench.py        voice benchmark
   cli.py          the `focus` command
   outputs/        where a check-in goes: console, speech, inky
-  inputs/         long-running services: chat, the status page, voice (+ _web helpers)
+  inputs/         long-running services: the status page, voice (+ _web helpers)
 deploy/           systemd units, udev rule, focus.env.example, install.sh
 tools/            train_camera.py: trains the camera's model on a PC
 tests/
@@ -151,7 +151,6 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-stretch` | timer: :50 each hour, in focus blocks on work days | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each hour, after a reminder | **no** | none | sound cards |
 | `focus-page` | always (the status page: the e-ink panel's layout in a browser, and a list editor) | **no** | home network (and Tailscale) only, inbound | none |
-| `focus-chat` | always | yes | home network (and Tailscale) inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |
 | `focus-camera` | always; the camera is open around focus blocks, while a check-in waits for you, or while a held one does | **no** | none | the webcam |
@@ -159,11 +158,10 @@ root only; systemd reads it and passes it to the services that need it.
 Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.
 
-The two services that listen on the network (`page`, `chat`) answer only
+The one service that listens on the network (`page`) answers only
 private addresses (and Tailscale's 100.64.0.0/10, your own devices from
-anywhere) and require their own token (`Authorization: Bearer`, or
-`?k=` for the status page), optionally narrowed to listed devices with
-`FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN, and
+anywhere) and requires its own token (`?k=` in the URL), optionally
+narrowed to listed devices with `FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN, and
 encrypted by Tailscale off it ([phone.md](phone.md#from-anywhere)).
 
 ## Adding an output
@@ -193,7 +191,7 @@ with st.locked_state(config.load()) as s:
 
 Long-running inputs get their own systemd unit, so a crash in one never
 affects the check-ins. For a network input, `focus/inputs/_web.py` has the
-token check and server loop that the status page and chat use.
+token check and server loop that the status page uses.
 
 ## E-ink display
 

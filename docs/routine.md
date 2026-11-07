@@ -9,7 +9,8 @@ phone: [diagrams/cheatsheet.png](diagrams/cheatsheet.png).
 </picture>
 
 Commands run on the Pi (`ssh` in). Most things can also be said to the
-coach, from your phone ("Hey Siri, Coach") or at the desk ("Hey Jarvis").
+coach at the desk ("Hey Jarvis"), and the list can be edited on the
+[status page](phone.md#status-page).
 
 ## Every workday
 

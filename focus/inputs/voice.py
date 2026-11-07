@@ -1,8 +1,8 @@
 """Talk to the coach at the desk: say "Hey Jarvis" or press the play button, then speak.
 
     wake word or play button -> chime -> record until you stop talking
-    (or press again) -> faster-whisper on the Pi -> the same coach as phone
-    chat -> Piper speaks the reply through the speaker
+    (or press again) -> faster-whisper on the Pi -> the coach
+    (focus.chat) -> Piper speaks the reply through the speaker
 
 The microphone stream is always open while the service runs, but its audio
 is thrown away: it only goes through the wake-word model (if one is set).

@@ -23,7 +23,7 @@ How the parts fit:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-simple-dark.png">
-  <img alt="At a glance: the iPhone for chat, any browser for the status page, the Pi's shared core and eight services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
+  <img alt="At a glance: any browser for the status page, the Pi's shared core and seven services, the webcam, the speakerphone, the e-ink panel, and Groq, which only receives text" src="docs/diagrams/architecture-simple.png">
 </picture>
 
 More diagrams, including a weekday timeline, are in
@@ -39,7 +39,6 @@ More diagrams, including a weekday timeline, are in
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
 | A **status page**: the e-ink panel's view in any browser on your network (laptop, desktop or phone), with a status strip under it (focus block, phone, breaks) and a list editor for when voice mishears you | nothing extra |
 | **Phone use**: a desk camera notices when you pick up your phone during focus time, and after 5 minutes on it the coach says so | a USB webcam, and a PC to train its model once on your own desk |
-| **Chat** with the coach from your phone, typed or through Siri | an iOS Shortcut |
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
 | **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the desk camera |
 | An **e-ink display** that redraws when your list or the coach's reply changes | a Pimoroni Inky Impression 4.0" (Spectra 6), on the Pi or on a ribbon |
@@ -114,7 +113,7 @@ three days carried, the coach suggests shrinking, rescheduling or dropping
 the item.
 
 **Pausing.** `focus pause` (or telling the coach "quiet until 11" or "I'm
-off until Monday", by chat or voice) holds stretch reminders and check-ins. A check-in that comes due during a
+off until Monday" by voice) holds stretch reminders and check-ins. A check-in that comes due during a
 short pause waits, and comes once the pause is over. On days you're paused
 through there are none, so a holiday costs nothing and doesn't count toward
 carried days.
@@ -132,7 +131,7 @@ in a pattern from the week (pickups bunching after lunch, things getting
 done late). The next week's first check-in recalls that suggestion. If the
 wrap-up didn't happen (a day off, the Pi was
 off), the next morning check-in does a short version first. You can also ask for
-routine suggestions any time, by chat or voice.
+routine suggestions any time, by voice.
 
 **Improving the coach.** Every reply the model writes is kept on the Pi for
 60 days in `replies.jsonl`, next to exactly what the coach was given, and
@@ -151,7 +150,7 @@ of changes to the prompts or code. The loop is drawn in
 | [docs/install.md](docs/install.md) | Full setup, updating, the check-in schedule, troubleshooting |
 | [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
 | [docs/camera.md](docs/camera.md) | The desk camera: phone use, the phone nudge, an empty desk; recording, training, privacy |
-| [docs/phone.md](docs/phone.md) | Chat from your phone, the status page, presence |
+| [docs/phone.md](docs/phone.md) | The status page (at home, or from anywhere with Tailscale), presence |
 | [docs/configuration.md](docs/configuration.md) | Every setting in `focus.env` |
 | [docs/backup.md](docs/backup.md) | A daily copy of `state.json` to another computer, with a key that can only read that file |
 | [docs/architecture.md](docs/architecture.md) | How it fits together, security model, adding your own inputs and outputs, development |
@@ -172,7 +171,7 @@ check-ins fall back to a fixed nudge built from your list.
 - **Your data stays on the Pi**, in one JSON file (and a 60-day log of the
   coach's replies, for improving it), except what is sent to
   the model host you chose, to write each reply: your list, today's
-  events and check-ins, your last few chat or voice messages and their
+  events and check-ins, your last few voice messages and their
   replies, and recent daily summaries. Check that host's data retention
   policy.
 - **Speech never leaves the Pi.** Speech recognition (faster-whisper or
@@ -188,10 +187,10 @@ check-ins fall back to a fixed nudge built from your list.
   word. Nothing from it is kept. A speakerphone's mute button, or the
   nightly quiet hours (voice off from 00:00 to 08:00), turn it off
   completely.
-- **The network services listen on your home network only** (and, if you
+- **The status page listens on your home network only** (and, if you
   set it up, [Tailscale](docs/phone.md#from-anywhere) for your own devices
-  away from home), each behind its own token. Of the two, only chat holds the model key; the status page
-  (`focus-page`) can't spend money. Every service runs sandboxed with only the access
+  away from home), behind its own token. It never holds the model key, so
+  it can't spend money. Every service runs sandboxed with only the access
   it needs. Details in [docs/architecture.md](docs/architecture.md).
 
 ## Status

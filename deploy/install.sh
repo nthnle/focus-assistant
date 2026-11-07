@@ -25,14 +25,14 @@ if [ ! -f "$ETC/focus.env" ]; then
     install -m 0600 -o root -g root deploy/focus.env.example "$ETC/focus.env"
     NEED_KEY=1
 fi
-# One token per network service, so each can be rotated on its own.
-for name in FOCUS_CHAT_TOKEN FOCUS_DISPLAY_TOKEN; do
-    if ! grep -q "^$name=" "$ETC/focus.env"; then
-        echo "$name=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" >> "$ETC/focus.env"
-    fi
-done
-# The iPhone's charger reports are gone (the desk camera replaced them).
-sed -i '/^FOCUS_DOCK_TOKEN=/d' "$ETC/focus.env"
+# The status page's token.
+if ! grep -q "^FOCUS_DISPLAY_TOKEN=" "$ETC/focus.env"; then
+    echo "FOCUS_DISPLAY_TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')" >> "$ETC/focus.env"
+fi
+# The iPhone's charger reports are gone (the desk camera replaced them), and
+# so is phone chat (the Coach shortcut): their tokens go too.
+sed -i -e '/^FOCUS_DOCK_TOKEN=/d' -e '/^FOCUS_CHAT_TOKEN=/d' -e '/^FOCUS_CHAT_PORT=/d' \
+       -e '/^FOCUS_CHAT_HOST=/d' "$ETC/focus.env"
 chown root:root "$ETC/focus.env"
 chmod 0600 "$ETC/focus.env"
 
@@ -49,10 +49,15 @@ if [ -f /etc/systemd/system/focus-dock.service ]; then
     rm -f /etc/systemd/system/focus-dock.service
     rm -f "$STATE_DIR/charger.json"
 fi
+# Phone chat (the Coach shortcut) is gone; voice is the way to talk to the coach.
+if [ -f /etc/systemd/system/focus-chat.service ]; then
+    systemctl disable --now focus-chat.service || true
+    rm -f /etc/systemd/system/focus-chat.service
+fi
 # Desk sound no longer counts for presence; the camera decides.
 rm -f "$STATE_DIR/presence.json"
 for unit in focus-checkin.service focus-checkin-tick.service focus-checkin.timer \
-            focus-page.service focus-chat.service \
+            focus-page.service \
             focus-voice.service focus-display.service focus-camera.service \
             focus-stretch.service focus-stretch.timer \
             focus-back.service focus-back.timer \
@@ -75,7 +80,7 @@ systemctl enable --now focus-voice-sleep.timer focus-voice-wake.timer
 # These open ports or the microphone, or need the speaker set up first, so they
 # are enabled by hand (see README); restart them if they run. The stretch timer
 # picks up a changed unit on the daemon-reload above.
-systemctl try-restart focus-page.service focus-chat.service focus-voice.service \
+systemctl try-restart focus-page.service focus-voice.service \
                       focus-display.service focus-camera.service
 if [ "${ENABLE_PAGE:-0}" = 1 ]; then
     systemctl enable --now focus-page.service
@@ -92,7 +97,7 @@ elif ! grep -q "^FOCUS_LLM_API_KEY=" "$ETC/focus.env"; then
     # An install from before the switch to open models still has the Anthropic key.
     echo "Note: the coach now uses an open model. Add FOCUS_LLM_BASE_URL, FOCUS_LLM_API_KEY"
     echo "and FOCUS_MODEL to $ETC/focus.env (see deploy/focus.env.example); until then"
-    echo "check-ins are the offline ones and chat says the coach is offline."
+    echo "check-ins are the offline ones and voice says the coach is offline."
 fi
 echo "Try a check-in now:  sudo systemctl start focus-checkin && journalctl -u focus-checkin -n 20"
 systemctl list-timers 'focus-*' --no-pager

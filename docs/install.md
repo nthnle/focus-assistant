@@ -53,7 +53,7 @@ sudo deploy/install.sh
 - installs the systemd units, enables the check-in timer and the nightly
   voice quiet hours, and restarts any optional services that are running
 
-The optional services (status page, chat, voice, desk camera, e-ink
+The optional services (status page, voice, desk camera, e-ink
 display, stretch reminders) are installed but **not enabled**: you turn
 each one on when you set it up.
 
@@ -86,7 +86,6 @@ this order, each one builds on the ones before it:
 | Voice commands, wake word, Call button | a USB speakerphone (Anker PowerConf tested) | [voice.md, 2 to 4](voice.md#2-voice-commands) |
 | The e-ink panel | a Pimoroni Inky Impression 4.0" | [architecture.md, E-ink display](architecture.md#e-ink-display) |
 | The status page: the panel's view in any browser, and a list editor | nothing extra | [phone.md, Status page](phone.md#status-page) |
-| Chat from your phone, typed or through Siri | an iPhone (one Shortcut) | [phone.md, Chat](phone.md#chat) |
 | Phone use, the phone nudge, and presence | a USB webcam, and a PC to train its model once | [camera.md](camera.md) |
 | A daily copy of your list on another computer | a PC or Mac that's on at 18:00 | [backup.md](backup.md) |
 
@@ -119,7 +118,7 @@ the check-ins come at their times, and on days off there are none.
 `sun-thu`, or `mon-thu,sat`). Only work days have focus blocks, stretch
 reminders, phone counting and nudges, and count toward "days carried". On a
 day off a check-in is two sentences about what you planned for that day:
-items scheduled for it (by voice, chat, `focus add --on sat`, or **Pick a
+items scheduled for it (by voice, `focus add --on sat`, or **Pick a
 day** on the status page) or added on it. Work left over isn't mentioned.
 With nothing planned it looks ahead to the next work day.
 
@@ -174,7 +173,7 @@ journalctl -u focus-checkin -u focus-checkin-tick -n 30   # recent check-ins
 
 ```bash
 sudo systemctl disable --now focus-checkin.timer focus-stretch.timer \
-     focus-voice-sleep.timer focus-voice-wake.timer focus-page focus-chat focus-voice \
+     focus-voice-sleep.timer focus-voice-wake.timer focus-page focus-voice \
      focus-camera focus-display
 sudo rm /etc/systemd/system/focus-* /etc/udev/rules.d/70-focus-powerconf.rules
 sudo rm -r /opt/focus-assistant /etc/focus-assistant /usr/local/bin/focus

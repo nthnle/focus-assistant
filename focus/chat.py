@@ -28,8 +28,8 @@ MAX_PRIORITY_CHARS = 200
 
 SYSTEM_PROMPT = """\
 You are the user's focus coach, the same one that checks in three times a \
-day from a small device on their desk. Now they are messaging you from their \
-phone, often by voice. Each message comes with their to-do list (the \
+day from a small device on their desk. Now they are talking to you at the \
+desk, by voice. Each message comes with their to-do list (the \
 `priorities` in the data), today's check-ins and device events.
 
 Help them get through the list: answer questions about their day, and \
@@ -271,9 +271,9 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         payload = coach.build_payload(s, "chat", st.now_iso())
         history = s.chat[-HISTORY_TURNS:]
 
-    # Short timeouts: the phone is waiting, and a Shortcut gives up after about a minute.
+    # Short timeouts: you're waiting at the desk for the reply.
     client = client or coach.make_client(
-        "the chat service gets it from /etc/focus-assistant/focus.env", timeout=25.0, max_retries=1
+        "the voice service gets it from /etc/focus-assistant/focus.env", timeout=25.0, max_retries=1
     )
     messages: list[dict] = []
     for turn in history:

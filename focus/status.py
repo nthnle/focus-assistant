@@ -17,7 +17,7 @@ from .pricing import cost, prices  # noqa: F401  (tests use these here)
 from .config import Config
 from .state import State
 
-UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-page", "focus-chat", "focus-voice",
+UNITS = ["focus-checkin.timer", "focus-stretch.timer", "focus-page", "focus-voice",
          "focus-camera", "focus-display"]
 # Ticks every few minutes to see whether a check-in is due: its next tick says nothing.
 NO_NEXT = ("focus-checkin.timer",)

@@ -1,8 +1,4 @@
 import json
-import threading
-import urllib.error
-import urllib.request
-from http.server import ThreadingHTTPServer
 
 import httpx
 import pytest
@@ -10,9 +6,6 @@ from conftest import client_for, completion, scripted, sse, tool_call
 
 from focus import actions, chat, config, state as st
 from focus.coach import CoachError
-from focus.inputs import chat as chat_service
-
-TOKEN = "t" * 24
 
 
 @pytest.fixture
@@ -211,45 +204,6 @@ def test_chat_clears_at_rollover(cfg):
     with st.locked_state(cfg, today=date(2026, 10, 15)) as s:
         assert s.chat == []
         assert s.history[-1]["chats"] == 1
-
-
-@pytest.fixture
-def server(cfg):
-    calls = []
-
-    def fake_run(_cfg, text, on_text=None):
-        calls.append(text)
-        if text == "fail":
-            raise CoachError("The coach is offline: can't reach the model provider")
-        return f"You said: {text}"
-
-    handler = chat_service.make_handler(cfg, TOKEN, run=fake_run)
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{srv.server_address[1]}", calls
-    srv.shutdown()
-    srv.server_close()
-
-
-def post(url, body, token=TOKEN):
-    req = urllib.request.Request(url, method="POST", data=body, headers={
-        "Authorization": f"Bearer {token}", "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            return resp.status, resp.read().decode()
-    except urllib.error.HTTPError as exc:
-        return exc.code, ""
-
-
-def test_http_chat(server):
-    base, calls = server
-    assert post(f"{base}/chat", b'{"text": "hello"}') == (200, "You said: hello")
-    assert post(f"{base}/chat", b'{"text": "fail"}') == (
-        200, "Sorry, that didn't work: The coach is offline: can't reach the model provider")
-    assert post(f"{base}/chat", b'{"text": "x"}', token="wrong")[0] == 403
-    assert post(f"{base}/chat", b'not json')[0] == 400
-    assert post(f"{base}/other", b'{"text": "x"}')[0] == 404
-    assert calls == ["hello", "fail"]
 
 
 def test_talk_mode_asks_for_conversational_replies(cfg):

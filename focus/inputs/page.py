@@ -107,7 +107,7 @@ def make_handler(cfg: Config, blocks: list[Block], token: str) -> type[BaseHTTPR
             if _web.path_of(self) != "/display":
                 self.send_error(404)
                 return
-            if not _web.authorized(self, token, in_query=True):
+            if not _web.authorized(self, token):
                 return
             version, html = page.get(st.now_iso())
             etag = f'"{version}"'
@@ -126,7 +126,7 @@ def make_handler(cfg: Config, blocks: list[Block], token: str) -> type[BaseHTTPR
             self.wfile.write(body)
 
         def do_POST(self) -> None:
-            if not _web.authorized(self, token, in_query=True):
+            if not _web.authorized(self, token):
                 return
             length = _web.content_length(self)
             if length is None or length > MAX_BODY:

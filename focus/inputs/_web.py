@@ -1,9 +1,8 @@
-"""What the network services (chat, the status page) share: the token check and the server loop.
+"""The status page's network side: the token check and the server loop.
 
-Only private (home network) addresses with `Authorization: Bearer <token>`
-get past `authorized()`; everything else is a 403 and a log line. A browser
-page can't send that header, so it passes the token as `?k=<token>` instead.
-Tailscale's addresses (100.64.0.0/10) count as home too: they are your own
+Only private (home network) addresses with `?k=<token>` in the URL get past
+`authorized()`; everything else is a 403 and a log line. The token goes in
+the URL because a bookmark can't send a header. Tailscale's addresses (100.64.0.0/10) count as home too: they are your own
 devices, on an encrypted network, reaching the Pi from anywhere.
 
 Plain HTTP means anyone on the same Wi-Fi can read a token in transit, so
@@ -76,15 +75,10 @@ def client_allowed(address: str, allowed: list | None) -> bool:
     return allowed is None or ip.is_loopback or any(ip in net for net in allowed)
 
 
-def authorized(handler: BaseHTTPRequestHandler, token: str, in_query: bool = False) -> bool:
+def authorized(handler: BaseHTTPRequestHandler, token: str) -> bool:
     private = client_allowed(handler.client_address[0], allowed_clients())
-    if in_query:
-        given = parse_qs(urlsplit(handler.path).query).get("k", [""])[0].encode()
-        expected = token.encode()
-    else:
-        given = handler.headers.get("Authorization", "").encode()
-        expected = f"Bearer {token}".encode()
-    if private and hmac.compare_digest(given, expected):
+    given = parse_qs(urlsplit(handler.path).query).get("k", [""])[0].encode()
+    if private and hmac.compare_digest(given, token.encode()):
         return True
     # path_of() keeps a guessed token out of the log.
     log.warning("Rejected %s %s from %s", handler.command, path_of(handler), handler.client_address[0])
