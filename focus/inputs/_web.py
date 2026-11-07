@@ -3,6 +3,8 @@
 Only private (home network) addresses with `Authorization: Bearer <token>`
 get past `authorized()`; everything else is a 403 and a log line. A browser
 page can't send that header, so it passes the token as `?k=<token>` instead.
+Tailscale's addresses (100.64.0.0/10) count as home too: they are your own
+devices, on an encrypted network, reaching the Pi from anywhere.
 
 Plain HTTP means anyone on the same Wi-Fi can read a token in transit, so
 FOCUS_ALLOWED_CLIENTS (comma-separated addresses or networks, e.g. the
@@ -22,6 +24,11 @@ from urllib.parse import parse_qs, urlsplit
 log = logging.getLogger(__name__)
 
 MIN_TOKEN_LENGTH = 16
+
+# Tailscale gives each device an address here (carrier-grade NAT space, which
+# Python doesn't count as private). The Pi sits behind the home router, so the
+# only way such an address reaches it is over Tailscale.
+TAILSCALE = ipaddress.ip_network("100.64.0.0/10")
 
 
 def token_from_env(name: str) -> str | None:
@@ -62,7 +69,7 @@ def client_allowed(address: str, allowed: list | None) -> bool:
         ip = ipaddress.ip_address(address)
     except ValueError:
         return False
-    if not ip.is_private:
+    if not (ip.is_private or ip in TAILSCALE):
         return False
     # The Pi itself is always allowed: loopback can't come from the network,
     # and it lets you test a service with curl on the Pi.

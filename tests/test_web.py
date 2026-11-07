@@ -27,7 +27,11 @@ def test_content_length(raw, expected):
 @pytest.mark.parametrize("address, allowed, ok", [
     ("192.168.1.50", None, True),
     ("8.8.8.8", None, False),                      # never the internet
-    ("100.64.1.1", None, False),                   # carrier-grade NAT is not home
+    ("100.101.102.103", None, True),               # Tailscale: your devices, from anywhere
+    ("fd7a:115c:a1e0::1", None, True),             # Tailscale over IPv6
+    ("100.128.0.1", None, False),                  # just past Tailscale's range
+    ("100.101.102.103", "192.168.1.50", False),    # the allowlist narrows Tailscale too
+    ("100.101.102.103", "192.168.1.50, 100.101.102.103", True),
     ("not-an-ip", None, False),
     ("192.168.1.50", "192.168.1.50", True),
     ("192.168.1.51", "192.168.1.50", False),

@@ -150,8 +150,8 @@ root only; systemd reads it and passes it to the services that need it.
 | `focus-checkin` | by hand: a check-in now | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each hour, in focus blocks on work days | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each hour, after a reminder | **no** | none | sound cards |
-| `focus-page` | always (the status page: the e-ink panel's layout in a browser, and a list editor) | **no** | home network only, inbound | none |
-| `focus-chat` | always | yes | home network inbound, API outbound | none |
+| `focus-page` | always (the status page: the e-ink panel's layout in a browser, and a list editor) | **no** | home network (and Tailscale) only, inbound | none |
+| `focus-chat` | always | yes | home network (and Tailscale) inbound, API outbound | none |
 | `focus-voice` | always, except quiet hours | yes | outbound | sound cards, input devices (read), hidraw (read) |
 | `focus-display` | always (redraws the e-ink panel) | **no** | none | SPI, I2C, GPIO |
 | `focus-camera` | always; the camera is open around focus blocks, while a check-in waits for you, or while a held one does | **no** | none | the webcam |
@@ -160,9 +160,11 @@ Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.
 
 The two services that listen on the network (`page`, `chat`) answer only
-private addresses and require their own token (`Authorization: Bearer`, or
+private addresses (and Tailscale's 100.64.0.0/10, your own devices from
+anywhere) and require their own token (`Authorization: Bearer`, or
 `?k=` for the status page), optionally narrowed to listed devices with
-`FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN.
+`FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN, and
+encrypted by Tailscale off it ([phone.md](phone.md#from-anywhere)).
 
 ## Adding an output
 

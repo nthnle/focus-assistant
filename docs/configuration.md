@@ -85,7 +85,7 @@ See [camera.md](camera.md).
 | `FOCUS_DISPLAY_TOKEN` | (generated) | Token for the status page URL. `focus-page` won't start without one; a missing line gets a new token on the next install. |
 | `FOCUS_PAGE_PORT` | `8765` | Port for `focus-page`. |
 | `FOCUS_PAGE_HOST` | `0.0.0.0` | Address to listen on. |
-| `FOCUS_ALLOWED_CLIENTS` | (any home-network address) | Comma-separated addresses or networks allowed to reach the status page and chat, e.g. your phone's reserved IP `192.168.1.50`. The Pi itself (localhost) is always allowed, for testing with curl; public addresses never are. A bad entry stops the services from starting. |
+| `FOCUS_ALLOWED_CLIENTS` | (any home-network or Tailscale address) | Comma-separated addresses or networks allowed to reach the status page and chat, e.g. your phone's reserved IP `192.168.1.50` and its Tailscale address. The Pi itself (localhost) is always allowed, for testing with curl; public addresses never are. A bad entry stops the services from starting. |
 
 ## Chat
 

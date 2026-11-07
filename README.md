@@ -188,8 +188,9 @@ check-ins fall back to a fixed nudge built from your list.
   word. Nothing from it is kept. A speakerphone's mute button, or the
   nightly quiet hours (voice off from 00:00 to 08:00), turn it off
   completely.
-- **The network services listen on your home network only**, each behind
-  its own token. Of the two, only chat holds the model key; the status page
+- **The network services listen on your home network only** (and, if you
+  set it up, [Tailscale](docs/phone.md#from-anywhere) for your own devices
+  away from home), each behind its own token. Of the two, only chat holds the model key; the status page
   (`focus-page`) can't spend money. Every service runs sandboxed with only the access
   it needs. Details in [docs/architecture.md](docs/architecture.md).
 

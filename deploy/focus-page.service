@@ -26,7 +26,9 @@ BindPaths=@STATE_DIR@
 PrivateTmp=yes
 PrivateDevices=yes
 IPAddressDeny=any
-IPAddressAllow=localhost link-local 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fc00::/7
+# The home network's private ranges, plus Tailscale's (100.64.0.0/10) for
+# reaching it from anywhere on your own devices.
+IPAddressAllow=localhost link-local 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 fc00::/7
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
