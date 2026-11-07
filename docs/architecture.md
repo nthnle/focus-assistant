@@ -38,7 +38,7 @@ In detail:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="diagrams/architecture-dark.png">
-  <img alt="Architecture: the phone, the Pi's seven sandboxed services, the shared core, the webcam, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
+  <img alt="Architecture: your devices (any browser, at home or over Tailscale), the Pi's seven sandboxed services, the shared core, the webcam, the speakerphone, the e-ink panel and the model host, with the trust boundaries between them" src="diagrams/architecture.png">
 </picture>
 
 <picture>
