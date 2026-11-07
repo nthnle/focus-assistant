@@ -34,7 +34,7 @@ from .config import Config
 KEEP_DAYS = 60
 
 # Word limits from the prompts, with a little slack.
-LIMITS = {"checkin": 70, "weekly": 100, "chat": 60, "voice": 30, "stretch": 25, "nudge": 25}
+LIMITS = {"checkin": 70, "weekly": 100, "voice": 30, "talk": 60, "stretch": 25, "nudge": 25}
 SLACK = 1.2
 
 _MARKDOWN = re.compile(r"(\*\*|__|`|^\s*#|^\s*[-*•]\s|^\s*\d+[.)]\s)", re.M)

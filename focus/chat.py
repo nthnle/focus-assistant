@@ -51,12 +51,12 @@ change.
 The list is not ranked: never call an item "next" or "the top one". If \
 they ask what to do, suggest one item and why.
 
-Your reply may be read aloud, so write plain sentences: no markdown, no \
-lists, no emoji, at most 60 words. After changing something, say what you \
-changed in a few words, naming the item, not just "done" or "all set"."""
+Your reply will be read aloud, so write plain sentences: no markdown, no \
+lists, no emoji. After changing something, say what you changed in a few \
+words, naming the item, not just "done" or "all set"."""
 
-# Added for messages spoken at the desk: there the reply is heard, and every
-# extra sentence is another second or two of waiting.
+# How long a reply may be. A quick command gets one sentence: the reply is
+# heard, and every extra sentence is another second or two of waiting.
 VOICE_RULES = """
 
 This message was spoken at the desk and your reply will be read aloud. \
@@ -256,10 +256,9 @@ def _run_tool(cfg: Config, name: str, raw_args: str) -> tuple[str, bool]:
 
 def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
         on_text: Callable[[str], None] | None = None,
-        voice: bool = False, on_done_change: Callable[[], None] | None = None,
-        talk: bool = False) -> str:
-    """Answer one message. `on_text` receives the reply as it streams in;
-    `voice` asks for the short replies that suit being read aloud;
+        on_done_change: Callable[[], None] | None = None, talk: bool = False) -> str:
+    """Answer one spoken message. `on_text` receives the reply as it streams
+    in; `talk` asks for conversational replies instead of one quick sentence;
     `on_done_change` is called when a priority was marked done or reopened."""
     message = message.strip()
     if not message:
@@ -289,7 +288,7 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
     stream = _FirstPartFilter(on_text).feed if on_text else None
     for _ in range(MAX_STEPS):
         response = coach.create(cfg, client, model=cfg.chat_model, on_text=stream,
-                                system=SYSTEM_PROMPT + (TALK_RULES if talk else VOICE_RULES if voice else ""),
+                                system=SYSTEM_PROMPT + (TALK_RULES if talk else VOICE_RULES),
                                 tools=TOOLS, messages=messages)
         tokens_in += response.usage.input_tokens
         tokens_out += response.usage.output_tokens
@@ -312,11 +311,10 @@ def run(cfg: Config, message: str, client: openai.OpenAI | None = None,
             "user": message,
             "reply": reply,
             "changed": changed,
-            "voice": voice,
             "model": cfg.chat_model,
             "tokens": {"in": tokens_in, "out": tokens_out},
         }, cfg.chat_model, tokens_in, tokens_out))
-    feedback.record(cfg, "voice" if voice else "chat", {**payload, "message": message}, reply, cfg.chat_model)
+    feedback.record(cfg, "talk" if talk else "voice", {**payload, "message": message}, reply, cfg.chat_model)
     if on_done_change and {"complete_priority", "reopen_priority"} & set(changed):
         on_done_change()
     return reply

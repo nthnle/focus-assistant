@@ -2,8 +2,12 @@
 
 Only private (home network) addresses with `?k=<token>` in the URL get past
 `authorized()`; everything else is a 403 and a log line. The token goes in
-the URL because a bookmark can't send a header. Tailscale's addresses (100.64.0.0/10) count as home too: they are your own
-devices, on an encrypted network, reaching the Pi from anywhere.
+the URL because a bookmark can't send a header.
+
+With Tailscale installed, install.sh sets FOCUS_TAILSCALE=1 and Tailscale's
+addresses (100.64.0.0/10) count as home too: devices on your tailnet,
+reaching the Pi over an encrypted network from anywhere. Without it they
+don't, because internet providers also use that range for carrier-grade NAT.
 
 Plain HTTP means anyone on the same Wi-Fi can read a token in transit, so
 FOCUS_ALLOWED_CLIENTS (comma-separated addresses or networks, e.g. the
@@ -24,9 +28,9 @@ log = logging.getLogger(__name__)
 
 MIN_TOKEN_LENGTH = 16
 
-# Tailscale gives each device an address here (carrier-grade NAT space, which
-# Python doesn't count as private). The Pi sits behind the home router, so the
-# only way such an address reaches it is over Tailscale.
+# Tailscale gives each device an address here. It is carrier-grade NAT space,
+# which Python doesn't count as private and some networks hand out to other
+# customers, so it is trusted only when Tailscale is set up (FOCUS_TAILSCALE).
 TAILSCALE = ipaddress.ip_network("100.64.0.0/10")
 
 
@@ -63,12 +67,17 @@ def allowed_clients() -> list | None:
     return [ipaddress.ip_network(part.strip(), strict=False) for part in raw.split(",") if part.strip()]
 
 
-def client_allowed(address: str, allowed: list | None) -> bool:
+def tailscale_on() -> bool:
+    """FOCUS_TAILSCALE=1: install.sh found Tailscale on the Pi."""
+    return os.environ.get("FOCUS_TAILSCALE", "") == "1"
+
+
+def client_allowed(address: str, allowed: list | None, tailscale: bool = False) -> bool:
     try:
         ip = ipaddress.ip_address(address)
     except ValueError:
         return False
-    if not (ip.is_private or ip in TAILSCALE):
+    if not (ip.is_private or (tailscale and ip in TAILSCALE)):
         return False
     # The Pi itself is always allowed: loopback can't come from the network,
     # and it lets you test a service with curl on the Pi.
@@ -76,7 +85,7 @@ def client_allowed(address: str, allowed: list | None) -> bool:
 
 
 def authorized(handler: BaseHTTPRequestHandler, token: str) -> bool:
-    private = client_allowed(handler.client_address[0], allowed_clients())
+    private = client_allowed(handler.client_address[0], allowed_clients(), tailscale_on())
     given = parse_qs(urlsplit(handler.path).query).get("k", [""])[0].encode()
     if private and hmac.compare_digest(given, token.encode()):
         return True

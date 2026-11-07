@@ -66,6 +66,17 @@ for unit in focus-checkin.service focus-checkin-tick.service focus-checkin.timer
     sed -e "s|@USER@|$USER_NAME|g" -e "s|@STATE_DIR@|$STATE_DIR|g" \
         "deploy/$unit" > "/etc/systemd/system/$unit"
 done
+# With Tailscale on the Pi, the status page also answers your tailnet's
+# addresses (docs/phone.md, From anywhere); without it, it doesn't.
+DROPIN=/etc/systemd/system/focus-page.service.d
+if command -v tailscale >/dev/null; then
+    install -d -m 0755 "$DROPIN"
+    printf '%s\n' '[Service]' 'IPAddressAllow=100.64.0.0/10' 'Environment=FOCUS_TAILSCALE=1' \
+        > "$DROPIN/tailscale.conf"
+    echo "Tailscale found: the status page answers your tailnet too."
+else
+    rm -f "$DROPIN/tailscale.conf"
+fi
 systemctl daemon-reload
 systemctl enable --now focus-checkin.timer
 # The check-in times used to be set by overriding this timer; they are

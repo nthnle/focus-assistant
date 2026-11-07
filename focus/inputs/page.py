@@ -131,7 +131,10 @@ def make_handler(cfg: Config, blocks: list[Block], token: str) -> type[BaseHTTPR
             length = _web.content_length(self)
             if length is None or length > MAX_BODY:
                 self.close_connection = True  # the body is left unread
-                self._json(413, {"error": "Too long"})
+                if length is None:
+                    self._json(400, {"error": "Bad Content-Length"})
+                else:
+                    self._json(413, {"error": "Too long"})
                 return
             raw = self.rfile.read(length)
             if _web.path_of(self) != "/display/list":

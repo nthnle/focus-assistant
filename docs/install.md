@@ -49,7 +49,7 @@ sudo deploy/install.sh
 - creates your state directory, `~/.local/state/focus-assistant`
 - creates `/etc/focus-assistant/focus.env` (readable by root only) from
   [`deploy/focus.env.example`](../deploy/focus.env.example), and adds a random
-  token for each network service
+  token for the status page
 - installs the systemd units, enables the check-in timer and the nightly
   voice quiet hours, and restarts any optional services that are running
 

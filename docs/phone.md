@@ -92,8 +92,8 @@ The upper panel mirrors the e-ink display layout ([architecture.md](architecture
 
 To see and edit the list away from home, put the Pi and your
 phone on [Tailscale](https://tailscale.com): a free private network between
-your own devices. It's encrypted end to end, nothing on your router opens,
-and nobody outside your Tailscale account can reach the Pi. Don't forward
+your own devices. It's encrypted end to end, and nothing on your router
+opens: only devices on your tailnet can reach the Pi. Don't forward
 ports on the router instead: the page is plain HTTP and won't answer
 public addresses anyway.
 
@@ -103,10 +103,13 @@ public addresses anyway.
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up            # prints a link: open it and sign in
 tailscale ip -4              # the Pi's Tailscale address, 100.x.y.z
+cd ~/focus-assistant && git pull && sudo deploy/install.sh
 ```
 
-(If your copy predates Tailscale support, `git pull && sudo deploy/install.sh`
-first: older versions of `focus-page` turn Tailscale addresses away.)
+The status page answers Tailscale addresses only once `install.sh` has
+seen Tailscale on the Pi ("Tailscale found" in its output), so run it
+after installing Tailscale. If you remove Tailscale, run it again and the
+page stops answering them.
 
 **On the phone:** install the Tailscale app, sign in to the same account,
 and switch it on. Then use the Pi's Tailscale name in place of
@@ -123,6 +126,17 @@ works.
 If you set `FOCUS_ALLOWED_CLIENTS`, add the phone's Tailscale address to it
 too (`tailscale ip -4` on the phone, or the Tailscale admin page), or the
 Pi turns it away.
+
+**Who else is on your tailnet?** Every device on it gets a 100.x.y.z
+address, and the page answers all of them that have the token. If you share
+the Pi with someone or your tailnet has other people on it, set
+`FOCUS_ALLOWED_CLIENTS` to just your own devices.
+
+**Don't use `tailscale serve` or `tailscale funnel` for the page.** They
+forward requests to it from the Pi itself, so the page can't tell who sent
+them and `FOCUS_ALLOWED_CLIENTS` no longer applies; `funnel` puts it on the
+open internet behind nothing but the token. Plain Tailscale, as above,
+needs neither.
 
 ## Presence
 

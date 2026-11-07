@@ -27,11 +27,6 @@ def test_content_length(raw, expected):
 @pytest.mark.parametrize("address, allowed, ok", [
     ("192.168.1.50", None, True),
     ("8.8.8.8", None, False),                      # never the internet
-    ("100.101.102.103", None, True),               # Tailscale: your devices, from anywhere
-    ("fd7a:115c:a1e0::1", None, True),             # Tailscale over IPv6
-    ("100.128.0.1", None, False),                  # just past Tailscale's range
-    ("100.101.102.103", "192.168.1.50", False),    # the allowlist narrows Tailscale too
-    ("100.101.102.103", "192.168.1.50, 100.101.102.103", True),
     ("not-an-ip", None, False),
     ("192.168.1.50", "192.168.1.50", True),
     ("192.168.1.51", "192.168.1.50", False),
@@ -39,6 +34,7 @@ def test_content_length(raw, expected):
     ("8.8.8.8", "8.8.8.8", False),                 # listing a public address doesn't open it
     ("127.0.0.1", "192.168.1.50", True),           # the Pi itself, for curl tests
     ("::1", "192.168.1.50", True),
+    ("100.101.102.103", None, False),              # carrier-grade NAT, without Tailscale
 ])
 def test_client_allowed(monkeypatch, address, allowed, ok):
     if allowed:
@@ -46,6 +42,28 @@ def test_client_allowed(monkeypatch, address, allowed, ok):
     else:
         monkeypatch.delenv("FOCUS_ALLOWED_CLIENTS", raising=False)
     assert _web.client_allowed(address, _web.allowed_clients()) is ok
+
+
+@pytest.mark.parametrize("address, allowed, ok", [
+    ("100.101.102.103", None, True),               # a device on your tailnet
+    ("100.128.0.1", None, False),                  # just past Tailscale's range
+    ("100.101.102.103", "192.168.1.50", False),    # the allowlist narrows Tailscale too
+    ("100.101.102.103", "192.168.1.50, 100.101.102.103", True),
+])
+def test_tailscale_addresses_only_with_tailscale(monkeypatch, address, allowed, ok):
+    monkeypatch.setenv("FOCUS_TAILSCALE", "1")
+    if allowed:
+        monkeypatch.setenv("FOCUS_ALLOWED_CLIENTS", allowed)
+    else:
+        monkeypatch.delenv("FOCUS_ALLOWED_CLIENTS", raising=False)
+    assert _web.client_allowed(address, _web.allowed_clients(), _web.tailscale_on()) is ok
+
+
+def test_tailscale_is_off_unless_install_turned_it_on(monkeypatch):
+    monkeypatch.delenv("FOCUS_TAILSCALE", raising=False)
+    assert not _web.tailscale_on()
+    monkeypatch.setenv("FOCUS_TAILSCALE", "yes")
+    assert not _web.tailscale_on()
 
 
 def test_bad_allowlist_entry_refuses_to_start(monkeypatch):
@@ -97,10 +115,10 @@ def test_malformed_content_length_is_answered_not_crashed(base):
     url, cfg = base
     # Without a token: a plain 403, not an exception in the handler.
     assert raw_post(f"{url}/display/list", {"Content-Length": "abc"}) == 403
-    # With one: a 413 instead of blocking on read(-1).
+    # With one: a 400 instead of blocking on read(-1).
     json_type = {"Content-Type": "application/json"}
-    assert raw_post(f"{url}/display/list?k={TOKEN}", {**json_type, "Content-Length": "-1"}) == 413
-    assert raw_post(f"{url}/display/list?k={TOKEN}", {**json_type, "Content-Length": "abc"}) == 413
+    assert raw_post(f"{url}/display/list?k={TOKEN}", {**json_type, "Content-Length": "-1"}) == 400
+    assert raw_post(f"{url}/display/list?k={TOKEN}", {**json_type, "Content-Length": "abc"}) == 400
     assert items(cfg) == []
 
 

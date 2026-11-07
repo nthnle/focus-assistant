@@ -35,7 +35,7 @@ def busy_day():
         {"slot": "midday", "at": at(13, 0), "reply": "y", "model": "test-model",
          "tokens": {"in": 1000, "out": 100}, "unheard": True},
     ]
-    s.chat = [{"at": at(10, 0), "user": "hi", "reply": "hey", "voice": True,
+    s.chat = [{"at": at(10, 0), "user": "hi", "reply": "hey",
                "model": "test-chat-model", "tokens": {"in": 2000, "out": 50}}]
     s.events = [
         {"at": at(10, 50), "kind": stretch.STRETCH, "detail": "coach",
@@ -89,7 +89,7 @@ def test_report_shows_the_day(cfg):
     assert "Camera       away since 13:57" in text
     assert "Presence     away" in text           # the camera has seen the empty desk for 8 min
     assert "2 reminders (1 by the coach, 1 fixed)" in text
-    assert "1 messages (1 by voice)" in text
+    assert "Voice        1 messages to the coach" in text
     assert "focus-camera" in text and "focus-page" in text
     assert "total      $0.0063" in text
 
@@ -120,7 +120,7 @@ def test_saved_costs_count_even_without_prices_here(cfg, monkeypatch):
          "tokens": {"in": 1000, "out": 100}, "usd": 0.0003},
         {"slot": "midday", "at": at(13, 0), "reply": "The coach is offline.", "model": "offline"},
     ]
-    s.chat = [{"at": at(10, 0), "user": "hi", "reply": "hey", "voice": False,
+    s.chat = [{"at": at(10, 0), "user": "hi", "reply": "hey",
                "model": "test-chat-model", "tokens": {"in": 500, "out": 20}, "usd": 0.0001}]
     rows = {name: rest for name, *rest in status.usage_today(cfg, s)}
     assert rows["check-ins"] == [1, 1000, 100, pytest.approx(0.0003)]

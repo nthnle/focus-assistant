@@ -111,8 +111,7 @@ class Recorder:
             self.hints.append(hint)
             return heard
 
-        def ask(_cfg, text, on_text, voice):
-            assert voice is True  # spoken turns ask for short replies
+        def ask(_cfg, text, on_text):
             self.asked.append(text)
             if fail:
                 raise CoachError(fail)
@@ -346,7 +345,7 @@ def followup_voice(cfg, heard, listens, fail_on=()):
         log["listen"].append(start_timeout_s)
         return queue.pop(0)
 
-    def ask(_cfg, text, on_text, voice):
+    def ask(_cfg, text, on_text):
         log["asked"].append(text)
         if text in fail_on:
             raise CoachError("no network")
@@ -387,7 +386,7 @@ def talk_voice(cfg, heard, listens):
         log["listen"].append(start_timeout_s)
         return queue.pop(0)
 
-    def ask(_cfg, text, on_text, voice, talk=False):
+    def ask(_cfg, text, on_text, talk=False):
         log["asked"].append((text, talk))
         on_text("Okay.")
 
@@ -532,7 +531,7 @@ def test_play_while_the_coach_speaks_cuts_it_off(cfg):
     v = voice.Voice(cfg, speak=lambda t: None, stream=lambda: SlowStream([]), play=lambda w: None,
                     listen=lambda stop, start_timeout_s=None: b"\x00\x00" * 100,
                     transcribe=lambda a, hint: "tell me everything",
-                    ask=lambda c, t, on_text, voice: (asked.append(t), on_text("A long answer. "))[0],
+                    ask=lambda c, t, on_text: (asked.append(t), on_text("A long answer. "))[0],
                     followup_s=5)
     assert v.answer(b"\x00\x00" * 100, lambda: next(presses)) is False   # cut off: no follow-up
     assert SlowStream.stopped and asked == ["tell me everything"]

@@ -112,7 +112,6 @@ def report(cfg: Config, s: State, now: datetime,
     nudges = sum(1 for e in s.events if e["kind"] == st.PHONE_NUDGE)
     reminders = [e for e in s.events if e["kind"] == stretch.STRETCH]
     by_coach = sum(1 for e in reminders if e.get("detail") == "coach")
-    voice_chats = sum(1 for c in s.chat if c.get("voice"))
 
     lines = [f"Focus status, {now:%a %d %b %H:%M}", "", "Services"]
     lines += service_lines(systemctl)
@@ -128,7 +127,7 @@ def report(cfg: Config, s: State, now: datetime,
         f"  Presence     {'away' if presence.away(cfg, now) else 'at the desk'}",
         f"  Paused       {pause.describe(s, now) or 'no'}",
         f"  Stretch      {len(reminders)} reminders ({by_coach} by the coach, {len(reminders) - by_coach} fixed)",
-        f"  Chat         {len(s.chat)} messages ({voice_chats} by voice)",
+        f"  Voice        {len(s.chat)} messages to the coach",
         f"  Replies      {feedback.summary(cfg)} (focus feedback)",
         "",
         "API cost today",

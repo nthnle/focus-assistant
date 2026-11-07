@@ -159,8 +159,9 @@ Two small helper units, `focus-voice-sleep` and `focus-voice-wake`, run as
 root only to stop and start `focus-voice` at the quiet-hours times.
 
 The one service that listens on the network (`page`) answers only
-private addresses (and Tailscale's 100.64.0.0/10, your own devices from
-anywhere) and requires its own token (`?k=` in the URL), optionally
+private addresses (and, if `install.sh` found Tailscale on the Pi,
+Tailscale's 100.64.0.0/10: your tailnet's devices, from anywhere) and
+requires its own token (`?k=` in the URL), optionally
 narrowed to listed devices with `FOCUS_ALLOWED_CLIENTS`. Requests are plain HTTP on your LAN, and
 encrypted by Tailscale off it ([phone.md](phone.md#from-anywhere)).
 

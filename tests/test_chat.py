@@ -34,7 +34,7 @@ def test_tool_call_changes_state_and_is_recorded(cfg):
 
     first = sent[0]
     assert first["model"] == "test-chat-model"   # chat uses FOCUS_CHAT_MODEL, not FOCUS_MODEL
-    assert first["messages"][0] == {"role": "system", "content": chat.SYSTEM_PROMPT}
+    assert first["messages"][0] == {"role": "system", "content": chat.SYSTEM_PROMPT + chat.VOICE_RULES}
     assert {t["function"]["name"] for t in first["tools"]} == set(chat._HANDLERS) | {"rate_reply"}
     assert all(t["type"] == "function" for t in first["tools"])
     assert "<data>" in first["messages"][-1]["content"]
@@ -208,14 +208,13 @@ def test_chat_clears_at_rollover(cfg):
 
 def test_talk_mode_asks_for_conversational_replies(cfg):
     client, sent = scripted(completion("Fair. What's making it hard to start?"))
-    chat.run(cfg, "I can't decide what to start with", client=client, voice=True, talk=True)
+    chat.run(cfg, "I can't decide what to start with", client=client, talk=True)
     assert sent[0]["messages"][0]["content"] == chat.SYSTEM_PROMPT + chat.TALK_RULES
 
 
 def test_voice_messages_ask_for_short_replies(cfg):
     client, sent = scripted(completion("Done. Next is Email Sam."))
-    chat.run(cfg, "done with the spec", client=client, voice=True)
+    chat.run(cfg, "done with the spec", client=client)
     assert sent[0]["messages"][0]["content"] == chat.SYSTEM_PROMPT + chat.VOICE_RULES
     with st.locked_state(cfg) as s:
-        assert s.chat[-1]["voice"] is True
         assert s.chat[-1]["model"] == "test-chat-model"

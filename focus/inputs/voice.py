@@ -494,7 +494,7 @@ class Voice:
         replied = True
         try:
             # talk= only when on, so an `ask` without it still works for short turns.
-            self.ask(self.cfg, text, on_text=out.feed, voice=True, **({"talk": True} if self.talking else {}))
+            self.ask(self.cfg, text, on_text=out.feed, **({"talk": True} if self.talking else {}))
         except CoachError as exc:
             log.warning("Voice chat failed: %s", exc)
             replied = False

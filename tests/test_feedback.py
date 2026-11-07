@@ -87,7 +87,7 @@ def test_telling_the_coach_it_was_wrong_rates_the_reply_before(cfg):
     chat.run(cfg, "that check-in was wrong, it's Sunday", client=client)
     first, second = feedback.entries(cfg)
     assert first["rating"] == {"value": "bad", "note": "it's Sunday", "at": first["rating"]["at"]}
-    assert second["kind"] == "chat" and second["payload"]["message"] == "that check-in was wrong, it's Sunday"
+    assert second["kind"] == "voice" and second["payload"]["message"] == "that check-in was wrong, it's Sunday"
 
 
 def test_cli_rate_and_feedback(cfg, capsys):
