@@ -93,7 +93,10 @@ facts.weekday says what day it is, and facts.workday whether it is a work \
 day. On a day off (workday is false) keep it to two sentences. `priorities` \
 then holds only what they planned for this day off; facts.work_items_waiting \
 counts the work items left for facts.next_workday, which you never push on \
-a day off. With something planned, help with it like a short check-in of \
+a day off. When it is above zero, don't call what's planned the only task \
+or say the list is clear: it is the only thing planned for today, and you \
+may add in a few words that the rest waits for facts.next_workday. With \
+something planned, help with it like a short check-in of \
 that kind: suggest one to start with in the morning, acknowledge what got \
 done in the evening. With nothing planned, don't judge the day, and look \
 ahead to the next work day.
@@ -162,18 +165,9 @@ PHONE_EVENTS = (st.PHONE_OUT, st.PHONE_IN, st.PHONE_NUDGE)
 
 
 def day_off_items(s: State) -> list[st.Priority]:
-    """On a day off, the items for it: planned for one of the days off so far
-    (scheduled for it, or added on it with no day), plus anything done today.
-    Work left from the last work day isn't among them."""
-    today = date.fromisoformat(s.date)
-    since = days.days_off_since(today).isoformat()
-
-    def planned(p: st.Priority) -> bool:
-        if p.on not in (None, st.LATER):
-            return since <= p.on <= s.date
-        return p.on is None and p.added_at is not None and since <= p.added_at[:10] <= s.date
-
-    return [p for p in s.today_list if planned(p) or (p.done and p.done_at[:10] == s.date)]
+    """On a day off, the items for it (see State.planned_for_day_off). Work
+    left from the last work day isn't among them."""
+    return [p for p in s.today_list if s.planned_for_day_off(p)]
 
 
 def facts(s: State, now: str, items: list[st.Priority] | None = None) -> dict:

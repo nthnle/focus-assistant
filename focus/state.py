@@ -34,7 +34,7 @@ except ImportError:  # Windows dev machines; the Pi always has fcntl
     fcntl = None
 
 from .config import Config
-from .days import is_workday, monday_of
+from .days import days_off_since, is_workday, monday_of
 
 SCHEMA_VERSION = 1
 
@@ -114,6 +114,17 @@ class State:
     def ordered(self) -> list[Priority]:
         """Today's list, then the later ones: how they are numbered everywhere."""
         return self.today_list + self.later
+
+    def planned_for_day_off(self, p: Priority) -> bool:
+        """On a day off, whether `p` is for it: scheduled for one of the days
+        off so far, added on one with no day, or done today. The rest of
+        today's list is work waiting for the next work day."""
+        since = days_off_since(date.fromisoformat(self.date)).isoformat()
+        if p.done:
+            return p.done_at[:10] == self.date
+        if p.on not in (None, LATER):
+            return since <= p.on <= self.date
+        return p.on is None and p.added_at is not None and since <= p.added_at[:10] <= self.date
 
     @property
     def open_priorities(self) -> list[Priority]:

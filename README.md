@@ -121,7 +121,8 @@ carried days.
 **Days off.** Saturday and Sunday by default (`FOCUS_WORKDAYS`). With the
 desk camera, a check-in still comes if you sit down at the desk; it's two
 sentences, about what you planned for that day (scheduled for it, or added
-on it), never the work waiting for Monday. With nothing planned it just looks
+on it), never the work waiting for Monday; **To today** on the status page
+pulls a waiting item into the day off. With nothing planned it just looks
 ahead. No stretch reminders, phone counting or nudges, and nothing counts as
 slipping.
 

@@ -159,6 +159,19 @@ def test_editor_rows(cfg):
     assert '<option value="today">To today</option>' in later_menu and '"later"' not in later_menu
 
 
+def test_on_a_day_off_waiting_work_can_be_moved_to_today(cfg, monkeypatch):
+    monkeypatch.setattr(st, "now_iso", lambda: "2026-10-16T10:00:00-05:00")
+    with st.locked_state(cfg, date(2026, 10, 16)) as s:   # Friday
+        work = actions.add_priority(s, "Finish the report")
+    monkeypatch.setattr(st, "now_iso", lambda: "2026-10-17T09:00:00-05:00")
+    with st.locked_state(cfg, date(2026, 10, 17)) as s:   # Saturday
+        errand = actions.add_priority(s, "Mow the lawn")
+    html = display.editor(st.peek(cfg, date(2026, 10, 17)))
+    rows = {pid: html.split(f'data-id="{pid}"')[1].split("</li>")[0] for pid in (work.id, errand.id)}
+    assert '<option value="today">To today</option>' in rows[work.id]
+    assert '"today"' not in rows[errand.id]
+
+
 def test_a_picked_day_moves_the_item(server, cfg):
     url = f"{server}/display/list?k={TOKEN}"
     pid = st.peek(cfg).priorities[0].id

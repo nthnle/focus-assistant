@@ -359,7 +359,8 @@ def editor(state: State) -> str:
     def move(p: st.Priority) -> str:
         """The Move menu, without the place the item already is."""
         options = [("", "Move")]
-        if not p.due(state.date):
+        # On a day off, work waiting for the next work day can be pulled in too.
+        if not p.due(state.date) or not days.is_workday(today) and not state.planned_for_day_off(p):
             options.append(("today", "To today"))
         if p.on != nxt.isoformat():
             options.append((nxt.isoformat(), f"To {nxt:%a %d %b}"))

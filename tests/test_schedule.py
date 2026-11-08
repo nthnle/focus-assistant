@@ -202,6 +202,30 @@ def test_a_day_off_checkin_is_about_what_was_planned_for_it(cfg):
     assert len(coach.build_payload(st.peek(cfg, today=sun), "chat", "2026-10-18T18:00:00-05:00")["priorities"]) == 3
 
 
+def test_to_today_on_a_day_off_pulls_in_waiting_work(cfg, monkeypatch):
+    fri, sat = date(2026, 10, 16), date(2026, 10, 17)
+    monkeypatch.setattr(st, "now_iso", lambda: "2026-10-16T10:00:00-05:00")
+    with st.locked_state(cfg, today=fri) as s:
+        amazon = actions.add_priority(s, "Return Amazon stuff")
+        actions.add_priority(s, "Finish the report")
+        added = s.find(amazon.id).added_at
+        actions.schedule_priority(s, amazon.id, None)          # a work day: already today, nothing changes
+        assert s.find(amazon.id).added_at == added
+    monkeypatch.setattr(st, "now_iso", lambda: "2026-10-17T09:00:00-05:00")
+    with st.locked_state(cfg, today=sat) as s:
+        battery = actions.add_priority(s, "Replace car battery")
+        assert [p.text for p in coach.day_off_items(s)] == ["Replace car battery"]
+        actions.schedule_priority(s, amazon.id, None)
+        actions.schedule_priority(s, battery.id, None)         # already planned: no change
+        payload = coach.build_payload(s, "midday", "2026-10-17T13:00:00-05:00")
+    assert [p["text"] for p in payload["priorities"]] == ["Return Amazon stuff", "Replace car battery"]
+    assert payload["facts"]["work_items_waiting"] == 1          # the report
+
+
+def test_the_day_off_prompt_never_calls_planned_items_the_only_task():
+    assert "don't call what's planned the only task" in coach.SYSTEM_PROMPT
+
+
 def test_the_wrap_up_is_on_the_weeks_last_work_day(cfg, monkeypatch):
     monkeypatch.setenv("FOCUS_WORKDAYS", "mon-thu")
     thu = st.State(date="2026-10-15")

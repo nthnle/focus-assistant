@@ -28,7 +28,7 @@ coach at the desk ("Hey Jarvis"), and the list can be edited on the
 | When | Do |
 |---|---|
 | Monday | The first check-in opens the week and recalls Friday's tip. |
-| The weekend | Nothing, unless you sit down at the desk: then a two-sentence check-in about what you planned for that day (`focus add --on sat Fix the bike`, or **Pick a day** on the status page). Work days are set with `FOCUS_WORKDAYS`. |
+| The weekend | Nothing, unless you sit down at the desk: then a two-sentence check-in about what you planned for that day (`focus add --on sat Fix the bike`, or **Pick a day** on the status page; **To today** pulls in an item left from Friday). Work days are set with `FOCUS_WORKDAYS`. |
 | Something not for today | `focus add --on wed Book the dentist`, or `focus later 3` (to "someday"). `focus now 3` brings it back. |
 | A day off | "Off until Monday", or `focus pause monday`. No check-ins, no cost, nothing counts as slipping. |
 | Friday 17:30 | The wrap-up: what got done, what slipped, and one routine tip. Try the tip the next week; to move focus blocks, edit `FOCUS_BLOCKS` in `/etc/focus-assistant/focus.env`. Ask for more any time: "how could I improve my routine?" |
