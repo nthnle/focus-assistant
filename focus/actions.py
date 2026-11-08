@@ -27,15 +27,12 @@ def add_priority(s: State, text: str, on: date | str | None = None) -> st.Priori
 
 
 def schedule_priority(s: State, priority_id: int, on: date | str | None) -> st.Priority:
-    """Move a priority to a later day, to "later", or (None) back to today.
-    On a day off, "today" also pulls in work waiting for the next work day,
-    so that day's check-ins count it as planned."""
+    """Move a priority to a later day, to "later", or (None) back to today."""
     p = s.find(priority_id)
     if p.done:
         raise st.StateError(f"{p.text} is already done")
     if on is None:
-        day_off = not st.is_workday(date.fromisoformat(s.date))
-        if p.on is not None or day_off and not s.planned_for_day_off(p):
+        if p.on is not None:
             p.on = None
             p.added_at = st.now_iso()  # back today: it hasn't slipped yet
         return p

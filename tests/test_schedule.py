@@ -175,55 +175,20 @@ def test_status_says_what_the_next_checkin_waits_for(cfg):
 
 # --- days off: what the check-in is about ---------------------------------------------
 
-def test_a_day_off_checkin_is_about_what_was_planned_for_it(cfg):
-    fri, sat, sun = date(2026, 10, 16), date(2026, 10, 17), date(2026, 10, 18)
-    with st.locked_state(cfg, today=fri) as s:
-        actions.add_priority(s, "Finish the report")                       # work, left on Friday
-        actions.add_priority(s, "Mow the lawn", sat)                        # planned for Saturday
-        actions.add_priority(s, "Call mum", sun)
-    with st.locked_state(cfg, today=sat) as s:
-        bike = actions.add_priority(s, "Fix the bike")                     # added on Saturday
-        bike.added_at = "2026-10-17T09:00:00-05:00"
-        report = next(p for p in s.priorities if p.text == "Finish the report")
-        report.done_at = "2026-10-17T09:30:00-05:00"                       # done anyway: acknowledged
-        payload = coach.build_payload(s, "morning", "2026-10-17T10:00:00-05:00")
-    assert [p["text"] for p in payload["priorities"]] == ["Finish the report", "Mow the lawn", "Fix the bike"]
-    f = payload["facts"]
-    assert (f["workday"], f["next_workday"], f["open_count"], f["done_count"]) == (False, "Monday", 2, 1)
-    assert f["work_items_waiting"] == 0
-    with st.locked_state(cfg, today=sun) as s:
-        actions.add_priority(s, "Email Sam", date(2026, 10, 19))            # for Monday: not today
-        s.find(bike.id).added_at = "2026-10-15T09:00:00-05:00"               # as if from Thursday
-        payload = coach.build_payload(s, "evening", "2026-10-18T18:00:00-05:00")
-    # Saturday's lawn still counts on Sunday; Thursday's bike doesn't.
-    assert [p["text"] for p in payload["priorities"]] == ["Mow the lawn", "Call mum"]
-    assert payload["facts"]["work_items_waiting"] == 1                    # the bike
-    # Chat always sees the whole list.
-    assert len(coach.build_payload(st.peek(cfg, today=sun), "chat", "2026-10-18T18:00:00-05:00")["priorities"]) == 3
-
-
-def test_to_today_on_a_day_off_pulls_in_waiting_work(cfg, monkeypatch):
+def test_a_day_off_checkin_sees_the_whole_list(cfg):
     fri, sat = date(2026, 10, 16), date(2026, 10, 17)
-    monkeypatch.setattr(st, "now_iso", lambda: "2026-10-16T10:00:00-05:00")
     with st.locked_state(cfg, today=fri) as s:
-        amazon = actions.add_priority(s, "Return Amazon stuff")
-        actions.add_priority(s, "Finish the report")
-        added = s.find(amazon.id).added_at
-        actions.schedule_priority(s, amazon.id, None)          # a work day: already today, nothing changes
-        assert s.find(amazon.id).added_at == added
-    monkeypatch.setattr(st, "now_iso", lambda: "2026-10-17T09:00:00-05:00")
+        actions.add_priority(s, "Return Amazon stuff")                     # left from Friday
+        actions.add_priority(s, "Mow the lawn", sat)                        # planned for Saturday
+        actions.add_priority(s, "Email Sam", date(2026, 10, 19))            # for Monday: not today
     with st.locked_state(cfg, today=sat) as s:
-        battery = actions.add_priority(s, "Replace car battery")
-        assert [p.text for p in coach.day_off_items(s)] == ["Replace car battery"]
-        actions.schedule_priority(s, amazon.id, None)
-        actions.schedule_priority(s, battery.id, None)         # already planned: no change
+        actions.add_priority(s, "Replace car battery")                     # added on Saturday
         payload = coach.build_payload(s, "midday", "2026-10-17T13:00:00-05:00")
-    assert [p["text"] for p in payload["priorities"]] == ["Return Amazon stuff", "Replace car battery"]
-    assert payload["facts"]["work_items_waiting"] == 1          # the report
-
-
-def test_the_day_off_prompt_never_calls_planned_items_the_only_task():
-    assert "don't call what's planned the only task" in coach.SYSTEM_PROMPT
+    assert [p["text"] for p in payload["priorities"]] == ["Return Amazon stuff", "Mow the lawn", "Replace car battery"]
+    f = payload["facts"]
+    assert (f["workday"], f["next_workday"], f["open_count"]) == (False, "Monday", 3)
+    assert "work_items_waiting" not in f
+    assert "offer rather than push" in coach.SYSTEM_PROMPT
 
 
 def test_the_wrap_up_is_on_the_weeks_last_work_day(cfg, monkeypatch):

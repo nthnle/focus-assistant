@@ -33,7 +33,7 @@ More diagrams, including a weekday timeline, are in
 
 | | Needs |
 |---|---|
-| **Check-ins** morning, midday and evening (from 09:00, 13:00 and 17:30), each written when you sit down at the desk, or at those times without the desk camera; short ones on days off, about what you planned for them; a **weekly wrap-up** on the week's last work day with a suggested change to your routine, and a check-in that opens the next week | a Pi and a key for a hosted open model |
+| **Check-ins** morning, midday and evening (from 09:00, 13:00 and 17:30), each written when you sit down at the desk, or at those times without the desk camera; short, lighter ones on days off; a **weekly wrap-up** on the week's last work day with a suggested change to your routine, and a check-in that opens the next week | a Pi and a key for a hosted open model |
 | A **to-do list** (not ranked) from the command line: `focus add`, `focus done`, `focus later` ... unfinished items carry over, each check-in suggests one to start with, and the coach notices when something keeps slipping | nothing extra |
 | **Spoken check-ins** and **stretch reminders** (50 minutes of work, 10 of break) | a USB speaker |
 | **Voice commands** at the desk: "Hey Jarvis, done with the report", "what should I do now?", plus buttons on a speakerphone | a USB speakerphone |
@@ -120,9 +120,8 @@ carried days.
 
 **Days off.** Saturday and Sunday by default (`FOCUS_WORKDAYS`). With the
 desk camera, a check-in still comes if you sit down at the desk; it's two
-sentences, about what you planned for that day (scheduled for it, or added
-on it), never the work waiting for Monday; **To today** on the status page
-pulls a waiting item into the day off. With nothing planned it just looks
+lighter sentences about the same list as any other day; move an item to
+Monday to keep it out of the weekend. With nothing open it just looks
 ahead. No stretch reminders, phone counting or nudges, and nothing counts as
 slipping.
 

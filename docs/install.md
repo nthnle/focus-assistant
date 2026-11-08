@@ -117,12 +117,10 @@ the check-ins come at their times, and on days off there are none.
 **Work days** are Monday to Friday unless you set `FOCUS_WORKDAYS` (e.g.
 `sun-thu`, or `mon-thu,sat`). Only work days have focus blocks, stretch
 reminders, phone counting and nudges, and count toward "days carried". On a
-day off a check-in is two sentences about what you planned for that day:
-items scheduled for it (by voice, `focus add --on sat`, or **Pick a
-day** on the status page) or added on it. Work left over isn't pushed; to
-do some of it anyway, choose **To today** for it on the status page (or say
-"move it to today").
-With nothing planned it looks ahead to the next work day.
+day off a check-in sees the same list as any other day, in two lighter
+sentences that offer rather than push. To keep a work item out of the
+weekend, move it to Monday (by voice, `focus later 3 mon`, or the status
+page). With nothing open it looks ahead to the next work day.
 
 To change the times, set them in `/etc/focus-assistant/focus.env`:
 

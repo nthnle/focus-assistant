@@ -90,16 +90,9 @@ marked done). Write it again for the list as it is now, at the same \
 length, acknowledging what got done. Don't say it is an update.
 
 facts.weekday says what day it is, and facts.workday whether it is a work \
-day. On a day off (workday is false) keep it to two sentences. `priorities` \
-then holds only what they planned for this day off; facts.work_items_waiting \
-counts the work items left for facts.next_workday, which you never push on \
-a day off. When it is above zero, don't call what's planned the only task \
-or say the list is clear: it is the only thing planned for today, and you \
-may add in a few words that the rest waits for facts.next_workday. With \
-something planned, help with it like a short check-in of \
-that kind: suggest one to start with in the morning, acknowledge what got \
-done in the evening. With nothing planned, don't judge the day, and look \
-ahead to the next work day.
+day. A day off gets the same check-in, kept to two sentences and lighter in \
+tone: it's their time, so offer rather than push. With nothing open, don't \
+judge the day, and look ahead to facts.next_workday.
 
 If the list is empty on a work day, ask what they need to get done, in one \
 sentence. \
@@ -164,17 +157,10 @@ class Response:
 PHONE_EVENTS = (st.PHONE_OUT, st.PHONE_IN, st.PHONE_NUDGE)
 
 
-def day_off_items(s: State) -> list[st.Priority]:
-    """On a day off, the items for it (see State.planned_for_day_off). Work
-    left from the last work day isn't among them."""
-    return [p for p in s.today_list if s.planned_for_day_off(p)]
-
-
-def facts(s: State, now: str, items: list[st.Priority] | None = None) -> dict:
+def facts(s: State, now: str) -> dict:
     """Counts and totals worked out in code, so the model never has to do
-    arithmetic on timestamps (open models get it wrong surprisingly often).
-    `items`: the list the check-in is about, if not all of today's."""
-    items = s.today_list if items is None else items
+    arithmetic on timestamps (open models get it wrong surprisingly often)."""
+    items = s.today_list
     open_ = [p for p in items if not p.done]
     today = date.fromisoformat(s.date)
     workday = days.is_workday(today)
@@ -193,7 +179,6 @@ def facts(s: State, now: str, items: list[st.Priority] | None = None) -> dict:
         "weekday": f"{datetime.fromisoformat(now):%A}",
         "workday": workday,
         "next_workday": f"{days.next_workday(today):%A}",
-        **({} if workday else {"work_items_waiting": len(s.open_priorities) - len(open_)}),
     }
 
 
@@ -209,12 +194,11 @@ def routine() -> dict:
 
 def build_payload(s: State, slot: str, now: str) -> dict:
     today = date.fromisoformat(s.date)
-    # On a day off the check-in is about what was planned for it, never the work waiting.
-    items = s.today_list if slot == "chat" or days.is_workday(today) else day_off_items(s)
+    items = s.today_list
     payload = {
         "checkin": slot,
         "now": now,
-        "facts": facts(s, now, items),
+        "facts": facts(s, now),
         "priorities": [
             {
                 "id": p.id,
