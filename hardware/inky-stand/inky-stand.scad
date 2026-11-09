@@ -4,12 +4,13 @@
 //
 // The bumper covers nothing on the front: the panel's own thin black border,
 // its glass and its print all show, inside a rim `wall` wide, standing just
-// proud of the board's face. The board snaps in from the front, no screws: a
-// pin on each corner pad goes through its corner hole, which keeps it from
-// sliding, and a small lip at the middle of each side reaches over its front
-// edge, which keeps it in. The side walls flex to let it past. Push it out
-// from behind to take it off. Nothing else touches it: the back stays open,
-// so the Hack3r and the buttons on the back are free.
+// proud of the board's face. The board snaps in from the front, no screws:
+// the rim keeps it from sliding, and a small lip at the middle of each of the
+// four edges reaches over its front, which keeps it in. Hook the bottom edge
+// under its lip first (that side is stiff, with the rail behind it), then
+// press the rest in; the top and side walls flex to let it past. Nothing else
+// touches it but the corner pads behind: the back stays open, so the Hack3r
+// and the buttons on the back are free.
 //
 // The foot is a U: two arms, joined at the back, open at the front for the
 // cable to the Pi. The arms are dovetails that slide into two sockets behind
@@ -18,13 +19,12 @@
 // sloped rail behind the board's bottom edge joins the sockets to the rim, so
 // the bottom of the rim is as slim as the rest.
 //
-// Measured: the board is 103 x 78 mm (Pimoroni's drawing) with holes 3 mm in
-// from each corner; the screen stands under 1.5 mm proud of it; the Hack3r on
+// Measured: the board is 103 x 78 mm (Pimoroni's drawing); the screen stands under 1.5 mm proud of it; the Hack3r on
 // the back starts 7.6 mm up from the bottom edge, and nothing else on the back
 // is lower than that.
 //
 // Printing: `layout = "frame"` lies on its front, with the pads and sockets
-// rising from it (the pins stand on the bed and hold the pads up); `layout =
+// rising from it (the pads bridge the corners); `layout =
 // "foot"` lies flat, upside down. `layout = "desk"` shows them together,
 // standing; `"flat"` both, as they print and pack.
 
@@ -33,19 +33,17 @@ board_w = 103;
 board_h = 78;
 board_t = 1.6;
 board_r = 3;                  // the board's corner radius
-hole_inset = 3;               // corner hole centres, from both edges
 buttons_side = "left";        // as you look at the screen
 
 /* [Bumper] */
 gap = 0.5;                    // clearance around the board
 wall = 2;                     // the rim's width, all round
 rim_back = 2;                 // how far the rim reaches behind the board
-pad = 7.5;                    // the corner pads behind the board, from its corner
+pad = 7.5;                    // how far the corner pads reach along each edge, from the board's corner
 pad_t = 4;                    // their thickness (and the bottom rail's)
 chamfer = 0.6;                // on the rim's front edge
 
 /* [Snap] */
-pin_d = 1.9;                  // the pins in the board's M2 holes: less if they won't go in
 snap = 0.7;                   // how far each lip reaches over the board's edge: more if it pops out, less if too stiff
 lip_t = 0.8;                  // the lips' thickness, in front of the board (the rim stands this proud of it)
 lip_len = 14;                 // each lip's length
@@ -66,8 +64,6 @@ socket_roof = 1.6;
 fit = 0.2;                    // gap around each arm in its socket: more if it won't go in, less if loose
 
 $fn = 64;
-
-holes = [for (x = [hole_inset, board_w - hole_inset], y = [hole_inset, board_h - hole_inset]) [x, y]];
 
 // --- panel space: x right, y up, z towards you. The board's front is at
 // z = 0, its back at -board_t; the rim's front is at front_z.
@@ -100,36 +96,35 @@ module rim() {
 }
 
 module lips() {
-    // At the middle of each side, a lip over the board's front edge: flat
-    // behind (it holds the board), sloped in front (the board pushes the wall
-    // aside on its way in). Printed face down, the slope is under 45°.
+    // At the middle of each edge, a lip over the board's front: flat behind
+    // (it holds the board), sloped in front (the board pushes the wall aside
+    // on its way in). Printed face down, like the rim.
     y0 = board_h / 2 - lip_len / 2;
+    x0 = board_w / 2 - lip_len / 2;
     along(y0, y0 + lip_len) {
         polygon([[inner[0] - 0.01, 0], [snap, 0], [inner[0] - 0.01, front_z]]);
         polygon([[inner[2] + 0.01, 0], [board_w - snap, 0], [inner[2] + 0.01, front_z]]);
     }
-}
-
-module pins() {
-    // Through the board's corner holes, from the pads to the rim's front:
-    // they keep the board from sliding, and stand on the print bed.
-    for (h = holes) translate([h[0], h[1], back_z - 0.01]) cylinder(d = pin_d, h = front_z - back_z + 0.01, $fn = 24);
+    along_x(x0, x0 + lip_len) {
+        polygon([[inner[1] - 0.01, 0], [snap, 0], [inner[1] - 0.01, front_z]]);
+        polygon([[inner[3] + 0.01, 0], [board_h - snap, 0], [inner[3] + 0.01, front_z]]);
+    }
 }
 
 module pads() {
-    // Behind each corner, the board's back rests on a pad. Printed face down,
-    // a pad is a short bridge across the corner, held by the rim on two sides
-    // and by its pin in the middle.
-    for (h = holes) {
-        cx = h[0] < board_w / 2 ? outer[0] : outer[2];
-        cy = h[1] < board_h / 2 ? outer[1] : outer[3];
+    // Behind each corner, the board's back rests on a triangular pad. Printed
+    // face down, its straight free edge is a short bridge from wall to wall.
+    for (cx = [0, 1], cy = [0, 1]) {
+        x = cx ? board_w : 0;
+        y = cy ? board_h : 0;
+        ox = cx ? outer[2] : outer[0];
+        oy = cy ? outer[3] : outer[1];
+        sx = cx ? -1 : 1;
+        sy = cy ? -1 : 1;
         intersection() {
             translate([0, 0, pad_z]) linear_extrude(-pad_z) outline();
-            hull() {
-                translate([h[0], h[1], pad_z]) cylinder(d = 2 * hole_inset + 1, h = pad_t);
-                translate([min(cx, h[0]), min(cy, h[1]), pad_z])
-                    cube([abs(cx - h[0]), abs(cy - h[1]), pad_t]);
-            }
+            translate([0, 0, pad_z]) linear_extrude(pad_t)
+                polygon([[ox, oy], [x + sx * pad, oy], [x + sx * pad, y], [x, y + sy * pad], [ox, y + sy * pad]]);
         }
     }
 }
@@ -152,7 +147,6 @@ module frame() {
     rim();
     lips();
     pads();
-    pins();
     rail();
 }
 
@@ -184,6 +178,11 @@ module dove(x, extra = 0) {
 module along(y0, y1) {
     // Extrude a cross-section in the x-z plane from y0 to y1.
     translate([0, y1, 0]) rotate([90, 0, 0]) linear_extrude(y1 - y0) children();
+}
+
+module along_x(x0, x1) {
+    // Extrude a cross-section in the y-z plane from x0 to x1.
+    translate([x0, 0, 0]) rotate([90, 0, 90]) linear_extrude(x1 - x0) children();
 }
 
 module clear_of_board() {

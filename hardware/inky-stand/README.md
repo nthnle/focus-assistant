@@ -9,10 +9,11 @@ so the two pack flat to travel.
 - **The panel shows as it is.** The bumper covers nothing on the front: the
   panel's own thin black border, its glass and its print all show, inside a
   2 mm rim standing just proud of the board's face.
-- **It snaps in, no screws.** A pin on a pad behind each corner goes through
-  the board's corner hole, so it can't slide, and a small lip at the middle
-  of each side reaches 0.7 mm over its front edge, so it can't fall out. The
-  back stays open, so the Hack3r and the buttons on the back are free.
+- **It snaps in, no screws.** The rim keeps the board from sliding, a small
+  pad behind each corner holds it level, and a small lip at the middle of
+  each of the four edges reaches 0.7 mm over its front, so it can't fall
+  out. The back stays open, so the Hack3r and the buttons on the back are
+  free.
 - **The foot slides in and out.** It's a U: two arms joined at the back,
   open at the front for the cable to the Pi. The arms are dovetails that
   slide into two sockets behind the board's bottom edge. They set the lean,
@@ -34,9 +35,8 @@ Two parts, both ready to print as they are, with no supports:
 
 - PLA or PETG, 0.2 mm layers, 3 walls, 20% infill. Matte black matches the
   panel's black border.
-- The four corner pads print as short bridges across the corners, held up
-  by their pins, which stand on the bed; the rail along the bottom slopes at
-  45°. Nothing needs supports.
+- The four corner pads print as short straight bridges across the corners;
+  the rail along the bottom slopes at 45°. Nothing needs supports.
 - **Try the fit before anything else:** slide the foot into the sockets. It
   should go in with a firm push and not wobble. If it won't go in, set
   `fit` to `0.3` and print the foot again (only the foot); if it's loose,
@@ -44,18 +44,18 @@ Two parts, both ready to print as they are, with no supports:
 
 ## Put it together
 
-1. With the foot out, hold the bumper face up and line the board's corner
-   holes up with the four pins.
-2. Press the board straight in, near each side's middle, until each side
-   clicks under its lip. The side walls flex a little to let it past.
+1. With the foot out, hold the bumper face up and hook the board's bottom
+   edge under the bottom lip. That side is stiff, so it goes first.
+2. Press the rest of the board in, near the middle of each edge, until the
+   top and both sides click under their lips. Those walls flex a little to
+   let it past.
 3. Plug the cable back in.
 4. Slide the foot's arms into the sockets until they stop, and stand it up.
 
-**To take the board out:** press it out from behind, near the middle of one
-side, while easing that side's wall outwards.
+**To take the board out:** press it out from behind, near the middle of the
+top edge, while easing the top wall outwards, then unhook the bottom edge.
 
-**If the fit is off:** if the pins won't go into the holes, set `pin_d` to
-`1.7`. If the board won't click in, set `snap` to `0.5`; if it pops out,
+**If the fit is off:** if the board won't click in, set `snap` to `0.5`; if it pops out,
 `0.9`. Then print the bumper again.
 
 **To travel:** pull the foot straight out backwards. The bumper (with the
@@ -82,11 +82,10 @@ they print.
 | `buttons_side` | `left` | As you face the screen. Set `right` if your buttons are on the other side |
 | `wall` | `2` | The rim's width, all round |
 | `gap` | `0.5` | Clearance around the board. More if it won't drop in |
-| `pin_d` | `1.9` | The pins in the board's M2 holes. Less if they won't go in |
 | `snap` | `0.7` | How far each lip reaches over the board's edge. More if the board pops out, less if it won't click in |
 | `foot_depth` | `70` | How far the foot reaches back |
 
 Measured on a real panel: the board is 103 × 78 mm (Pimoroni's drawing),
-with holes 3 mm in from each corner; the screen stands under 1.5 mm proud of
+and the screen stands under 1.5 mm proud of
 it; the Hack3r on the back starts 7.6 mm up from the bottom edge and stands
 about 16 mm off the back. The sockets keep at least 1 mm from it.
