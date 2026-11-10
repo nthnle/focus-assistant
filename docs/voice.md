@@ -90,7 +90,8 @@ and it stops. The coach sees the same data as a check-in, and changes your
 list only through a fixed set of tools: it can add, rename, schedule,
 complete, reopen, drop and restore items ("bring back the dentist", for a
 week after it was removed), log how a block is going, pause ("quiet until
-11", "I'm off until Monday"), and note when a reply was wrong or spot on.
+11", "I'm off until Monday"), switch the [front light](light.md) ("light
+on", "light auto"), and note when a reply was wrong or spot on.
 Ask it "how could I improve my routine?" and it suggests one or two
 changes from your last week. Today's conversation is kept, so follow-ups
 work, and the next check-in sees it. It's built for quick commands.

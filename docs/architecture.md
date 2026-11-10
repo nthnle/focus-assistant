@@ -115,6 +115,7 @@ focus/
   nudge.py        "you've been on your phone 5 minutes", said by the voice service
   onnx.py         turns off onnxruntime's telemetry (Piper, wake word, camera)
   pause.py        "quiet until 11" and days off: when check-ins and reminders wait
+  light.py        the front light: on when the room is dim, run by focus-display
   days.py         "tomorrow", "wed", "2026-10-24": days for pauses and later items
   feedback.py     replies.jsonl: every model reply with its payload, checks and ratings
   blocks.py       focus blocks (FOCUS_BLOCKS)
@@ -210,14 +211,15 @@ seconds and flashes, and the panel keeps its picture without power. The
 service has SPI, I2C and GPIO access and nothing else: no network, no key.
 
 It also reads the four buttons on the panel's edge (`inputs/buttons.py`),
-and redraws straight after a press instead of waiting for quiet:
+and redraws straight after a press instead of waiting for quiet. A press
+counts when the button comes back up, so a held one can be told apart:
 
 | Button | Does |
 |---|---|
 | A | Marks done the item the check-in suggested, as the speakerphone's Call button does |
 | B | Undoes the last "done" |
 | C | Pauses for 30 minutes (a call, a meeting), or resumes if paused |
-| D | Redraws the panel now |
+| D | Redraws the panel now; held for a second, turns the [front light](light.md) on or off |
 
 With no speaker and no network, the panel is its only answer: a press that
 changes nothing (A with no suggested item) leaves the picture as it is. After
@@ -257,6 +259,11 @@ and buttons free, with a foot that slides out to travel, see
 
 Leave `inky` out of `FOCUS_OUTPUTS`: the service already redraws after every
 check-in, and only one process may drive the panel.
+
+The service also runs the optional **front light** (`light.py`): an LED
+strip on a GPIO pin, switched on when a light sensor on the I2C bus says the
+room is dim. It needs no access beyond what the panel already has; see
+[light.md](light.md).
 
 ## Development
 

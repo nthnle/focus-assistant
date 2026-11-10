@@ -3,10 +3,13 @@
     A   mark done the item the latest check-in suggested (as the Call button does)
     B   undo the last "done"
     C   pause for 30 minutes, or resume if paused
-    D   redraw the panel now
+    D   redraw the panel now; held for a second, the front light on or off
+        (focus.light), if there is one
 
-FOCUS_INKY_BUTTONS lists their GPIO pins, A to D (default 5,6,16,24, the 4"
-panel's; empty turns them off). A refresh takes 20-30 s, so after a press the
+A press counts when the button comes back up, so a held one can be told
+apart; a long press on A to C is just a press. FOCUS_INKY_BUTTONS lists
+their GPIO pins, A to D (default 5,6,16,24, the 4" panel's; empty turns them
+off). A refresh takes 20-30 s, so after a press the
 panel redraws straight away instead of waiting for changes to settle. The
 service has no speaker and no network: the panel is the only answer, and the
 check-in isn't rewritten (its note line says what was done since).
@@ -22,7 +25,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Callable, Iterator
 
-from .. import actions, config, pause, state as st
+from .. import actions, config, light, pause, state as st
 from ..config import Config
 
 log = logging.getLogger(__name__)
@@ -32,6 +35,7 @@ DEFAULT_PINS = "5,6,16,24"
 PAUSE = timedelta(minutes=30)
 DEBOUNCE = timedelta(milliseconds=20)
 REPEAT_S = 0.5   # the same button again this soon is a bounce, not a second press
+LONG_S = 1.0     # held at least this long: a long press ("D-long")
 
 
 def mark_suggested_done(cfg: Config) -> str:
@@ -72,6 +76,9 @@ def toggle_pause(cfg: Config, now: datetime) -> str:
 
 def press(cfg: Config, label: str, now: datetime) -> str:
     """Do what button `label` does; returns what happened, for the log."""
+    if label == "D-long" and light.enabled():
+        return light.toggle(cfg, now)
+    label = label.removesuffix("-long")
     if label == "A":
         return mark_suggested_done(cfg)
     if label == "B":
@@ -86,21 +93,41 @@ def pins() -> list[int]:
     return [int(p) for p in raw.split(",") if p.strip()][:len(LABELS)]
 
 
+def presses_from_edges(edges: Iterator[tuple[int, bool, int]]) -> Iterator[str]:
+    """Labels from (button index, down, time in ns) edges: a press counts
+    when the button comes back up, "-long" if it was held LONG_S or more.
+    An up with no down before it (held while the service started) is skipped."""
+    down_at: dict[int, int] = {}
+    for index, down, t_ns in edges:
+        if down:
+            down_at[index] = t_ns
+        elif index in down_at:
+            held_s = (t_ns - down_at.pop(index)) / 1e9
+            yield LABELS[index] + ("-long" if held_s >= LONG_S else "")
+
+
 def read_presses(gpio_pins: list[int]) -> Iterator[str]:
     """Button labels as they're pressed; blocks. gpiod comes with inky."""
     import gpiod
     import gpiodevice
+    from gpiod.edge_event import EdgeEvent
     from gpiod.line import Bias, Direction, Edge
 
     chip = gpiodevice.find_chip_by_platform()
     offsets = [chip.line_offset_from_id(pin) for pin in gpio_pins]
     settings = gpiod.LineSettings(direction=Direction.INPUT, bias=Bias.PULL_UP,
-                                  edge_detection=Edge.FALLING, debounce_period=DEBOUNCE)
-    with chip.request_lines(consumer="focus-buttons", config=dict.fromkeys(offsets, settings)) as request:
-        log.info("Listening to the panel's buttons on GPIO %s", ",".join(map(str, gpio_pins)))
-        while True:
-            for event in request.read_edge_events():
-                yield LABELS[offsets.index(event.line_offset)]
+                                  edge_detection=Edge.BOTH, debounce_period=DEBOUNCE)
+
+    def edges() -> Iterator[tuple[int, bool, int]]:
+        # Pulled up: pressing a button pulls its line low (a falling edge).
+        with chip.request_lines(consumer="focus-buttons", config=dict.fromkeys(offsets, settings)) as request:
+            log.info("Listening to the panel's buttons on GPIO %s", ",".join(map(str, gpio_pins)))
+            while True:
+                for event in request.read_edge_events():
+                    yield (offsets.index(event.line_offset),
+                           event.event_type == EdgeEvent.Type.FALLING_EDGE, event.timestamp_ns)
+
+    yield from presses_from_edges(edges())
 
 
 class Presses:

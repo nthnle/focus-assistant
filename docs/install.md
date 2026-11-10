@@ -85,6 +85,7 @@ this order, each one builds on the ones before it:
 | Spoken check-ins and stretch reminders | a USB speaker or speakerphone | [voice.md, 1](voice.md#1-speaker-and-spoken-check-ins) and [5](voice.md#5-stretch-reminders) |
 | Voice commands, wake word, Call button | a USB speakerphone (Anker PowerConf tested) | [voice.md, 2 to 4](voice.md#2-voice-commands) |
 | The e-ink panel | a Pimoroni Inky Impression 4.0" | [architecture.md, E-ink display](architecture.md#e-ink-display) |
+| A front light for the panel, on when the room is dim | an LED strip, a MOSFET module and a light sensor | [light.md](light.md) |
 | The status page: the panel's view in any browser, and a list editor | nothing extra | [phone.md, Status page](phone.md#status-page) |
 | Phone use, the phone nudge, and presence | a USB webcam, and a PC to train its model once | [camera.md](camera.md) |
 | A daily copy of your list on another computer | a PC or Mac that's on at 18:00 | [backup.md](backup.md) |

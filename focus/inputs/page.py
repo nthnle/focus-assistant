@@ -6,6 +6,7 @@
          {"op": "rename", "id": 3, "text": "..."}
          {"op": "done" | "reopen" | "drop" | "restore", "id": 3}
          {"op": "move", "id": 3, "on": "today" | "later" | "2026-10-26"}
+         {"op": "light", "mode": "on" | "off" | "auto"}   (with a front light)
 
 The page (focus.display) polls with If-None-Match and gets a bodyless 304
 until something changes. Its editor posts one change at a time, which goes
@@ -25,7 +26,7 @@ import sys
 from datetime import date
 from http.server import BaseHTTPRequestHandler
 
-from .. import actions, blocks as focus_blocks, config, display, state as st
+from .. import actions, blocks as focus_blocks, config, display, light, state as st
 from ..blocks import Block
 from ..config import Config
 from . import _web
@@ -75,6 +76,13 @@ def edit_list(cfg: Config, change) -> str:
     if not isinstance(change, dict):
         raise BadRequest("Not a change")
     op = change.get("op")
+    if op == "light":
+        mode = change.get("mode")
+        if not light.enabled() or mode not in light.MODES:
+            raise BadRequest("No front light here" if not light.enabled() else "On, off or auto?")
+        with st.locked_state(cfg) as s:
+            actions.set_light(s, mode)
+        return f"light {mode}"
     with st.locked_state(cfg) as s:
         if op == "add":
             p = actions.add_priority(s, _text(change))

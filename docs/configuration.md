@@ -94,10 +94,20 @@ See [camera.md](camera.md).
 |---|---|---|
 | `FOCUS_AWAY_CAMERA_MIN` | `5` | Minutes the desk camera must see the empty desk before you count as away. |
 
+## Front light
+
+See [light.md](light.md).
+
+| Setting | Default | |
+|---|---|---|
+| `FOCUS_LIGHT_PIN` | (none: no light) | GPIO pin of the LED strip's MOSFET module, e.g. `12`. Restart `focus-display`, `focus-page` and `focus-voice` after setting it. |
+| `FOCUS_LIGHT_LUX` | `30` | The room counts as dim below this; the light goes off again once it's twice as bright. |
+| `FOCUS_LIGHT_HOURS` | `08:00-00:00` | When the light may come on by itself. An end at or before the start runs past midnight. |
+
 ## E-ink display
 
 | Setting | Default | |
 |---|---|---|
 | `FOCUS_INKY_PNG` | (unset) | Save the display image to this PNG instead of drawing on the panel (600x400). |
 | `FOCUS_INKY_FONT` | (DejaVu Sans) | A TrueType font file to use instead. |
-| `FOCUS_INKY_BUTTONS` | `5,6,16,24` | GPIO pins of the panel's buttons A to D ([what they do](architecture.md#e-ink-display)). Empty turns them off. |
+| `FOCUS_INKY_BUTTONS` | `5,6,16,24` | GPIO pins of the panel's buttons A to D ([what they do](architecture.md#e-ink-display)); holding D toggles the front light. Empty turns them off. |

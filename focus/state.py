@@ -97,6 +97,9 @@ class State:
     last_week: dict | None = None
     # Friday's wrap-up, once it has run: {"week", "text"}.
     week_review: dict | None = None
+    # The front light set by hand, "on" or "off" (focus.light); None is
+    # automatic. Like the rest of the day, it ends at midnight.
+    light: str | None = None
     version: int = SCHEMA_VERSION
 
     @property
@@ -171,6 +174,7 @@ class State:
             # Files from when there were weekly goals keep loading; the goals are dropped.
             last_week={k: v for k, v in data["last_week"].items() if k != "goals"} if data.get("last_week") else None,
             week_review=data.get("week_review"),
+            light=data.get("light") if data.get("light") in ("on", "off") else None,
         )
 
 
@@ -269,6 +273,7 @@ def roll_over(state: State, today: date, history_days: int) -> bool:
     state.checkins = []
     state.events = []
     state.chat = []
+    state.light = None
     state.date = today.isoformat()
     return True
 

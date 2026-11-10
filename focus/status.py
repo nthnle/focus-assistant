@@ -11,7 +11,7 @@ import subprocess
 from datetime import datetime
 from typing import Callable
 
-from . import blocks, feedback, pause, presence, schedule, stretch
+from . import blocks, feedback, light, pause, presence, schedule, stretch
 from . import state as st
 from .pricing import cost, prices  # noqa: F401  (tests use these here)
 from .config import Config
@@ -128,6 +128,7 @@ def report(cfg: Config, s: State, now: datetime,
         f"  Paused       {pause.describe(s, now) or 'no'}",
         f"  Stretch      {len(reminders)} reminders ({by_coach} by the coach, {len(reminders) - by_coach} fixed)",
         f"  Voice        {len(s.chat)} messages to the coach",
+        *([f"  Light        {light.describe(cfg, s)}"] if light.enabled() else []),
         f"  Replies      {feedback.summary(cfg)} (focus feedback)",
         "",
         "API cost today",

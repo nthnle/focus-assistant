@@ -132,3 +132,11 @@ def resume(s: State) -> dict:
     s.paused_until = None
     return log_event(s, st.RESUME)
 
+
+def set_light(s: State, mode: str) -> str:
+    """The front light: "on" or "off" by hand until midnight, or "auto"."""
+    if mode not in ("on", "off", "auto"):
+        raise st.StateError(f"The light can be on, off or auto, not {mode!r}")
+    s.light = None if mode == "auto" else mode
+    return mode
+

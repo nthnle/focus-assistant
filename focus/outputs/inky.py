@@ -7,8 +7,9 @@
                                 state.json into a PNG (no API call)
     python -m focus.outputs.inky --watch
                                 the focus-display service: redraws the
-                                panel whenever what it shows changes, and
+                                panel whenever what it shows changes,
                                 reads its buttons (focus.inputs.buttons)
+                                and runs the front light (focus.light)
 
 The layout is drawn at the panel's own size (the 4.0" Spectra 6 is 600x400,
 the older 4" model 640x400). A refresh takes 20-30 s and flashes, so the
@@ -30,7 +31,7 @@ from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .. import config, state as st
+from .. import config, light, state as st
 from ..inputs import buttons
 from ..display import panel_note, shown
 from ..layout import (HEADER_HEIGHT, HEADER_SIZE, MARGIN, NOTE_LINE, NOTE_SIZE, REPLY_LINE,
@@ -319,6 +320,8 @@ def main(argv: list[str]) -> int:
         log.info("Watching %s; redrawing %d s after changes settle", cfg.state_path, QUIET_S)
         pins = buttons.pins()
         presses = buttons.Presses(buttons.read_presses(pins)).wait if pins and not panel.png_path else None
+        if not panel.png_path:
+            light.start(cfg)
         watch(cfg, panel, presses=presses)
         return 0
     out = Path(argv[0] if argv else "inky-preview.png")

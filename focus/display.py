@@ -24,7 +24,7 @@ import threading
 from datetime import date, datetime, timedelta
 from html import escape
 
-from . import blocks, days, layout, pause, presence
+from . import blocks, days, layout, light, pause, presence
 from .config import Config
 from . import state as st
 from .state import PHONE_OUT, STRETCH_REMINDER, State
@@ -125,6 +125,9 @@ _PAGE = """<!doctype html>
   .edit .none {{ color: var(--muted); }}
   .edit .err {{ color: var(--red); font-size: 13px; padding: 4px 0; }}
   .edit .err:empty {{ display: none; }}
+  .edit .light {{ display: flex; align-items: center; gap: 6px; }}
+  .edit .light .t {{ color: var(--muted); font-size: 13px; }}
+  .edit .light button[aria-pressed=true] {{ background: var(--ink); color: var(--paper); border-color: var(--ink); }}
 </style>
 </head>
 <body>
@@ -208,6 +211,7 @@ document.addEventListener("submit", async e => {{
 document.addEventListener("click", e => {{
   const el = e.target.closest(".edit [data-op]");
   if (!el || el.tagName === "SELECT") return;
+  if (el.dataset.op === "light") return send({{ op: "light", mode: el.dataset.mode }});
   const op = el.dataset.op, id = idOf(el);
   if (op === "rename") return reword(el, id);
   if (op === "drop" && !confirm("Remove " + el.closest("li").querySelector(".t").textContent + "?")) return;
@@ -330,6 +334,12 @@ def day_status(state: State, now: datetime, cfg: Config | None = None,
     if quiet:
         chips.append(("Paused", quiet, ALERT))
 
+    if cfg is not None and light.enabled():
+        seen = light.read(cfg)
+        if seen is not None:
+            chips.append(("Light", ("On" if seen["on"] else "Off") + (" by hand" if state.light else ""),
+                          GOOD if seen["on"] else PLAIN))
+
     if cfg is not None:
         if presence.away(cfg, now):
             chips.append(("You", "Away", ALERT))
@@ -403,6 +413,19 @@ def editor(state: State) -> str:
     return "".join(parts)
 
 
+def light_controls(cfg: Config | None, state: State) -> str:
+    """On, Off and Auto for the front light, under the list; nothing without one."""
+    if cfg is None or not light.enabled():
+        return ""
+    current = state.light or light.AUTO
+    seen = light.read(cfg)
+    why = escape(seen.get("why", "")) if seen else "waiting for focus-display"
+    buttons = "".join(
+        f'<button data-op="light" data-mode="{m}" aria-pressed="{str(m == current).lower()}">{m.title()}</button>'
+        for m in light.MODES)
+    return f'<h2>Front light</h2><div class="light">{buttons}<span class="t">{why}</span></div>'
+
+
 def shown(state: State) -> tuple[list, int]:
     """The open items a screen lists, in the order they were added, and how
     many more there are. Over SHOWN, the last row becomes "+N more"."""
@@ -461,7 +484,7 @@ def _content(state: State, now: str, cfg: Config | None,
         "reply": escape(reply),
         "since": escape(panel_note(state, datetime.fromisoformat(now))),
         "chips": chips,
-        "editor": editor(state),
+        "editor": editor(state) + light_controls(cfg, state),
         "item_size": str(size),
         "item_line": str(line),
         "dot": str(layout.dot_size(size)),
@@ -494,7 +517,7 @@ def render_html(state: State, now: str, cfg: Config | None = None,
 
 class Page:
     """The rendered page, cached until something it shows could have changed:
-    state.json, camera.json, or the minute (the day chips move with time,
+    state.json, camera.json, light.json, or the minute (the day chips move with time,
     and the date in it also covers the midnight rollover)."""
 
     def __init__(self, cfg: Config, focus_blocks: list[blocks.Block]):
@@ -514,7 +537,8 @@ class Page:
 
     def get(self, now: str) -> tuple[str, str]:
         """(version, html) at `now`, an ISO timestamp with its offset."""
-        key = (self._stamp(self.cfg.state_path), self._stamp(presence.camera_path(self.cfg)), now[:16])
+        key = (self._stamp(self.cfg.state_path), self._stamp(presence.camera_path(self.cfg)),
+               self._stamp(light.path(self.cfg)), now[:16])
         with self._lock:
             if key != self._key:
                 self._page = render(st.peek(self.cfg), now, self.cfg, self.focus_blocks)

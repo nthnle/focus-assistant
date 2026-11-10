@@ -42,6 +42,7 @@ More diagrams, including a weekday timeline, are in
 | **Pause** for a meeting or a few days off: "quiet until 11", "off until Monday" | nothing extra |
 | **Presence**: it holds a check-in until you're back at the desk instead of talking to an empty room | the desk camera |
 | An **e-ink display** that redraws when your list or the coach's reply changes | a Pimoroni Inky Impression 4.0" (Spectra 6), on the Pi or on a ribbon |
+| A **front light** for the panel that comes on when the room is dim, and goes off when you leave | a short LED strip, a MOSFET module and a light sensor |
 
 It runs on a Raspberry Pi 4 with Raspberry Pi OS Lite (64-bit), and should
 run on any Debian-based Linux machine. The voice features are tuned for an
@@ -151,6 +152,7 @@ of changes to the prompts or code. The loop is drawn in
 | [docs/voice.md](docs/voice.md) | Speaker, spoken check-ins, voice commands, wake word, speakerphone buttons, stretch reminders, quiet hours |
 | [docs/camera.md](docs/camera.md) | The desk camera: phone use, the phone nudge, an empty desk; recording, training, privacy |
 | [docs/phone.md](docs/phone.md) | The status page (at home, or from anywhere with Tailscale), presence |
+| [docs/light.md](docs/light.md) | The panel's front light: parts, wiring, and when it comes on |
 | [docs/configuration.md](docs/configuration.md) | Every setting in `focus.env` |
 | [docs/backup.md](docs/backup.md) | A daily copy of `state.json` to another computer, with a key that can only read that file |
 | [docs/architecture.md](docs/architecture.md) | How it fits together, security model, adding your own inputs and outputs, development |

@@ -16,7 +16,7 @@ from typing import Callable
 
 import openai
 
-from . import actions, coach, days, feedback, pause, pricing, state as st
+from . import actions, coach, days, feedback, light, pause, pricing, state as st
 from .coach import CoachError
 from .config import Config
 from .state import State
@@ -107,6 +107,9 @@ TOOLS = [
     _tool("schedule_priority", "Move a priority to another day, to 'later' (no date yet), or back to 'today'.",
           {"id": _ID, "on": {"type": "string", "description": "today, later, tomorrow, a weekday like "
                                                               "wednesday, or a date like 2026-10-24"}}),
+    _tool("set_light", "Turn the desk's front light on or off until midnight, or back to auto "
+                       "(on when the room is dim). Only when they ask about the light.",
+          {"mode": {"type": "string", "enum": list(light.MODES)}}),
     _tool("rate_reply", "Record feedback on the coach's previous reply (a check-in or an earlier answer) "
                         "when the user says it was wrong, unhelpful, or spot on.",
           {"value": {"type": "string", "enum": ["good", "bad"]},
@@ -137,7 +140,14 @@ _HANDLERS: dict[str, Callable[[State, dict], object]] = {
     "pause": lambda s, a: actions.pause(s, pause.parse_until(a["until"], datetime.now().astimezone())),
     "resume": lambda s, a: actions.resume(s),
     "schedule_priority": lambda s, a: actions.schedule_priority(s, a["id"], _day(s, a["on"])),
+    "set_light": lambda s, a: _set_light(s, a["mode"]),
 }
+
+
+def _set_light(s: State, mode: str) -> str:
+    if not light.enabled():
+        raise ValueError("there is no front light on this desk")
+    return actions.set_light(s, mode)
 
 
 def _priorities_text(s: State) -> str:
@@ -228,6 +238,8 @@ def _arguments(raw: str) -> dict:
         args["until"] = args["until"].strip()[:40]
     if "how" in args and args["how"] not in ("on_track", "drifted"):
         raise ValueError("how must be on_track or drifted")
+    if "mode" in args and args["mode"] not in light.MODES:
+        raise ValueError("mode must be on, off or auto")
     return args
 
 

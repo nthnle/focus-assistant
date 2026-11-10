@@ -60,6 +60,10 @@ Under the strip is the **list editor**, for when voice mishears you:
   it was. Items removed by voice land there too, including
   anything the coach removed by mistake; "bring back the dentist" works too.
 
+With a [front light](light.md), a **Front light** row under the list has
+**On**, **Off** and **Auto**, with why it's on or off now, and the status
+strip shows whether it's lit.
+
 While you're typing, the page holds back its live update so it doesn't
 throw away what you typed, and catches up as soon as you're done.
 

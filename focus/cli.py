@@ -7,7 +7,7 @@ import logging
 import sys
 from datetime import date, datetime
 
-from . import actions, checkin, config, days, feedback, pause, state as st, status
+from . import actions, checkin, config, days, feedback, light, pause, state as st, status
 from .coach import CoachError
 
 
@@ -110,6 +110,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--days", type=int, default=14)
     p = sub.add_parser("report", help="log how the current block is going")
     p.add_argument("how", choices=["on-track", "drifted"])
+    p = sub.add_parser("light", help="the front light: on or off until midnight, or auto")
+    p.add_argument("mode", nargs="?", choices=light.MODES, help="default: say what it's doing")
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -137,6 +139,16 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             if args.cmd == "status":
                 print(status.report(cfg, s, datetime.now().astimezone()))
+                return 0
+            if args.cmd == "light":
+                if not light.enabled():
+                    raise st.StateError("No front light: set FOCUS_LIGHT_PIN (docs/light.md)")
+                if args.mode:
+                    actions.set_light(s, args.mode)
+                    print(f"Light {args.mode}" + (" until midnight" if args.mode != light.AUTO else
+                                                  ": on when the room is dim"))
+                else:
+                    print(f"Light {light.describe(cfg, s)}")
                 return 0
             if args.cmd == "add":
                 on = _day(s, [args.on]) if args.on is not None else None
