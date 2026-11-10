@@ -146,7 +146,7 @@ root only; systemd reads it and passes it to the services that need it.
 
 | Unit | Runs | API key | Network | Devices |
 |---|---|---|---|---|
-| `focus-checkin-tick` | timer: every 5 minutes, 07:00-21:55; a check-in when one is due and you're at the desk (`focus/schedule.py`) | yes | outbound | sound cards |
+| `focus-checkin-tick` | timer: every 5 minutes, 07:00-21:55; a check-in when one is due and you're at the desk, otherwise a rewrite of the latest one if something was marked done since (`focus/schedule.py`) | yes | outbound | sound cards |
 | `focus-checkin` | by hand: a check-in now | yes | outbound | sound cards |
 | `focus-stretch` | timer: :50 each hour, in focus blocks on work days | yes | outbound | sound cards |
 | `focus-back` | timer: :00 each hour, after a reminder | **no** | none | sound cards |
@@ -220,8 +220,9 @@ and redraws straight after a press instead of waiting for quiet:
 | D | Redraws the panel now |
 
 With no speaker and no network, the panel is its only answer: a press that
-changes nothing (A with no suggested item) leaves the picture as it is, and
-the check-in isn't rewritten after A, so the note line says what was done.
+changes nothing (A with no suggested item) leaves the picture as it is. After
+A, the note line says what was done straight away, and the next check-in tick
+(within 5 minutes) rewrites the check-in for the list as it is now.
 The pins are `FOCUS_INKY_BUTTONS`, A to D (5, 6, 16, 24 on the 4" panel).
 
 Preview it on any machine, without the panel or an API call:

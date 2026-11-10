@@ -11,8 +11,9 @@ Group=@USER@
 EnvironmentFile=/etc/focus-assistant/focus.env
 Environment=FOCUS_STATE_DIR=@STATE_DIR@
 Environment=PYTHONUNBUFFERED=1
-# What focus-checkin.timer runs every 5 minutes; it exits quietly when no
-# check-in is due (focus/schedule.py).
+# What focus-checkin.timer runs every 5 minutes. When no check-in is due it
+# rewrites the latest one if something was marked done since, and otherwise
+# exits quietly (focus/schedule.py).
 ExecStart=/opt/focus-assistant/venv/bin/python -m focus.schedule
 TimeoutStartSec=5min
 

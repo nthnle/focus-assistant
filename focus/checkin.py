@@ -106,6 +106,7 @@ def refresh(cfg: Config, client=None, today: date | None = None) -> str | None:
             return None  # a new check-in came in meanwhile; it is newer than this
         if " ".join(reply.text.split()) == " ".join((stale or "").split()):
             log.warning("The rewrite repeated the old check-in; keeping it, with the since-note")
+            last["rewrite_tried_at"] = st.now_iso()  # so the tick doesn't ask again for the same change
             return None
         last.setdefault("first_reply", last.get("reply"))
         last["reply"] = reply.text

@@ -3,8 +3,9 @@ Description=Focus assistant check-ins (morning, midday, end of day; once you sit
 
 [Timer]
 # A tick, not a check-in: every 5 minutes focus.schedule looks whether one is
-# due (FOCUS_CHECKINS, FOCUS_CHECKIN_UNTIL) and whether you're at the desk,
-# and exits quietly when not. Keep those times inside these hours.
+# due (FOCUS_CHECKINS, FOCUS_CHECKIN_UNTIL) and whether you're at the desk;
+# when not, it rewrites the latest check-in if something was marked done
+# since, or exits quietly. Keep those times inside these hours.
 OnCalendar=*-*-* 07..21:00/5
 AccuracySec=10s
 # A missed tick is stale: the next one is 5 minutes away.

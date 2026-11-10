@@ -150,6 +150,52 @@ def test_the_timer_runs_the_checkin_only_when_one_is_due(cfg, monkeypatch):
     assert schedule.main() == 0 and runs == ["midday"]
 
 
+def test_a_rewrite_is_due_once_something_is_done_after_the_check_in(cfg):
+    day = MON.date()
+    with st.locked_state(cfg, today=day) as s:
+        ran(s, "morning", at(9, day=MON))
+        early, late = actions.add_priority(s, "Email Sam"), actions.add_priority(s, "Mop")
+        early.done_at = at(8, day=MON).isoformat()
+    assert not schedule.rewrite_due(st.peek(cfg, today=day))   # done before it was written
+
+    with st.locked_state(cfg, today=day) as s:
+        s.find(late.id).done_at = at(9, 40, day=MON).isoformat()
+    assert schedule.rewrite_due(st.peek(cfg, today=day))
+
+    # Rewritten, or tried and the model repeated itself: nothing new to rewrite for.
+    for field in ("updated_at", "rewrite_tried_at"):
+        with st.locked_state(cfg, today=day) as s:
+            s.checkins[-1][field] = at(9, 41, day=MON).isoformat()
+        assert not schedule.rewrite_due(st.peek(cfg, today=day))
+        with st.locked_state(cfg, today=day) as s:
+            del s.checkins[-1][field]
+
+
+def test_fridays_wrap_up_is_never_due_a_rewrite(cfg):
+    friday = date(2026, 10, 16)
+    with st.locked_state(cfg, today=friday) as s:
+        s.checkins.append({"slot": "evening", "at": "2026-10-16T17:30:00-05:00", "reply": "A good week."})
+        actions.add_priority(s, "Mop").done_at = "2026-10-16T17:45:00-05:00"
+    assert not schedule.rewrite_due(st.peek(cfg, today=friday))
+
+
+def test_the_timer_rewrites_the_check_in_when_no_check_in_is_due(cfg, monkeypatch):
+    rewrites = []
+    monkeypatch.setattr(checkin, "run", lambda cfg, slot=None: pytest.fail("no check-in is due"))
+    monkeypatch.setattr(checkin, "refresh", lambda cfg: rewrites.append(1) or "Mopped; now the email.")
+    monkeypatch.setattr(schedule, "what_now", lambda cfg, now, times: None)
+    monkeypatch.setattr(schedule, "rewrite_due", lambda state: False)
+    assert schedule.main() == 0 and rewrites == []
+    monkeypatch.setattr(schedule, "rewrite_due", lambda state: True)
+    assert schedule.main() == 0 and rewrites == [1]
+
+    def offline(cfg):
+        raise coach.CoachError("The coach is offline")
+
+    monkeypatch.setattr(checkin, "refresh", offline)
+    assert schedule.main() == 0   # the note line stays; the next tick tries again
+
+
 def test_the_camera_runs_while_a_checkin_waits(cfg):
     assert camera.why_off(cfg, at(10), BLOCKS) == "outside focus blocks"          # a day off
     assert camera.why_off(cfg, at(10), BLOCKS, TIMES) is None                    # morning is due

@@ -83,6 +83,7 @@ def test_a_rewrite_that_repeats_the_old_check_in_is_not_kept(cfg, monkeypatch):
     s = st.peek(cfg)
     assert "updated_at" not in s.checkins[-1]
     assert display.since_note(s) == "Since 16:20: done Mow the lawn"   # the note stays up
+    assert "rewrite_tried_at" in s.checkins[-1]   # so the timer doesn't ask again for the same change
 
 
 def test_refresh_replaces_the_suggested_item(cfg, monkeypatch):

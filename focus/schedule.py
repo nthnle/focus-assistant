@@ -21,6 +21,11 @@ It is light on purpose: it loads the coach only when a check-in is due.
 
 On a day off (FOCUS_WORKDAYS, focus.days) the check-in is short, and about
 what you planned for that day (focus.coach).
+
+When no check-in is due, a tick also rewrites the latest one if something
+was marked done after it was written (focus.checkin.refresh), so the panel
+catches up whichever way it was marked: the status page, the panel's A
+button or `focus done`, none of which can read the API key.
 """
 
 from __future__ import annotations
@@ -29,7 +34,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from . import config, days, pause, presence, state as st
 from .config import Config
@@ -95,6 +100,19 @@ def what_now(cfg: Config, now: datetime, times: Times) -> str | None:
     return slot if days.is_workday(now.date()) else None
 
 
+def rewrite_due(state: State) -> bool:
+    """Something was marked done after the latest check-in was written (or
+    last rewritten, or last tried), so it reads as out of date."""
+    if not state.checkins:
+        return False
+    last = state.checkins[-1]
+    if last["slot"] == "evening" and days.last_workday_of_week(date.fromisoformat(state.date)):
+        return False  # the week's wrap-up stays as written
+    seen = max(datetime.fromisoformat(t)
+               for t in (last["at"], last.get("updated_at"), last.get("rewrite_tried_at")) if t)
+    return any(p.done_at and datetime.fromisoformat(p.done_at) > seen for p in state.today_list)
+
+
 def waiting_line(cfg: Config, state: State, now: datetime, times: Times) -> str:
     """For `focus status`: what the next check-in waits for."""
     slot = due(state, now, times)
@@ -116,6 +134,13 @@ def main() -> int:
     now = datetime.now().astimezone()
     slot = what_now(cfg, now, from_env())
     if slot is None:
+        if rewrite_due(st.peek(cfg, today=now.date())):
+            from . import checkin, coach
+            try:
+                if checkin.refresh(cfg) is not None:
+                    log.info("Rewrote the latest check-in for what was marked done")
+            except coach.CoachError as exc:  # the note line stays up; the next tick tries again
+                log.warning("Couldn't rewrite the check-in: %s", exc)
         return 0
     from . import checkin   # the coach and its client: only when there's a check-in to write
     log.info("Running the %s check-in", slot)

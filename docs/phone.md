@@ -64,13 +64,13 @@ While you're typing, the page holds back its live update so it doesn't
 throw away what you typed, and catches up as soon as you're done.
 
 When you mark something done after a check-in, a red line under the reply
-says so straight away ("Since 16:20: done Mow the lawn"). If you marked it
-by voice or the call button, the coach then rewrites that
-check-in for the list as it is now, about ten seconds later. The rewrite is
-only shown, never spoken, and its cost counts with the check-ins in
-`focus status`. Friday's weekly review is never rewritten, and `focus done`
-from the CLI or the page's editor only gets the line, because neither can
-read the API key.
+says so straight away ("Since 16:20: done Mow the lawn"). The coach then
+rewrites that check-in for the list as it is now: about ten seconds later if
+you marked it by voice or the call button, and at the next check-in tick
+(within 5 minutes) if you used this page, the panel's A button or
+`focus done`, none of which can read the API key. The rewrite is only shown,
+never spoken, and its cost counts with the check-ins in `focus status`.
+Friday's weekly review is never rewritten.
 
 The `focus-page` service serves it. Enable it, then open:
 
