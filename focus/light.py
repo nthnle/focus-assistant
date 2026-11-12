@@ -251,7 +251,7 @@ def run(cfg: Config, switch, sensor, *, room: Room | None = None,
     while running():
         t = now()
         try:
-            manual = st.peek(cfg).light
+            manual = st.peek(cfg, today=t.date()).light
         except st.StateError as exc:
             log.warning("Can't read the state: %s", exc)
             manual = None
